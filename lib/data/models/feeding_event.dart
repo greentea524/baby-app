@@ -42,11 +42,11 @@ class FeedingEvent {
   }
 
   Map<String, dynamic> toMap() => {
-        'type': type.name,
-        'startTime': Timestamp.fromDate(startTime),
-        'durationMinutes': durationMinutes,
-        'amountMl': amountMl,
-        'side': side?.name,
-        'notes': notes,
-      };
+    'type': type.name,
+    'startTime': Timestamp.fromDate(startTime),
+    'durationMinutes': durationMinutes,
+    'amountMl': amountMl,
+    'side': side?.name,
+    'notes': notes,
+  };
 }

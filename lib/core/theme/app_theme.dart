@@ -23,9 +23,7 @@ abstract final class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: scheme.surface,
       ),
-      cardTheme: const CardThemeData(
-        clipBehavior: Clip.antiAlias,
-      ),
+      cardTheme: const CardThemeData(clipBehavior: Clip.antiAlias),
     );
   }
 }

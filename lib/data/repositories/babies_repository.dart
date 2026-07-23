@@ -16,12 +16,16 @@ class BabiesRepository {
       _firestore.collection('users').doc(_uid).collection('babies');
 
   Stream<List<Baby>> watchBabies() {
-    return _col.orderBy('birthDate').snapshots().map(
-          (snap) => snap.docs.map(Baby.fromDoc).toList(),
-        );
+    return _col
+        .orderBy('birthDate')
+        .snapshots()
+        .map((snap) => snap.docs.map(Baby.fromDoc).toList());
   }
 
-  Future<String> addBaby({required String name, required DateTime birthDate}) async {
+  Future<String> addBaby({
+    required String name,
+    required DateTime birthDate,
+  }) async {
     final doc = await _col.add({
       'name': name,
       'birthDate': Timestamp.fromDate(birthDate),

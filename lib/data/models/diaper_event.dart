@@ -28,8 +28,8 @@ class DiaperEvent {
   }
 
   Map<String, dynamic> toMap() => {
-        'type': type.name,
-        'time': Timestamp.fromDate(time),
-        'notes': notes,
-      };
+    'type': type.name,
+    'time': Timestamp.fromDate(time),
+    'notes': notes,
+  };
 }

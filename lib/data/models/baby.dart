@@ -2,11 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// A baby profile. Stored at `users/{uid}/babies/{id}`.
 class Baby {
-  const Baby({
-    required this.id,
-    required this.name,
-    required this.birthDate,
-  });
+  const Baby({required this.id, required this.name, required this.birthDate});
 
   final String id;
   final String name;
@@ -22,13 +18,13 @@ class Baby {
   }
 
   Map<String, dynamic> toMap() => {
-        'name': name,
-        'birthDate': Timestamp.fromDate(birthDate),
-      };
+    'name': name,
+    'birthDate': Timestamp.fromDate(birthDate),
+  };
 
   Baby copyWith({String? name, DateTime? birthDate}) => Baby(
-        id: id,
-        name: name ?? this.name,
-        birthDate: birthDate ?? this.birthDate,
-      );
+    id: id,
+    name: name ?? this.name,
+    birthDate: birthDate ?? this.birthDate,
+  );
 }
