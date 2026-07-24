@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/theme_mode_provider.dart';
+import '../export/export_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -38,6 +39,16 @@ class SettingsScreen extends ConsumerWidget {
               onSelectionChanged: (selection) {
                 ref.read(themeModeProvider.notifier).setMode(selection.first);
               },
+            ),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.ios_share),
+            title: const Text('Export data'),
+            subtitle: const Text('CSV log or PDF summary report'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ExportScreen()),
             ),
           ),
         ],

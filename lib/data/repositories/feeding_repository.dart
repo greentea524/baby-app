@@ -40,6 +40,17 @@ class FeedingRepository {
         .map((snap) => snap.docs.map(FeedingEvent.fromDoc).toList());
   }
 
+  /// One-shot fetch of every feeding in [start, end), earliest first.
+  /// Used by export (KAN-137) rather than a live stream.
+  Future<List<FeedingEvent>> fetchRange(DateTime start, DateTime end) async {
+    final snap = await _col
+        .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('startTime', isLessThan: Timestamp.fromDate(end))
+        .orderBy('startTime')
+        .get();
+    return snap.docs.map(FeedingEvent.fromDoc).toList();
+  }
+
   Future<String> add(FeedingEvent event) async {
     final doc = await _col.add(event.toMap());
     return doc.id;

@@ -39,6 +39,16 @@ class DiaperRepository {
         .map((snap) => snap.docs.map(DiaperEvent.fromDoc).toList());
   }
 
+  /// One-shot fetch of every diaper change in [start, end), earliest first.
+  Future<List<DiaperEvent>> fetchRange(DateTime start, DateTime end) async {
+    final snap = await _col
+        .where('time', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('time', isLessThan: Timestamp.fromDate(end))
+        .orderBy('time')
+        .get();
+    return snap.docs.map(DiaperEvent.fromDoc).toList();
+  }
+
   Future<String> add(DiaperEvent event) async {
     final doc = await _col.add(event.toMap());
     return doc.id;

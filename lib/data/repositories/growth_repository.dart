@@ -26,6 +26,12 @@ class GrowthRepository {
         .map((snap) => snap.docs.map(GrowthMeasurement.fromDoc).toList());
   }
 
+  /// One-shot fetch of all measurements, earliest first (export, KAN-137).
+  Future<List<GrowthMeasurement>> fetchAll() async {
+    final snap = await _col.orderBy('date').get();
+    return snap.docs.map(GrowthMeasurement.fromDoc).toList();
+  }
+
   Future<String> add(GrowthMeasurement m) async {
     final doc = await _col.add(m.toMap());
     return doc.id;
