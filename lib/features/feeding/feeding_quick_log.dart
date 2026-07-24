@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/event_time_row.dart';
 import 'feeding_format.dart';
 
 /// Opens the feeding quick-log sheet. Pass [existing] to edit an entry
@@ -334,10 +335,7 @@ class _BottleFormState extends State<_BottleForm> {
           },
         ),
         const SizedBox(height: 12),
-        _TimePickerRow(
-          time: _time,
-          onChanged: (t) => setState(() => _time = t),
-        ),
+        EventTimeRow(time: _time, onChanged: (t) => setState(() => _time = t)),
         const SizedBox(height: 12),
         TextField(
           controller: _notesController,
@@ -410,52 +408,9 @@ class _SolidsFormState extends State<_SolidsForm> {
           ),
         ),
         const SizedBox(height: 12),
-        _TimePickerRow(
-          time: _time,
-          onChanged: (t) => setState(() => _time = t),
-        ),
+        EventTimeRow(time: _time, onChanged: (t) => setState(() => _time = t)),
         const SizedBox(height: 16),
         _SaveBar(isEdit: widget.existing != null, build: _build),
-      ],
-    );
-  }
-}
-
-/// Row showing the event time with a button to change it (date + time).
-class _TimePickerRow extends StatelessWidget {
-  const _TimePickerRow({required this.time, required this.onChanged});
-
-  final DateTime time;
-  final ValueChanged<DateTime> onChanged;
-
-  Future<void> _pick(BuildContext context) async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: time,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
-    );
-    if (date == null || !context.mounted) return;
-    final t = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(time),
-    );
-    if (t == null) return;
-    onChanged(DateTime(date.year, date.month, date.day, t.hour, t.minute));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final local = TimeOfDay.fromDateTime(time).format(context);
-    return Row(
-      children: [
-        const Icon(Icons.schedule, size: 20),
-        const SizedBox(width: 8),
-        Expanded(child: Text('$local · ${time.month}/${time.day}')),
-        TextButton(
-          onPressed: () => _pick(context),
-          child: const Text('Change'),
-        ),
       ],
     );
   }

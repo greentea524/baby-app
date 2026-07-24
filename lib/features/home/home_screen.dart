@@ -4,13 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/repositories/repository_providers.dart';
+import '../diaper/diaper_format.dart';
+import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
-import '../feeding/feeding_history_list.dart';
 import '../feeding/feeding_quick_log.dart';
 import 'add_baby_dialog.dart';
+import 'recent_activity_list.dart';
 
-/// Home dashboard: last-fed indicator (KAN-146), quick-log entry point,
-/// and recent feed history.
+/// Home dashboard: last-fed / last-changed indicators, quick-log entry
+/// points for feeds (KAN-130) and diapers (KAN-131), and recent activity.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -45,13 +47,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(baby?.name ?? 'Home')),
-      floatingActionButton: baby == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => showFeedingQuickLog(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Log feed'),
-            ),
       body: babiesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Something went wrong: $e')),
@@ -60,12 +55,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _LastFedCard(now: _now),
+                  _SummaryCard(now: _now),
+                  const _QuickActions(),
                   const Padding(
                     padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
                     child: Text('Recent'),
                   ),
-                  Expanded(child: FeedingHistoryList(now: _now)),
+                  Expanded(child: RecentActivityList(now: _now)),
                 ],
               ),
       ),
@@ -73,55 +69,131 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-class _LastFedCard extends ConsumerWidget {
-  const _LastFedCard({required this.now});
+/// Compact card summarising the last feed and last diaper change.
+class _SummaryCard extends ConsumerWidget {
+  const _SummaryCard({required this.now});
 
   final DateTime now;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final last = ref.watch(lastFeedingProvider);
-    final theme = Theme.of(context);
+    final lastFeed = ref.watch(lastFeedingProvider);
+    final lastDiaper = ref.watch(lastDiaperProvider);
     return Card(
       margin: const EdgeInsets.all(16),
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
           children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(
-                last == null
-                    ? Icons.child_care
-                    : FeedingFormat.typeIcon(last.type),
-                color: theme.colorScheme.onPrimaryContainer,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Last fed', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: 2),
-                  Text(
-                    last == null
-                        ? 'No feeds yet'
-                        : FeedingFormat.timeAgo(last.startTime, now: now),
-                    style: theme.textTheme.headlineSmall,
-                  ),
-                  if (last != null)
-                    Text(
-                      '${FeedingFormat.typeLabel(last.type)}'
-                      '${FeedingFormat.details(last).isEmpty ? '' : ' · ${FeedingFormat.details(last)}'}',
-                      style: theme.textTheme.bodyMedium,
+            _SummaryRow(
+              icon: lastFeed == null
+                  ? Icons.child_care
+                  : FeedingFormat.typeIcon(lastFeed.type),
+              label: 'Last fed',
+              value: lastFeed == null
+                  ? 'No feeds yet'
+                  : FeedingFormat.timeAgo(lastFeed.startTime, now: now),
+              detail: lastFeed == null
+                  ? null
+                  : _join(
+                      FeedingFormat.typeLabel(lastFeed.type),
+                      FeedingFormat.details(lastFeed),
                     ),
-                ],
-              ),
+            ),
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            _SummaryRow(
+              icon: lastDiaper == null
+                  ? Icons.baby_changing_station
+                  : DiaperFormat.typeIcon(lastDiaper.type),
+              label: 'Last changed',
+              value: lastDiaper == null
+                  ? 'No changes yet'
+                  : FeedingFormat.timeAgo(lastDiaper.time, now: now),
+              detail: lastDiaper == null
+                  ? null
+                  : _join(
+                      DiaperFormat.typeLabel(lastDiaper.type),
+                      DiaperFormat.details(lastDiaper),
+                    ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  static String _join(String label, String details) =>
+      details.isEmpty ? label : '$label · $details';
+}
+
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.detail,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final String? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: theme.colorScheme.primaryContainer,
+            child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: theme.textTheme.labelMedium),
+                Text(value, style: theme.textTheme.titleLarge),
+                if (detail != null)
+                  Text(detail!, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickActions extends StatelessWidget {
+  const _QuickActions();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () => showFeedingQuickLog(context),
+              icon: const Icon(Icons.restaurant),
+              label: const Text('Log feed'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton.tonalIcon(
+              onPressed: () => showDiaperQuickLog(context),
+              icon: const Icon(Icons.baby_changing_station),
+              label: const Text('Log diaper'),
+            ),
+          ),
+        ],
       ),
     );
   }

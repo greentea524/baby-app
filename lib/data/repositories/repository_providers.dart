@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
 import '../models/baby.dart';
+import '../models/diaper_event.dart';
 import '../models/feeding_event.dart';
 import 'babies_repository.dart';
+import 'diaper_repository.dart';
 import 'feeding_repository.dart';
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
@@ -52,4 +54,24 @@ final recentFeedingsProvider = StreamProvider<List<FeedingEvent>>((ref) {
 final lastFeedingProvider = Provider<FeedingEvent?>((ref) {
   final feeds = ref.watch(recentFeedingsProvider).value ?? const [];
   return feeds.isEmpty ? null : feeds.first;
+});
+
+/// Diaper repository scoped to the current uid + current baby.
+final diaperRepositoryProvider = Provider<DiaperRepository?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final baby = ref.watch(currentBabyProvider);
+  if (user == null || baby == null) return null;
+  return DiaperRepository(ref.watch(firestoreProvider), user.uid, baby.id);
+});
+
+final recentDiapersProvider = StreamProvider<List<DiaperEvent>>((ref) {
+  final repo = ref.watch(diaperRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchRecent();
+});
+
+/// The most recent diaper change, or null. Powers the "last changed" card.
+final lastDiaperProvider = Provider<DiaperEvent?>((ref) {
+  final diapers = ref.watch(recentDiapersProvider).value ?? const [];
+  return diapers.isEmpty ? null : diapers.first;
 });
