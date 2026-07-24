@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_providers.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/growth/growth_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/timeline/timeline_screen.dart';
@@ -12,6 +13,7 @@ abstract final class AppRoutes {
   static const login = '/login';
   static const home = '/';
   static const timeline = '/timeline';
+  static const growth = '/growth';
   static const settings = '/settings';
 }
 
@@ -57,6 +59,14 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.timeline,
                 builder: (context, state) => const TimelineScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.growth,
+                builder: (context, state) => const GrowthScreen(),
               ),
             ],
           ),
@@ -118,6 +128,11 @@ class _NavigationShell extends StatelessWidget {
             icon: Icon(Icons.timeline_outlined),
             selectedIcon: Icon(Icons.timeline),
             label: 'Timeline',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.monitor_weight_outlined),
+            selectedIcon: Icon(Icons.monitor_weight),
+            label: 'Growth',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

@@ -5,9 +5,11 @@ import '../../core/auth/auth_providers.dart';
 import '../models/baby.dart';
 import '../models/diaper_event.dart';
 import '../models/feeding_event.dart';
+import '../models/growth_measurement.dart';
 import 'babies_repository.dart';
 import 'diaper_repository.dart';
 import 'feeding_repository.dart';
+import 'growth_repository.dart';
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
   return FirebaseFirestore.instance;
@@ -106,4 +108,21 @@ final diapersForDayProvider = StreamProvider<List<DiaperEvent>>((ref) {
   final repo = ref.watch(diaperRepositoryProvider);
   if (repo == null) return Stream.value(const []);
   return repo.watchForDay(ref.watch(selectedDayProvider));
+});
+
+// --- Growth (KAN-136) ------------------------------------------------------
+
+final growthRepositoryProvider = Provider<GrowthRepository?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final baby = ref.watch(currentBabyProvider);
+  if (user == null || baby == null) return null;
+  return GrowthRepository(ref.watch(firestoreProvider), user.uid, baby.id);
+});
+
+final growthMeasurementsProvider = StreamProvider<List<GrowthMeasurement>>((
+  ref,
+) {
+  final repo = ref.watch(growthRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchAll();
 });
