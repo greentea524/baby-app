@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/baby.dart';
 import '../../data/models/growth_measurement.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/event_tile.dart';
 import 'growth_chart.dart';
 import 'growth_log_sheet.dart';
 import 'growth_metric.dart';
+import 'who_percentiles.dart';
 
 /// Growth tab: log weight/height/head over time (KAN-162) and view the
 /// trend chart (KAN-163).
@@ -50,6 +52,15 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
                   _metric,
                   baby.birthDate,
                 );
+                final maxAge = points.isEmpty ? 6.0 : points.last.ageMonths;
+                final maxMonth = (maxAge.ceil() + 1).clamp(3, 60);
+                final curves = baby.sex == null
+                    ? const <PercentileCurve>[]
+                    : whoPercentileCurves(
+                        _metric,
+                        baby.sex!,
+                        maxMonth: maxMonth,
+                      );
                 return ListView(
                   padding: const EdgeInsets.only(bottom: 88),
                   children: [
@@ -65,10 +76,23 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
                             setState(() => _metric = s.first),
                       ),
                     ),
+                    if (baby.sex == null) _SetSexBanner(baby: baby),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: GrowthChart(points: points, metric: _metric),
+                      child: GrowthChart(
+                        points: points,
+                        metric: _metric,
+                        curves: curves,
+                      ),
                     ),
+                    if (baby.sex != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Shaded band: WHO 3rd–97th percentiles',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
                     const Divider(),
                     if (measurements.isEmpty)
                       const Padding(
@@ -85,6 +109,53 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
                 );
               },
             ),
+    );
+  }
+}
+
+/// Shown when the baby has no recorded sex: WHO percentiles are sex-specific,
+/// so we offer a one-tap way to set it (writes to the profile).
+class _SetSexBanner extends ConsumerWidget {
+  const _SetSexBanner({required this.baby});
+
+  final Baby baby;
+
+  Future<void> _set(WidgetRef ref, BabySex sex) async {
+    await ref
+        .read(babiesRepositoryProvider)
+        ?.updateBaby(baby.copyWith(sex: sex));
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Set ${baby.name}\'s sex to overlay WHO growth percentiles.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                OutlinedButton(
+                  onPressed: () => _set(ref, BabySex.male),
+                  child: const Text('Male'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: () => _set(ref, BabySex.female),
+                  child: const Text('Female'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

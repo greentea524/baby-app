@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 
 import 'growth_metric.dart';
+import 'who_percentiles.dart';
 
-/// A simple line chart of the baby's own measurements for one [metric] over
-/// age in months (KAN-163). WHO/CDC percentile reference bands are a planned
-/// enhancement (needs the baby's sex + official LMS tables).
+/// A line chart of the baby's measurements for one [metric] over age in
+/// months (KAN-163), optionally overlaid with WHO percentile reference
+/// curves ([curves], 3rd–97th) when the baby's sex is known.
 class GrowthChart extends StatelessWidget {
   const GrowthChart({
     super.key,
     required this.points,
     required this.metric,
-    this.height = 220,
+    this.curves = const [],
+    this.height = 240,
   });
 
   final List<GrowthPoint> points;
   final GrowthMetric metric;
+  final List<PercentileCurve> curves;
   final double height;
 
   @override
@@ -37,8 +40,10 @@ class GrowthChart extends StatelessWidget {
       child: CustomPaint(
         painter: _GrowthChartPainter(
           points: points,
+          curves: curves,
           unit: metric.unit,
           line: theme.colorScheme.primary,
+          band: theme.colorScheme.tertiary,
           grid: theme.colorScheme.outlineVariant,
           text: theme.colorScheme.onSurfaceVariant,
         ),
@@ -51,22 +56,26 @@ class GrowthChart extends StatelessWidget {
 class _GrowthChartPainter extends CustomPainter {
   _GrowthChartPainter({
     required this.points,
+    required this.curves,
     required this.unit,
     required this.line,
+    required this.band,
     required this.grid,
     required this.text,
   });
 
   final List<GrowthPoint> points;
+  final List<PercentileCurve> curves;
   final String unit;
   final Color line;
+  final Color band;
   final Color grid;
   final Color text;
 
   static const _leftPad = 40.0;
   static const _bottomPad = 24.0;
   static const _topPad = 12.0;
-  static const _rightPad = 12.0;
+  static const _rightPad = 28.0; // room for percentile labels
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -77,12 +86,20 @@ class _GrowthChartPainter extends CustomPainter {
       size.height - _bottomPad,
     );
 
-    var minX = points.first.ageMonths;
-    var maxX = points.last.ageMonths;
-    var minY = points.map((p) => p.value).reduce((a, b) => a < b ? a : b);
-    var maxY = points.map((p) => p.value).reduce((a, b) => a > b ? a : b);
+    // Bounds span the child's points and any reference curves.
+    final allX = <double>[
+      for (final p in points) p.ageMonths,
+      for (final c in curves) ...c.points.map((p) => p.ageMonths),
+    ];
+    final allY = <double>[
+      for (final p in points) p.value,
+      for (final c in curves) ...c.points.map((p) => p.value),
+    ];
+    var minX = allX.reduce((a, b) => a < b ? a : b);
+    var maxX = allX.reduce((a, b) => a > b ? a : b);
+    var minY = allY.reduce((a, b) => a < b ? a : b);
+    var maxY = allY.reduce((a, b) => a > b ? a : b);
 
-    // Pad degenerate ranges so a single point still renders sensibly.
     if (maxX - minX < 0.5) {
       minX -= 1;
       maxX += 1;
@@ -91,7 +108,7 @@ class _GrowthChartPainter extends CustomPainter {
       minY -= 1;
       maxY += 1;
     } else {
-      final margin = (maxY - minY) * 0.1;
+      final margin = (maxY - minY) * 0.08;
       minY -= margin;
       maxY += margin;
     }
@@ -102,12 +119,32 @@ class _GrowthChartPainter extends CustomPainter {
       plot.bottom - (y - minY) / (maxY - minY) * plot.height,
     );
 
+    // Shaded band between the outermost percentiles (3rd–97th).
+    if (curves.length >= 2) {
+      final low = curves.first.points;
+      final high = curves.last.points;
+      final fill = Path()
+        ..moveTo(
+          toPixel(high.first.ageMonths, high.first.value).dx,
+          toPixel(high.first.ageMonths, high.first.value).dy,
+        );
+      for (final p in high.skip(1)) {
+        final o = toPixel(p.ageMonths, p.value);
+        fill.lineTo(o.dx, o.dy);
+      }
+      for (final p in low.reversed) {
+        final o = toPixel(p.ageMonths, p.value);
+        fill.lineTo(o.dx, o.dy);
+      }
+      fill.close();
+      canvas.drawPath(fill, Paint()..color = band.withValues(alpha: 0.08));
+    }
+
+    // Gridlines + y labels.
+    const yTicks = 4;
     final gridPaint = Paint()
       ..color = grid
       ..strokeWidth = 1;
-
-    // Horizontal gridlines + y labels.
-    const yTicks = 4;
     for (var i = 0; i <= yTicks; i++) {
       final value = minY + (maxY - minY) * i / yTicks;
       final y = plot.bottom - plot.height * i / yTicks;
@@ -116,12 +153,9 @@ class _GrowthChartPainter extends CustomPainter {
         canvas,
         value.toStringAsFixed(1),
         Offset(plot.left - 6, y),
-        align: TextAlign.right,
         anchorRight: true,
       );
     }
-
-    // Vertical x labels (age in months).
     const xTicks = 4;
     for (var i = 0; i <= xTicks; i++) {
       final value = minX + (maxX - minX) * i / xTicks;
@@ -130,7 +164,6 @@ class _GrowthChartPainter extends CustomPainter {
         canvas,
         value.toStringAsFixed(value >= 10 ? 0 : 1),
         Offset(x, plot.bottom + 4),
-        align: TextAlign.center,
         centerX: true,
       );
     }
@@ -138,11 +171,31 @@ class _GrowthChartPainter extends CustomPainter {
       canvas,
       'mo · $unit',
       Offset(plot.right, plot.bottom + 4),
-      align: TextAlign.right,
       anchorRight: true,
     );
 
-    // Data line.
+    // Percentile reference lines + right-edge labels.
+    final curvePaint = Paint()
+      ..color = band.withValues(alpha: 0.5)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    for (final c in curves) {
+      final path = Path();
+      for (var i = 0; i < c.points.length; i++) {
+        final o = toPixel(c.points[i].ageMonths, c.points[i].value);
+        i == 0 ? path.moveTo(o.dx, o.dy) : path.lineTo(o.dx, o.dy);
+      }
+      canvas.drawPath(path, curvePaint);
+      final last = c.points.last;
+      _label(
+        canvas,
+        c.label,
+        toPixel(last.ageMonths, last.value) + const Offset(3, 0),
+        fontSize: 8,
+      );
+    }
+
+    // Child line + dots on top.
     final linePaint = Paint()
       ..color = line
       ..strokeWidth = 2.5
@@ -150,16 +203,10 @@ class _GrowthChartPainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round;
     final path = Path();
     for (var i = 0; i < points.length; i++) {
-      final p = toPixel(points[i].ageMonths, points[i].value);
-      if (i == 0) {
-        path.moveTo(p.dx, p.dy);
-      } else {
-        path.lineTo(p.dx, p.dy);
-      }
+      final o = toPixel(points[i].ageMonths, points[i].value);
+      i == 0 ? path.moveTo(o.dx, o.dy) : path.lineTo(o.dx, o.dy);
     }
     canvas.drawPath(path, linePaint);
-
-    // Data dots.
     final dotPaint = Paint()..color = line;
     for (final p in points) {
       canvas.drawCircle(toPixel(p.ageMonths, p.value), 3.5, dotPaint);
@@ -168,18 +215,17 @@ class _GrowthChartPainter extends CustomPainter {
 
   void _label(
     Canvas canvas,
-    String text,
+    String value,
     Offset at, {
-    required TextAlign align,
     bool anchorRight = false,
     bool centerX = false,
+    double fontSize = 10,
   }) {
     final tp = TextPainter(
       text: TextSpan(
-        text: text,
-        style: TextStyle(color: this.text, fontSize: 10),
+        text: value,
+        style: TextStyle(color: text, fontSize: fontSize),
       ),
-      textAlign: align,
       textDirection: TextDirection.ltr,
     )..layout();
     var dx = at.dx;
@@ -190,5 +236,5 @@ class _GrowthChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GrowthChartPainter old) =>
-      old.points != points || old.line != line;
+      old.points != points || old.curves != curves || old.line != line;
 }

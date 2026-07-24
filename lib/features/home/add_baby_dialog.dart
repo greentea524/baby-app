@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/baby.dart';
 import '../../data/repositories/repository_providers.dart';
 
 /// Minimal baby-profile creation so feeding can be logged. Full profile
@@ -22,6 +23,7 @@ class _AddBabyDialog extends ConsumerStatefulWidget {
 class _AddBabyDialogState extends ConsumerState<_AddBabyDialog> {
   final _nameController = TextEditingController();
   DateTime _birthDate = DateTime.now();
+  BabySex? _sex;
   String? _nameError;
   bool _busy = false;
 
@@ -51,7 +53,7 @@ class _AddBabyDialogState extends ConsumerState<_AddBabyDialog> {
     if (repo == null) return;
     setState(() => _busy = true);
     try {
-      await repo.addBaby(name: name, birthDate: _birthDate);
+      await repo.addBaby(name: name, birthDate: _birthDate, sex: _sex);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
@@ -94,6 +96,25 @@ class _AddBabyDialogState extends ConsumerState<_AddBabyDialog> {
               ),
               TextButton(onPressed: _pickDate, child: const Text('Change')),
             ],
+          ),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Sex (for growth percentiles)',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ),
+          const SizedBox(height: 4),
+          SegmentedButton<BabySex?>(
+            emptySelectionAllowed: true,
+            segments: const [
+              ButtonSegment(value: BabySex.male, label: Text('Male')),
+              ButtonSegment(value: BabySex.female, label: Text('Female')),
+            ],
+            selected: {_sex},
+            onSelectionChanged: (s) =>
+                setState(() => _sex = s.isEmpty ? null : s.first),
           ),
         ],
       ),

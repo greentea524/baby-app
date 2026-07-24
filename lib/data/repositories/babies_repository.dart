@@ -25,10 +25,12 @@ class BabiesRepository {
   Future<String> addBaby({
     required String name,
     required DateTime birthDate,
+    BabySex? sex,
   }) async {
     final doc = await _col.add({
       'name': name,
       'birthDate': Timestamp.fromDate(birthDate),
+      'sex': sex?.name,
     });
     return doc.id;
   }
