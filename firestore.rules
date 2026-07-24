@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// Access control for the baby-tracking app.
+//
+// Data model (see KAN-129): everything lives under the signed-in user's
+// document, so the rule is simply "you can only touch your own subtree".
+//
+//   users/{uid}/babies/{babyId}
+//   users/{uid}/babies/{babyId}/feedings/{eventId}
+//   users/{uid}/babies/{babyId}/diapers/{eventId}
+//
+// When cross-account sharing lands (KAN-134), baby data moves to a
+// top-level collection guarded by a `members` map; these rules will be
+// revisited then.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // A user may read and write anything within their own tree.
+    match /users/{uid}/{document=**} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Everything else is denied by default (no catch-all allow).
+  }
+}
