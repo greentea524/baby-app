@@ -27,6 +27,19 @@ class FeedingRepository {
         .map((snap) => snap.docs.map(FeedingEvent.fromDoc).toList());
   }
 
+  /// All feedings on the local calendar [day], earliest first. Powers the
+  /// daily timeline (KAN-132).
+  Stream<List<FeedingEvent>> watchForDay(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return _col
+        .where('startTime', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('startTime', isLessThan: Timestamp.fromDate(end))
+        .orderBy('startTime')
+        .snapshots()
+        .map((snap) => snap.docs.map(FeedingEvent.fromDoc).toList());
+  }
+
   Future<String> add(FeedingEvent event) async {
     final doc = await _col.add(event.toMap());
     return doc.id;

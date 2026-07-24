@@ -75,3 +75,35 @@ final lastDiaperProvider = Provider<DiaperEvent?>((ref) {
   final diapers = ref.watch(recentDiapersProvider).value ?? const [];
   return diapers.isEmpty ? null : diapers.first;
 });
+
+// --- Timeline (KAN-132): per-day queries -----------------------------------
+
+/// The calendar day the timeline is viewing, normalised to local midnight.
+/// Defaults to today.
+final selectedDayProvider = NotifierProvider<SelectedDayNotifier, DateTime>(
+  SelectedDayNotifier.new,
+);
+
+class SelectedDayNotifier extends Notifier<DateTime> {
+  @override
+  DateTime build() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  void setDay(DateTime day) => state = DateTime(day.year, day.month, day.day);
+
+  void shift(int days) => state = state.add(Duration(days: days));
+}
+
+final feedingsForDayProvider = StreamProvider<List<FeedingEvent>>((ref) {
+  final repo = ref.watch(feedingRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchForDay(ref.watch(selectedDayProvider));
+});
+
+final diapersForDayProvider = StreamProvider<List<DiaperEvent>>((ref) {
+  final repo = ref.watch(diaperRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchForDay(ref.watch(selectedDayProvider));
+});

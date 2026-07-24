@@ -27,6 +27,18 @@ class DiaperRepository {
         .map((snap) => snap.docs.map(DiaperEvent.fromDoc).toList());
   }
 
+  /// All diaper changes on the local calendar [day], earliest first.
+  Stream<List<DiaperEvent>> watchForDay(DateTime day) {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    return _col
+        .where('time', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('time', isLessThan: Timestamp.fromDate(end))
+        .orderBy('time')
+        .snapshots()
+        .map((snap) => snap.docs.map(DiaperEvent.fromDoc).toList());
+  }
+
   Future<String> add(DiaperEvent event) async {
     final doc = await _col.add(event.toMap());
     return doc.id;
