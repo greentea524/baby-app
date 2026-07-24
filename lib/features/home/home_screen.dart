@@ -9,6 +9,7 @@ import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
 import 'add_baby_dialog.dart';
+import 'baby_switcher.dart';
 import 'recent_activity_list.dart';
 
 /// Home dashboard: last-fed / last-changed indicators, quick-log entry
@@ -46,7 +47,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final baby = ref.watch(currentBabyProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text(baby?.name ?? 'Home')),
+      appBar: AppBar(
+        title: baby == null ? const Text('Home') : const BabySwitcher(),
+      ),
       body: babiesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Something went wrong: $e')),

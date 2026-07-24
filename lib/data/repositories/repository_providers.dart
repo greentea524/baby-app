@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
+// sharedPreferencesProvider lives with the theme provider (both are prefs-backed).
+import '../../core/theme/theme_mode_provider.dart';
 import '../models/baby.dart';
 import '../models/diaper_event.dart';
 import '../models/feeding_event.dart';
@@ -29,12 +31,37 @@ final babiesStreamProvider = StreamProvider<List<Baby>>((ref) {
   return repo.watchBabies();
 });
 
-/// The baby currently being logged against. Until the full profile-switching
-/// UI lands (KAN-135), this simply follows the first baby on the account;
-/// screens prompt the user to create one when the list is empty.
+const _selectedBabyKey = 'selected_baby_id';
+
+/// The user's chosen baby, persisted across sessions (KAN-135). Null means
+/// "no explicit choice yet" — [currentBabyProvider] then falls back to the
+/// first baby.
+final selectedBabyIdProvider = NotifierProvider<SelectedBabyNotifier, String?>(
+  SelectedBabyNotifier.new,
+);
+
+class SelectedBabyNotifier extends Notifier<String?> {
+  @override
+  String? build() =>
+      ref.read(sharedPreferencesProvider).getString(_selectedBabyKey);
+
+  Future<void> select(String id) async {
+    state = id;
+    await ref.read(sharedPreferencesProvider).setString(_selectedBabyKey, id);
+  }
+}
+
+/// The baby currently being logged against: the selected one if it still
+/// exists, otherwise the first baby (or null when there are none). Every
+/// per-baby repository scopes to this, so switching re-points all data.
 final currentBabyProvider = Provider<Baby?>((ref) {
   final babies = ref.watch(babiesStreamProvider).value ?? const [];
-  return babies.isEmpty ? null : babies.first;
+  if (babies.isEmpty) return null;
+  final selectedId = ref.watch(selectedBabyIdProvider);
+  return babies.firstWhere(
+    (b) => b.id == selectedId,
+    orElse: () => babies.first,
+  );
 });
 
 /// Feeding repository scoped to the current uid + current baby. Null when
