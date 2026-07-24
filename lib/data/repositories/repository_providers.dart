@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
 import '../models/baby.dart';
+import '../models/feeding_event.dart';
 import 'babies_repository.dart';
+import 'feeding_repository.dart';
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
   return FirebaseFirestore.instance;
@@ -21,4 +23,33 @@ final babiesStreamProvider = StreamProvider<List<Baby>>((ref) {
   final repo = ref.watch(babiesRepositoryProvider);
   if (repo == null) return Stream.value(const []);
   return repo.watchBabies();
+});
+
+/// The baby currently being logged against. Until the full profile-switching
+/// UI lands (KAN-135), this simply follows the first baby on the account;
+/// screens prompt the user to create one when the list is empty.
+final currentBabyProvider = Provider<Baby?>((ref) {
+  final babies = ref.watch(babiesStreamProvider).value ?? const [];
+  return babies.isEmpty ? null : babies.first;
+});
+
+/// Feeding repository scoped to the current uid + current baby. Null when
+/// signed out or no baby exists yet, so UI can guard cleanly.
+final feedingRepositoryProvider = Provider<FeedingRepository?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final baby = ref.watch(currentBabyProvider);
+  if (user == null || baby == null) return null;
+  return FeedingRepository(ref.watch(firestoreProvider), user.uid, baby.id);
+});
+
+final recentFeedingsProvider = StreamProvider<List<FeedingEvent>>((ref) {
+  final repo = ref.watch(feedingRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchRecent();
+});
+
+/// The most recent feeding, or null. Powers the home "last fed" indicator.
+final lastFeedingProvider = Provider<FeedingEvent?>((ref) {
+  final feeds = ref.watch(recentFeedingsProvider).value ?? const [];
+  return feeds.isEmpty ? null : feeds.first;
 });
