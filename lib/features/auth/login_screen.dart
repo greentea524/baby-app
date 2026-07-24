@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,10 +23,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       await ref.read(authRepositoryProvider).signInWithGoogle();
       // The router redirect reacts to auth state; no manual navigation.
+    } on FirebaseAuthException catch (e) {
+      if (mounted) setState(() => _error = _messageFor(e));
     } catch (e) {
-      if (mounted) setState(() => _error = 'Sign-in failed. Please try again.');
+      if (mounted) setState(() => _error = 'Sign-in failed: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Turns a Firebase auth error into an actionable message. Includes the
+  /// raw code so misconfigurations are diagnosable rather than opaque.
+  String _messageFor(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'operation-not-allowed':
+        return 'Google sign-in is not enabled for this Firebase project. '
+            'Enable it in Authentication → Sign-in method. [${e.code}]';
+      case 'unauthorized-domain':
+        return 'This domain is not authorized for sign-in. Add it under '
+            'Authentication → Settings → Authorized domains. [${e.code}]';
+      case 'popup-blocked':
+        return 'The sign-in popup was blocked by the browser. Allow popups '
+            'for this site and try again. [${e.code}]';
+      case 'popup-closed-by-user':
+      case 'cancelled-popup-request':
+        return 'Sign-in was cancelled.';
+      default:
+        return 'Sign-in failed: ${e.message ?? e.code} [${e.code}]';
     }
   }
 
