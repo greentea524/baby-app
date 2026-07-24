@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/theme_mode_provider.dart';
 import '../export/export_screen.dart';
+import '../reminders/reminder_providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -42,6 +43,8 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(),
+          const _ReminderSection(),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.ios_share),
             title: const Text('Export data'),
@@ -54,5 +57,69 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// Feed reminder configuration (KAN-133): predicted from recent intervals,
+/// a fixed gap, or off.
+class _ReminderSection extends ConsumerWidget {
+  const _ReminderSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(reminderSettingsProvider);
+    final notifier = ref.read(reminderSettingsProvider.notifier);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ListTile(
+          leading: const Icon(Icons.notifications_outlined),
+          title: const Text('Feed reminder'),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: SegmentedButton<ReminderMode>(
+              segments: [
+                for (final m in ReminderMode.values)
+                  ButtonSegment(value: m, label: Text(m.label)),
+              ],
+              selected: {settings.mode},
+              onSelectionChanged: (s) => notifier.setMode(s.first),
+            ),
+          ),
+        ),
+        if (settings.mode == ReminderMode.fixedInterval)
+          ListTile(
+            title: const Text('Interval'),
+            subtitle: Text(_label(settings.intervalMinutes)),
+            trailing: DropdownButton<int>(
+              value: settings.intervalMinutes,
+              items: const [90, 120, 150, 180, 210, 240, 300, 360]
+                  .map(
+                    (m) => DropdownMenuItem(value: m, child: Text(_label(m))),
+                  )
+                  .toList(),
+              onChanged: (m) {
+                if (m != null) notifier.setIntervalMinutes(m);
+              },
+            ),
+          ),
+        if (settings.mode == ReminderMode.predictive)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(72, 0, 16, 8),
+            child: Text(
+              'Uses a rolling average of recent feed intervals.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  static String _label(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h == 0) return '$m min';
+    return m == 0 ? '$h hr' : '$h hr $m min';
   }
 }

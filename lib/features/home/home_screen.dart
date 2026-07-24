@@ -8,6 +8,7 @@ import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
+import '../reminders/next_feed_card.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
 import 'recent_activity_list.dart';
@@ -59,6 +60,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _SummaryCard(now: _now),
+                  NextFeedCard(now: _now),
                   const _QuickActions(),
                   const Padding(
                     padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
