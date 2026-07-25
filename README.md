@@ -85,6 +85,26 @@ flutter analyze
 flutter test
 ```
 
+## Continuous deployment
+
+`.github/workflows/deploy.yml` builds and deploys to Firebase Hosting on
+every push to `main` (after `flutter analyze` + `flutter test` pass). Pull
+requests run checks only, via `ci.yml`.
+
+**One-time setup** — add a Firebase service-account key as a repo secret so
+the Action can deploy:
+
+1. Firebase console → **Project settings → Service accounts → Generate new
+   private key** — downloads a JSON file.
+2. Store it as the `FIREBASE_SERVICE_ACCOUNT` secret (don't commit it):
+   ```bash
+   gh secret set FIREBASE_SERVICE_ACCOUNT --repo greentea524/baby-app < path/to/serviceAccountKey.json
+   ```
+
+After that, `git push` to `main` deploys automatically. (To also inject the
+push VAPID key, add `--dart-define=VAPID_KEY=${{ secrets.VAPID_KEY }}` to the
+build step and set that secret too.)
+
 ## Background push notifications (KAN-156) — optional, requires setup
 
 Feed reminders can be delivered while the app is closed, via Firebase Cloud

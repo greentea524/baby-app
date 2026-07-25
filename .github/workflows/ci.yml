@@ -1,8 +1,8 @@
 name: CI
 
+# Checks for pull requests. Pushes to main are gated by the deploy workflow,
+# which re-runs analyze + test before publishing.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 
