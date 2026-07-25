@@ -26,6 +26,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/babies/$(babyId)).data;
     }
 
+    // Membership of a baby the rule is *reading directly* — uses the doc's own
+    // data so list queries (where memberUids array-contains uid) are provable.
+    function isMemberOf(data) {
+      return signedIn() && request.auth.uid in data.memberUids;
+    }
+
+    // Membership of a *parent* baby, for subcollection/invite rules where the
+    // document being read isn't the baby itself. Costs one get() per query.
     function isMember(babyId) {
       return signedIn() && request.auth.uid in babyData(babyId).memberUids;
     }
@@ -40,7 +48,7 @@ service cloud.firestore {
     }
 
     match /babies/{babyId} {
-      allow read: if isMember(babyId);
+      allow read: if isMemberOf(resource.data);
 
       // Create: the creator must make themselves the sole owner.
       allow create: if signedIn()
@@ -50,11 +58,11 @@ service cloud.firestore {
 
       // Members may edit the baby; a non-member may accept an invite by
       // adding only themselves (see below).
-      allow update: if isMember(babyId) || isAcceptingInvite(babyId);
+      allow update: if isMemberOf(resource.data) || isAcceptingInvite(babyId);
 
       // Only the owner may delete the profile.
       allow delete: if signedIn()
-        && babyData(babyId).ownerUid == request.auth.uid;
+        && resource.data.ownerUid == request.auth.uid;
 
       // A signed-in, invited user adds exactly themselves to the member
       // lists, keeps the existing members, and leaves ownership unchanged.
@@ -73,11 +81,15 @@ service cloud.firestore {
       // Invites: readable by members and by the invited email; only members
       // create/delete them.
       match /invites/{email} {
+        // Members see all invites; an invitee sees their own. Matching on the
+        // stored email field (not the doc id) keeps the collection-group
+        // "invites where email == me" query provable.
         allow read: if isMember(babyId)
-          || (signedIn() && request.auth.token.email == email);
-        allow create, delete: if isMember(babyId);
-        // The invitee deletes their own invite when accepting/declining.
-        allow delete: if signedIn() && request.auth.token.email == email;
+          || (signedIn() && resource.data.email == request.auth.token.email);
+        allow create: if isMember(babyId);
+        // Members revoke; the invitee deletes their own on accept/decline.
+        allow delete: if isMember(babyId)
+          || (signedIn() && resource.data.email == request.auth.token.email);
       }
 
       // Event subcollections: full access to members.
