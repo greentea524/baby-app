@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/launch_action.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../caregivers/incoming_invites.dart';
 import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
-import '../caregivers/incoming_invites.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../reminders/next_feed_card.dart';
@@ -27,6 +28,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Ticks so relative "time ago" labels stay fresh without a stream write.
   Timer? _ticker;
   DateTime _now = DateTime.now();
+  bool _launchHandled = false;
+
+  /// Opens the quick-log sheet requested by a PWA shortcut (KAN-166), once
+  /// a baby is available. Runs at most once per launch.
+  void _maybeHandleLaunchAction(bool hasBaby) {
+    if (_launchHandled || !hasBaby) return;
+    final action = ref.read(launchActionProvider);
+    if (action != 'feed' && action != 'diaper') return;
+    _launchHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(launchActionProvider.notifier).consume();
+      if (!mounted) return;
+      if (action == 'feed') {
+        showFeedingQuickLog(context);
+      } else {
+        showDiaperQuickLog(context);
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -47,6 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final babiesAsync = ref.watch(babiesStreamProvider);
     final baby = ref.watch(currentBabyProvider);
+    _maybeHandleLaunchAction(baby != null);
 
     return Scaffold(
       appBar: AppBar(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/auth_providers.dart';
 import '../../core/theme/theme_mode_provider.dart';
 import '../caregivers/caregivers_screen.dart';
 import '../export/export_screen.dart';
@@ -64,6 +65,18 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const ExportScreen()),
             ),
+          ),
+          const Divider(),
+          ListTile(
+            leading: Icon(
+              Icons.logout,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            title: Text(
+              'Sign out',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            onTap: () => ref.read(authRepositoryProvider).signOut(),
           ),
         ],
       ),

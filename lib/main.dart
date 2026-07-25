@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/launch_action.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_provider.dart';
@@ -23,9 +24,15 @@ Future<void> main() async {
 
   final prefs = await SharedPreferences.getInstance();
 
+  // A PWA shortcut launches at e.g. /?action=feed (KAN-166).
+  final launchAction = Uri.base.queryParameters['action'];
+
   runApp(
     ProviderScope(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        initialLaunchActionProvider.overrideWithValue(launchAction),
+      ],
       child: const BabyApp(),
     ),
   );

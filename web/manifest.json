@@ -8,6 +8,20 @@
     "description": "Track feeding, diaper changes, and growth across caregivers.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "shortcuts": [
+        {
+            "name": "Log feed",
+            "short_name": "Feed",
+            "description": "Quickly log a feeding",
+            "url": "./?action=feed"
+        },
+        {
+            "name": "Log diaper",
+            "short_name": "Diaper",
+            "description": "Quickly log a diaper change",
+            "url": "./?action=diaper"
+        }
+    ],
     "icons": [
         {
             "src": "icons/Icon-192.png",
