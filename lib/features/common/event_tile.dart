@@ -51,14 +51,20 @@ class EventTile extends StatelessWidget {
     return Dismissible(
       key: key ?? UniqueKey(),
       direction: DismissDirection.endToStart,
-      confirmDismiss: (_) => _confirm(context),
-      onDismissed: (_) async {
+      // Delete inside confirmDismiss and always return false: the list is
+      // driven by a Firestore stream that removes this row a frame later, so
+      // actually "dismissing" would leave a dismissed widget in the tree for
+      // a frame — which throws and white-screens. Returning false lets the
+      // stream do the removal safely.
+      confirmDismiss: (_) async {
+        if (!await _confirm(context)) return false;
         await onDelete();
         if (context.mounted) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(deletedMessage)));
         }
+        return false;
       },
       background: Container(
         color: scheme.errorContainer,
