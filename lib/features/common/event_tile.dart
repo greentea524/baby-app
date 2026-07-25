@@ -27,16 +27,19 @@ class EventTile extends StatelessWidget {
   Future<bool> _confirm(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      // Use the dialog's own context to pop — popping via the outer context
+      // targets go_router's page navigator and crashes ("popped the last
+      // page off the stack").
+      builder: (dialogContext) => AlertDialog(
         title: Text(confirmTitle),
         content: const Text("This can't be undone."),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Delete'),
           ),
         ],

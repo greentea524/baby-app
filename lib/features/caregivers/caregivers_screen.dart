@@ -128,16 +128,16 @@ class CaregiversScreen extends ConsumerWidget {
   Future<void> _leave(BuildContext context, WidgetRef ref, Baby baby) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('Leave ${baby.name}?'),
         content: const Text('You will no longer see this baby.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Leave'),
           ),
         ],

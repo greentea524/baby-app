@@ -54,18 +54,18 @@ class _BabyPickerSheet extends ConsumerWidget {
   ) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: Text('Delete ${baby.name}?'),
         content: const Text(
           'The profile is removed. Logged entries are no longer shown.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Delete'),
           ),
         ],
