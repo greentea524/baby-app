@@ -8,6 +8,8 @@ import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
+import '../pumping/pumping_format.dart';
+import '../pumping/pumping_quick_log.dart';
 
 /// Renders one [ActivityEntry] (feed or diaper) as a swipe/tap [EventTile],
 /// wiring edit and delete to the right repository. Shared by the home
@@ -58,6 +60,18 @@ class ActivityTile extends ConsumerWidget {
         onTap: () => showDiaperQuickLog(context, existing: event),
         onDelete: () async =>
             ref.read(diaperRepositoryProvider)?.delete(event.id),
+      ),
+      PumpingEntry(:final event) => EventTile(
+        key: ValueKey('pump_${event.id}'),
+        icon: PumpingFormat.icon,
+        title: PumpingFormat.label,
+        subtitle: PumpingFormat.details(event),
+        trailing: trailing,
+        confirmTitle: 'Delete pumping?',
+        deletedMessage: 'Pumping deleted',
+        onTap: () => showPumpingQuickLog(context, existing: event),
+        onDelete: () async =>
+            ref.read(pumpingRepositoryProvider)?.delete(event.id),
       ),
     };
   }

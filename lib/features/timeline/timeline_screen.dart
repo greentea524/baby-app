@@ -17,16 +17,24 @@ class TimelineScreen extends ConsumerWidget {
     final day = ref.watch(selectedDayProvider);
     final feedsAsync = ref.watch(feedingsForDayProvider);
     final diapersAsync = ref.watch(diapersForDayProvider);
+    final pumpsAsync = ref.watch(pumpingForDayProvider);
     final baby = ref.watch(currentBabyProvider);
 
     final loading =
         (!feedsAsync.hasValue && feedsAsync.isLoading) ||
-        (!diapersAsync.hasValue && diapersAsync.isLoading);
+        (!diapersAsync.hasValue && diapersAsync.isLoading) ||
+        (!pumpsAsync.hasValue && pumpsAsync.isLoading);
 
     final feeds = feedsAsync.value ?? const [];
     final diapers = diapersAsync.value ?? const [];
-    final entries = mergeActivities(feeds, diapers, descending: false);
-    final stats = DayStats.from(feeds, diapers);
+    final pumps = pumpsAsync.value ?? const [];
+    final entries = mergeActivities(
+      feeds,
+      diapers,
+      pumps: pumps,
+      descending: false,
+    );
+    final stats = DayStats.from(feeds, diapers, pumps: pumps);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Timeline')),
@@ -168,6 +176,13 @@ class _StatsCard extends StatelessWidget {
               icon: Icons.local_drink,
               label: 'Bottle',
               value: '${TimelineFormat.ml(stats.bottleMl)} ml',
+            ),
+          if (stats.pumpCount > 0)
+            _StatChip(
+              icon: Icons.opacity,
+              label: 'Pumped',
+              value: '${TimelineFormat.ml(stats.pumpedMl)} ml',
+              detail: '${stats.pumpCount}x',
             ),
           _StatChip(
             icon: Icons.baby_changing_station,

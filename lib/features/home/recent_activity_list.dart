@@ -17,15 +17,18 @@ class RecentActivityList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final feedsAsync = ref.watch(recentFeedingsProvider);
     final diapersAsync = ref.watch(recentDiapersProvider);
+    final pumpsAsync = ref.watch(recentPumpingProvider);
 
     if ((!feedsAsync.hasValue && feedsAsync.isLoading) ||
-        (!diapersAsync.hasValue && diapersAsync.isLoading)) {
+        (!diapersAsync.hasValue && diapersAsync.isLoading) ||
+        (!pumpsAsync.hasValue && pumpsAsync.isLoading)) {
       return const Center(child: CircularProgressIndicator());
     }
 
     final entries = mergeActivities(
       feedsAsync.value ?? const [],
       diapersAsync.value ?? const [],
+      pumps: pumpsAsync.value ?? const [],
     );
 
     if (entries.isEmpty) {

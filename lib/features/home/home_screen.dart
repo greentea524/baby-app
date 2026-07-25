@@ -10,6 +10,8 @@ import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
+import '../pumping/pumping_format.dart';
+import '../pumping/pumping_quick_log.dart';
 import '../reminders/next_feed_card.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
@@ -206,22 +208,31 @@ class _QuickActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: () => showFeedingQuickLog(context),
-              icon: const Icon(Icons.restaurant),
-              label: const Text('Log feed'),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => showFeedingQuickLog(context),
+                  icon: const Icon(Icons.restaurant),
+                  label: const Text('Log feed'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: () => showDiaperQuickLog(context),
+                  icon: const Icon(Icons.baby_changing_station),
+                  label: const Text('Log diaper'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: FilledButton.tonalIcon(
-              onPressed: () => showDiaperQuickLog(context),
-              icon: const Icon(Icons.baby_changing_station),
-              label: const Text('Log diaper'),
-            ),
+          TextButton.icon(
+            onPressed: () => showPumpingQuickLog(context),
+            icon: const Icon(PumpingFormat.icon, size: 18),
+            label: const Text('Log pumping'),
           ),
         ],
       ),

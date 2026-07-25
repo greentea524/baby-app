@@ -1,5 +1,6 @@
 import '../../data/models/diaper_event.dart';
 import '../../data/models/feeding_event.dart';
+import '../../data/models/pumping_event.dart';
 
 /// Summary statistics for one day's events (KAN-153). Pure/derivable so it
 /// can be unit-tested and reused by export/reporting later.
@@ -13,6 +14,8 @@ class DayStats {
     required this.wetCount,
     required this.dirtyCount,
     required this.bothCount,
+    this.pumpCount = 0,
+    this.pumpedMl = 0,
   });
 
   final int feedCount;
@@ -28,10 +31,14 @@ class DayStats {
   final int dirtyCount;
   final int bothCount;
 
+  final int pumpCount;
+  final double pumpedMl;
+
   factory DayStats.from(
     List<FeedingEvent> feedings,
-    List<DiaperEvent> diapers,
-  ) {
+    List<DiaperEvent> diapers, {
+    List<PumpingEvent> pumps = const [],
+  }) {
     final feeds = [...feedings]
       ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
@@ -68,6 +75,11 @@ class DayStats {
       }
     }
 
+    var pumpedMl = 0.0;
+    for (final p in pumps) {
+      pumpedMl += p.amountMl ?? 0;
+    }
+
     return DayStats(
       feedCount: feeds.length,
       avgFeedIntervalMinutes: avgInterval,
@@ -77,6 +89,8 @@ class DayStats {
       wetCount: wet,
       dirtyCount: dirty,
       bothCount: both,
+      pumpCount: pumps.length,
+      pumpedMl: pumpedMl,
     );
   }
 }

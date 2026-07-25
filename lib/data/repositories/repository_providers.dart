@@ -9,10 +9,12 @@ import '../models/caregiver_invite.dart';
 import '../models/diaper_event.dart';
 import '../models/feeding_event.dart';
 import '../models/growth_measurement.dart';
+import '../models/pumping_event.dart';
 import 'babies_repository.dart';
 import 'diaper_repository.dart';
 import 'feeding_repository.dart';
 import 'growth_repository.dart';
+import 'pumping_repository.dart';
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
   return FirebaseFirestore.instance;
@@ -134,6 +136,27 @@ final feedingsForDayProvider = StreamProvider<List<FeedingEvent>>((ref) {
 
 final diapersForDayProvider = StreamProvider<List<DiaperEvent>>((ref) {
   final repo = ref.watch(diaperRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchForDay(ref.watch(selectedDayProvider));
+});
+
+// --- Pumping (KAN-145) -----------------------------------------------------
+
+final pumpingRepositoryProvider = Provider<PumpingRepository?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final baby = ref.watch(currentBabyProvider);
+  if (user == null || baby == null) return null;
+  return PumpingRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+});
+
+final recentPumpingProvider = StreamProvider<List<PumpingEvent>>((ref) {
+  final repo = ref.watch(pumpingRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchRecent();
+});
+
+final pumpingForDayProvider = StreamProvider<List<PumpingEvent>>((ref) {
+  final repo = ref.watch(pumpingRepositoryProvider);
   if (repo == null) return Stream.value(const []);
   return repo.watchForDay(ref.watch(selectedDayProvider));
 });
