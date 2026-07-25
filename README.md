@@ -84,3 +84,30 @@ Output is in `build/web/` (installable — includes manifest + service worker).
 flutter analyze
 flutter test
 ```
+
+## Background push notifications (KAN-156) — optional, requires setup
+
+Feed reminders can be delivered while the app is closed, via Firebase Cloud
+Messaging + a scheduled Cloud Function. This needs a few one-time steps that
+**can't be automated** (billing + a device permission):
+
+1. **Upgrade to the Blaze plan** — Cloud Functions require it (there's a free
+   tier; a scheduled 15-min job is well within it).
+2. **Generate a Web Push key** — Firebase console → Project settings → Cloud
+   Messaging → *Web configuration* → **Generate key pair**. Build the web app
+   with it:
+   ```bash
+   flutter build web --dart-define=VAPID_KEY=<your-web-push-public-key>
+   ```
+3. **Deploy the function** (the reminder engine, in `functions/`):
+   ```bash
+   cd functions && npm install && npm run deploy
+   ```
+   It runs every 15 minutes: for each baby it predicts the next feed from a
+   rolling average of recent intervals and pushes caregivers whose device
+   token is registered (`fcmTokens/{token}`).
+4. In the app, open **Settings → Background reminders** and toggle it on to
+   grant notification permission and register this device.
+
+The in-app "next feed" reminder card works with none of this; the above only
+adds notifications when the app isn't open.

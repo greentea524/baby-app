@@ -30,6 +30,15 @@ service cloud.firestore {
       return signedIn() && request.auth.uid in babyData(babyId).memberUids;
     }
 
+    // Per-device push tokens (KAN-156): a user manages only their own; the
+    // reminder Cloud Function reads them all via the Admin SDK.
+    match /fcmTokens/{token} {
+      allow create, update: if signedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow read, delete: if signedIn()
+        && resource.data.uid == request.auth.uid;
+    }
+
     match /babies/{babyId} {
       allow read: if isMember(babyId);
 

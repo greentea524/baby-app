@@ -5,6 +5,7 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/theme/theme_mode_provider.dart';
 import '../caregivers/caregivers_screen.dart';
 import '../export/export_screen.dart';
+import '../notifications/push_service.dart';
 import '../reminders/reminder_providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -136,6 +137,7 @@ class _ReminderSection extends ConsumerWidget {
               style: TextStyle(fontSize: 12),
             ),
           ),
+        const _PushToggle(),
       ],
     );
   }
@@ -145,5 +147,38 @@ class _ReminderSection extends ConsumerWidget {
     final m = minutes % 60;
     if (h == 0) return '$m min';
     return m == 0 ? '$h hr' : '$h hr $m min';
+  }
+}
+
+/// Opt-in for background push notifications (KAN-156). Registers this
+/// device's FCM token; the actual pushes are sent by a scheduled Cloud
+/// Function (see functions/ + README).
+class _PushToggle extends ConsumerWidget {
+  const _PushToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(pushEnabledProvider);
+    final uid = ref.watch(authStateProvider).value?.uid;
+    return SwitchListTile(
+      secondary: const Icon(Icons.notifications_active_outlined),
+      title: const Text('Background reminders'),
+      subtitle: const Text(
+        'Get notified when a feed is due, even with the app closed.',
+      ),
+      value: enabled,
+      onChanged: (v) async {
+        final ok = await ref.read(pushEnabledProvider.notifier).set(v, uid);
+        if (context.mounted && v && !ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Notifications were not enabled (permission or setup).',
+              ),
+            ),
+          );
+        }
+      },
+    );
   }
 }
