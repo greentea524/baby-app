@@ -1,29 +1,80 @@
 rules_version = '2';
 
-// Access control for the baby-tracking app.
+// Access control for the baby-tracking app (KAN-134: multi-caregiver).
 //
-// Data model (see KAN-129): everything lives under the signed-in user's
-// document, so the rule is simply "you can only touch your own subtree".
+// Baby data lives in a shared top-level collection so it can be owned and
+// edited by multiple caregivers:
 //
-//   users/{uid}/babies/{babyId}
-//   users/{uid}/babies/{babyId}/feedings/{eventId}
-//   users/{uid}/babies/{babyId}/diapers/{eventId}
+//   babies/{babyId}                       (name, birthDate, sex, ownerUid,
+//                                          members{uid:role}, memberUids[])
+//   babies/{babyId}/feedings/{eventId}
+//   babies/{babyId}/diapers/{eventId}
+//   babies/{babyId}/growth/{eventId}
+//   babies/{babyId}/invites/{email}       (pending caregiver invitations)
 //
-// When cross-account sharing lands (KAN-134), baby data moves to a
-// top-level collection guarded by a `members` map; these rules will be
-// revisited then.
+// A caregiver may touch a baby (and its subcollections) only if their uid is
+// in that baby's memberUids. Joining is allowed only for someone holding a
+// matching invite, and only to add themselves.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isOwner(uid) {
-      return request.auth != null && request.auth.uid == uid;
+    function signedIn() {
+      return request.auth != null;
     }
 
-    // A user may read and write anything within their own tree.
-    match /users/{uid}/{document=**} {
-      allow read, write: if isOwner(uid);
+    function babyData(babyId) {
+      return get(/databases/$(database)/documents/babies/$(babyId)).data;
     }
 
-    // Everything else is denied by default (no catch-all allow).
+    function isMember(babyId) {
+      return signedIn() && request.auth.uid in babyData(babyId).memberUids;
+    }
+
+    match /babies/{babyId} {
+      allow read: if isMember(babyId);
+
+      // Create: the creator must make themselves the sole owner.
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.memberUids.hasOnly([request.auth.uid])
+        && request.resource.data.members[request.auth.uid] == 'owner';
+
+      // Members may edit the baby; a non-member may accept an invite by
+      // adding only themselves (see below).
+      allow update: if isMember(babyId) || isAcceptingInvite(babyId);
+
+      // Only the owner may delete the profile.
+      allow delete: if signedIn()
+        && babyData(babyId).ownerUid == request.auth.uid;
+
+      // A signed-in, invited user adds exactly themselves to the member
+      // lists, keeps the existing members, and leaves ownership unchanged.
+      function isAcceptingInvite(babyId) {
+        let existing = resource.data;
+        let incoming = request.resource.data;
+        return signedIn()
+          && !(request.auth.uid in existing.memberUids)
+          && (request.auth.uid in incoming.memberUids)
+          && incoming.memberUids.size() == existing.memberUids.size() + 1
+          && existing.memberUids.hasOnly(incoming.memberUids)
+          && incoming.ownerUid == existing.ownerUid
+          && exists(/databases/$(database)/documents/babies/$(babyId)/invites/$(request.auth.token.email));
+      }
+
+      // Invites: readable by members and by the invited email; only members
+      // create/delete them.
+      match /invites/{email} {
+        allow read: if isMember(babyId)
+          || (signedIn() && request.auth.token.email == email);
+        allow create, delete: if isMember(babyId);
+        // The invitee deletes their own invite when accepting/declining.
+        allow delete: if signedIn() && request.auth.token.email == email;
+      }
+
+      // Event subcollections: full access to members.
+      match /{sub}/{docId} {
+        allow read, write: if isMember(babyId);
+      }
+    }
   }
 }

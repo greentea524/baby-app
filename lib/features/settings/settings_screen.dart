@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/theme_mode_provider.dart';
+import '../caregivers/caregivers_screen.dart';
 import '../export/export_screen.dart';
 import '../reminders/reminder_providers.dart';
 
@@ -40,6 +41,16 @@ class SettingsScreen extends ConsumerWidget {
               onSelectionChanged: (selection) {
                 ref.read(themeModeProvider.notifier).setMode(selection.first);
               },
+            ),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.group_outlined),
+            title: const Text('Caregivers'),
+            subtitle: const Text('Invite and manage who can log'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const CaregiversScreen()),
             ),
           ),
           const Divider(),

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
+import '../caregivers/incoming_invites.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../reminders/next_feed_card.dart';
@@ -55,10 +56,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Something went wrong: $e')),
         data: (_) => baby == null
-            ? const _NoBabyPrompt()
+            ? ListView(
+                children: const [IncomingInvitesBanner(), _NoBabyPrompt()],
+              )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const IncomingInvitesBanner(),
                   _SummaryCard(now: _now),
                   NextFeedCard(now: _now),
                   const _QuickActions(),

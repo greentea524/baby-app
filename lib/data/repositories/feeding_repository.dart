@@ -3,20 +3,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/feeding_event.dart';
 
 /// Reads/writes feeding events for one baby:
-/// `users/{uid}/babies/{babyId}/feedings/{eventId}`.
+/// `babies/{babyId}/feedings/{eventId}`. [_uid] is the current caregiver,
+/// stamped onto writes for attribution (KAN-159).
 class FeedingRepository {
-  FeedingRepository(this._firestore, this._uid, this._babyId);
+  FeedingRepository(this._firestore, this._babyId, this._uid);
 
   final FirebaseFirestore _firestore;
-  final String _uid;
   final String _babyId;
+  final String _uid;
 
-  CollectionReference<Map<String, dynamic>> get _col => _firestore
-      .collection('users')
-      .doc(_uid)
-      .collection('babies')
-      .doc(_babyId)
-      .collection('feedings');
+  CollectionReference<Map<String, dynamic>> get _col =>
+      _firestore.collection('babies').doc(_babyId).collection('feedings');
 
   /// Most recent feedings first. [limit] keeps the home/history views cheap.
   Stream<List<FeedingEvent>> watchRecent({int limit = 50}) {
@@ -52,12 +49,19 @@ class FeedingRepository {
   }
 
   Future<String> add(FeedingEvent event) async {
-    final doc = await _col.add(event.toMap());
+    final doc = await _col.add({
+      ...event.toMap(),
+      'createdBy': _uid,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
     return doc.id;
   }
 
-  Future<void> update(FeedingEvent event) =>
-      _col.doc(event.id).update(event.toMap());
+  Future<void> update(FeedingEvent event) => _col.doc(event.id).update({
+    ...event.toMap(),
+    'updatedBy': _uid,
+    'updatedAt': FieldValue.serverTimestamp(),
+  });
 
   Future<void> delete(String id) => _col.doc(id).delete();
 }

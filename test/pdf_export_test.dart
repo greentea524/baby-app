@@ -13,6 +13,8 @@ ExportData _sample() => ExportData(
     name: 'Ada',
     birthDate: DateTime(2026, 1, 1),
     sex: BabySex.female,
+    ownerUid: 'u',
+    members: const {'u': CaregiverRole.owner},
   ),
   start: DateTime(2026, 7, 1),
   end: DateTime(2026, 7, 4),
@@ -65,7 +67,13 @@ void main() {
 
     test('handles an empty window', () {
       final empty = ExportData(
-        baby: Baby(id: 'b', name: 'Ada', birthDate: DateTime(2026, 1, 1)),
+        baby: Baby(
+          id: 'b',
+          name: 'Ada',
+          birthDate: DateTime(2026, 1, 1),
+          ownerUid: 'u',
+          members: const {'u': CaregiverRole.owner},
+        ),
         start: DateTime(2026, 7, 1),
         end: DateTime(2026, 7, 2),
         feedings: const [],
@@ -101,7 +109,13 @@ void main() {
 
     test('still renders when there is nothing logged', () async {
       final empty = ExportData(
-        baby: Baby(id: 'b', name: 'Ada', birthDate: DateTime(2026, 1, 1)),
+        baby: Baby(
+          id: 'b',
+          name: 'Ada',
+          birthDate: DateTime(2026, 1, 1),
+          ownerUid: 'u',
+          members: const {'u': CaregiverRole.owner},
+        ),
         start: DateTime(2026, 7, 1),
         end: DateTime(2026, 7, 2),
         feedings: const [],

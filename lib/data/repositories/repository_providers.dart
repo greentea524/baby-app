@@ -5,6 +5,7 @@ import '../../core/auth/auth_providers.dart';
 // sharedPreferencesProvider lives with the theme provider (both are prefs-backed).
 import '../../core/theme/theme_mode_provider.dart';
 import '../models/baby.dart';
+import '../models/caregiver_invite.dart';
 import '../models/diaper_event.dart';
 import '../models/feeding_event.dart';
 import '../models/growth_measurement.dart';
@@ -70,7 +71,7 @@ final feedingRepositoryProvider = Provider<FeedingRepository?>((ref) {
   final user = ref.watch(authStateProvider).value;
   final baby = ref.watch(currentBabyProvider);
   if (user == null || baby == null) return null;
-  return FeedingRepository(ref.watch(firestoreProvider), user.uid, baby.id);
+  return FeedingRepository(ref.watch(firestoreProvider), baby.id, user.uid);
 });
 
 final recentFeedingsProvider = StreamProvider<List<FeedingEvent>>((ref) {
@@ -90,7 +91,7 @@ final diaperRepositoryProvider = Provider<DiaperRepository?>((ref) {
   final user = ref.watch(authStateProvider).value;
   final baby = ref.watch(currentBabyProvider);
   if (user == null || baby == null) return null;
-  return DiaperRepository(ref.watch(firestoreProvider), user.uid, baby.id);
+  return DiaperRepository(ref.watch(firestoreProvider), baby.id, user.uid);
 });
 
 final recentDiapersProvider = StreamProvider<List<DiaperEvent>>((ref) {
@@ -143,7 +144,7 @@ final growthRepositoryProvider = Provider<GrowthRepository?>((ref) {
   final user = ref.watch(authStateProvider).value;
   final baby = ref.watch(currentBabyProvider);
   if (user == null || baby == null) return null;
-  return GrowthRepository(ref.watch(firestoreProvider), user.uid, baby.id);
+  return GrowthRepository(ref.watch(firestoreProvider), baby.id, user.uid);
 });
 
 final growthMeasurementsProvider = StreamProvider<List<GrowthMeasurement>>((
@@ -152,4 +153,28 @@ final growthMeasurementsProvider = StreamProvider<List<GrowthMeasurement>>((
   final repo = ref.watch(growthRepositoryProvider);
   if (repo == null) return Stream.value(const []);
   return repo.watchAll();
+});
+
+// --- Multi-caregiver (KAN-134) ---------------------------------------------
+
+/// Caregivers already on the current baby (from its members map).
+final currentBabyMembersProvider = Provider<Map<String, CaregiverRole>>((ref) {
+  return ref.watch(currentBabyProvider)?.members ?? const {};
+});
+
+/// Pending invites on the current baby (owner/editor management view).
+final currentBabyInvitesProvider = StreamProvider<List<CaregiverInvite>>((ref) {
+  final repo = ref.watch(babiesRepositoryProvider);
+  final baby = ref.watch(currentBabyProvider);
+  if (repo == null || baby == null) return Stream.value(const []);
+  return repo.watchInvitesForBaby(baby.id);
+});
+
+/// Invitations addressed to the signed-in user, across all babies. Powers
+/// the "you've been invited" acceptance prompt.
+final incomingInvitesProvider = StreamProvider<List<CaregiverInvite>>((ref) {
+  final repo = ref.watch(babiesRepositoryProvider);
+  final email = ref.watch(authStateProvider).value?.email;
+  if (repo == null || email == null) return Stream.value(const []);
+  return repo.watchIncomingInvites(email);
 });

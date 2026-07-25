@@ -11,7 +11,13 @@ ExportData _data({
   List<DiaperEvent> diapers = const [],
   List<GrowthMeasurement> growth = const [],
 }) => ExportData(
-  baby: Baby(id: 'b', name: 'Ada', birthDate: DateTime(2026, 1, 1)),
+  baby: Baby(
+    id: 'b',
+    name: 'Ada',
+    birthDate: DateTime(2026, 1, 1),
+    ownerUid: 'u',
+    members: const {'u': CaregiverRole.owner},
+  ),
   start: DateTime(2026, 7, 1),
   end: DateTime(2026, 7, 25),
   feedings: feedings,
