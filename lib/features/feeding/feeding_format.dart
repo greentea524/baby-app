@@ -36,8 +36,9 @@ abstract final class FeedingFormat {
     return parts.join(' · ');
   }
 
-  /// Coarse "time ago" string: "just now", "23 min ago", "3 hr ago",
-  /// "2 days ago". [now] is injectable for testing.
+  /// Coarse "time ago" string: "just now", "23 min ago", "3 hr 5 min ago",
+  /// "2 days ago". Within the first day, hours carry the trailing minutes so
+  /// feed intervals read precisely. [now] is injectable for testing.
   static String timeAgo(DateTime time, {DateTime? now}) {
     final diff = (now ?? DateTime.now()).difference(time);
     if (diff.inSeconds < 60) return 'just now';
@@ -46,7 +47,8 @@ abstract final class FeedingFormat {
     }
     if (diff.inHours < 24) {
       final h = diff.inHours;
-      return '$h hr ago';
+      final m = diff.inMinutes.remainder(60);
+      return m == 0 ? '$h hr ago' : '$h hr $m min ago';
     }
     final d = diff.inDays;
     return d == 1 ? '1 day ago' : '$d days ago';

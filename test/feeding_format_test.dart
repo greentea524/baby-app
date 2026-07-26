@@ -26,10 +26,20 @@ void main() {
       );
     });
 
-    test('hours', () {
+    test('whole hours omit minutes', () {
       expect(
         FeedingFormat.timeAgo(now.subtract(const Duration(hours: 3)), now: now),
         '3 hr ago',
+      );
+    });
+
+    test('hours carry the trailing minutes', () {
+      expect(
+        FeedingFormat.timeAgo(
+          now.subtract(const Duration(hours: 2, minutes: 35)),
+          now: now,
+        ),
+        '2 hr 35 min ago',
       );
     });
 
