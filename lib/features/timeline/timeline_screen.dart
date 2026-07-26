@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/format/volume_format.dart';
 import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_tile.dart';
@@ -176,13 +177,14 @@ class _StatsCard extends StatelessWidget {
               icon: Icons.local_drink,
               label: 'Bottle',
               value: '${TimelineFormat.ml(stats.bottleMl)} ml',
+              detail: '${formatFlOz(stats.bottleMl)} fl oz',
             ),
           if (stats.pumpCount > 0)
             _StatChip(
               icon: Icons.opacity,
               label: 'Pumped',
               value: '${TimelineFormat.ml(stats.pumpedMl)} ml',
-              detail: '${stats.pumpCount}x',
+              detail: '${stats.pumpCount}x · ${formatFlOz(stats.pumpedMl)} fl oz',
             ),
           _StatChip(
             icon: Icons.baby_changing_station,

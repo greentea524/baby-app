@@ -8,6 +8,7 @@ import '../common/event_tile.dart';
 import 'growth_chart.dart';
 import 'growth_log_sheet.dart';
 import 'growth_metric.dart';
+import 'growth_units.dart';
 import 'who_percentiles.dart';
 
 /// Growth tab: log weight/height/head over time (KAN-162) and view the
@@ -169,9 +170,11 @@ class _MeasurementTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final parts = <String>[
-      if (measurement.weightKg != null) '${measurement.weightKg} kg',
-      if (measurement.heightCm != null) '${measurement.heightCm} cm',
-      if (measurement.headCm != null) '${measurement.headCm} cm head',
+      if (measurement.weightKg != null) formatLbOz(measurement.weightKg!),
+      if (measurement.heightCm != null)
+        '${cmToIn(measurement.heightCm!).toStringAsFixed(1)} in',
+      if (measurement.headCm != null)
+        '${cmToIn(measurement.headCm!).toStringAsFixed(1)} in head',
     ];
     final months = ageInMonths(birthDate, measurement.date);
     final age = months < 1

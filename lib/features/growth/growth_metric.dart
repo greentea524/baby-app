@@ -1,21 +1,35 @@
 import '../../data/models/growth_measurement.dart';
+import 'growth_units.dart';
 
 /// The three tracked growth metrics, with display metadata and pure helpers
 /// (kept out of widgets so the chart math is unit-testable).
 enum GrowthMetric {
-  weight('Weight', 'kg'),
-  height('Height', 'cm'),
-  head('Head', 'cm');
+  weight('Weight', 'kg', 'lb'),
+  height('Height', 'cm', 'in'),
+  head('Head', 'cm', 'in');
 
-  const GrowthMetric(this.label, this.unit);
+  const GrowthMetric(this.label, this.unit, this.displayUnit);
 
   final String label;
+
+  /// The metric unit values are stored in (matches the WHO reference data).
   final String unit;
+
+  /// The US-customary unit shown to the user.
+  final String displayUnit;
 
   double? valueOf(GrowthMeasurement m) => switch (this) {
     GrowthMetric.weight => m.weightKg,
     GrowthMetric.height => m.heightCm,
     GrowthMetric.head => m.headCm,
+  };
+
+  /// Converts a stored (metric) value to its US-customary display value:
+  /// pounds for weight, inches for height/head.
+  double toDisplay(double metricValue) => switch (this) {
+    GrowthMetric.weight => kgToLb(metricValue),
+    GrowthMetric.height => cmToIn(metricValue),
+    GrowthMetric.head => cmToIn(metricValue),
   };
 }
 

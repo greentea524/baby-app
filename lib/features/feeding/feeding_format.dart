@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/format/volume_format.dart';
 import '../../data/models/feeding_event.dart';
 
 /// Display helpers for feeding events, kept out of widgets so the timeline
@@ -28,7 +29,7 @@ abstract final class FeedingFormat {
     final parts = <String>[];
     if (e.durationMinutes != null) parts.add('${e.durationMinutes} min');
     if (e.side != null) parts.add(sideLabel(e.side!));
-    if (e.amountMl != null) parts.add('${_trimAmount(e.amountMl!)} ml');
+    if (e.amountMl != null) parts.add(formatVolume(e.amountMl!));
     if (e.notes != null && e.notes!.trim().isNotEmpty) {
       parts.add(e.notes!.trim());
     }
@@ -58,7 +59,4 @@ abstract final class FeedingFormat {
     final h = d.inHours;
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
-
-  static String _trimAmount(double v) =>
-      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 }

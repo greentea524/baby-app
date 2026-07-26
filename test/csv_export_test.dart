@@ -77,7 +77,8 @@ void main() {
       expect(lines[2], contains('Feeding,2026-07-02,09:30,bottle'));
       expect(lines[2], contains('120'));
       expect(lines[3], startsWith('Growth,2026-07-03'));
-      expect(lines[3], contains('7.5'));
+      // 7.5 kg -> 16 lb 9 oz.
+      expect(lines[3], contains('16 lb 9 oz'));
     });
 
     test('escapes notes containing commas', () {

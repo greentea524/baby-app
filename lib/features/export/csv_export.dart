@@ -1,3 +1,5 @@
+import '../../core/format/volume_format.dart';
+import '../growth/growth_units.dart';
 import 'export_data.dart';
 
 /// Builds a flat CSV of every logged record (KAN-164), one row per entry
@@ -12,10 +14,11 @@ String buildCsv(ExportData data) {
     'Subtype',
     'Duration (min)',
     'Amount (ml)',
+    'Amount (fl oz)',
     'Side',
-    'Weight (kg)',
-    'Height (cm)',
-    'Head (cm)',
+    'Weight (lb oz)',
+    'Height (in)',
+    'Head (in)',
     'Notes',
   ];
 
@@ -30,6 +33,7 @@ String buildCsv(ExportData data) {
           f.type.name,
           f.durationMinutes?.toString() ?? '',
           _num(f.amountMl),
+          f.amountMl == null ? '' : formatFlOz(f.amountMl!),
           f.side?.name ?? '',
           '',
           '',
@@ -51,6 +55,7 @@ String buildCsv(ExportData data) {
           '',
           '',
           '',
+          '',
           d.notes ?? '',
         ],
       ),
@@ -65,9 +70,10 @@ String buildCsv(ExportData data) {
           '',
           '',
           '',
-          _num(g.weightKg),
-          _num(g.heightCm),
-          _num(g.headCm),
+          '',
+          g.weightKg == null ? '' : formatLbOz(g.weightKg!),
+          _inches(g.heightCm),
+          _inches(g.headCm),
           '',
         ],
       ),
@@ -99,6 +105,9 @@ String _num(double? v) {
   if (v == null) return '';
   return v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
 }
+
+/// A stored (cm) length rendered in inches to one decimal, blank if null.
+String _inches(double? cm) => cm == null ? '' : cmToIn(cm).toStringAsFixed(1);
 
 /// Suggested filename, e.g. `Ada-log-2026-07-01-to-2026-07-24.csv`.
 String csvFilename(ExportData data) {

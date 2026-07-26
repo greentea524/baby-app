@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/format/volume_format.dart';
 import '../../data/models/pumping_event.dart';
 import '../feeding/feeding_format.dart';
 
@@ -13,12 +14,9 @@ abstract final class PumpingFormat {
     final parts = <String>[
       if (e.durationMinutes != null) '${e.durationMinutes} min',
       if (e.side != null) FeedingFormat.sideLabel(e.side!),
-      if (e.amountMl != null) '${_trim(e.amountMl!)} ml',
+      if (e.amountMl != null) formatVolume(e.amountMl!),
       if (e.notes != null && e.notes!.trim().isNotEmpty) e.notes!.trim(),
     ];
     return parts.join(' · ');
   }
-
-  static String _trim(double v) =>
-      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 }

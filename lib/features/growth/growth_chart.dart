@@ -35,13 +35,21 @@ class GrowthChart extends StatelessWidget {
         ),
       );
     }
+    // Convert stored (metric) values to US-customary units for the axis.
+    List<GrowthPoint> toDisplay(List<GrowthPoint> pts) => [
+      for (final p in pts)
+        (ageMonths: p.ageMonths, value: metric.toDisplay(p.value)),
+    ];
     return SizedBox(
       height: height,
       child: CustomPaint(
         painter: _GrowthChartPainter(
-          points: points,
-          curves: curves,
-          unit: metric.unit,
+          points: toDisplay(points),
+          curves: [
+            for (final c in curves)
+              (label: c.label, points: toDisplay(c.points)),
+          ],
+          unit: metric.displayUnit,
           line: theme.colorScheme.primary,
           band: theme.colorScheme.tertiary,
           grid: theme.colorScheme.outlineVariant,

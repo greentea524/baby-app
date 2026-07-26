@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/growth_measurement.dart';
 import '../../data/repositories/repository_providers.dart';
+import 'growth_units.dart';
 
 /// Opens the growth measurement sheet. Pass [existing] to edit.
 Future<void> showGrowthLog(
@@ -32,7 +33,8 @@ class _GrowthSheet extends ConsumerStatefulWidget {
 }
 
 class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
-  final _weight = TextEditingController();
+  final _lb = TextEditingController();
+  final _oz = TextEditingController();
   final _height = TextEditingController();
   final _head = TextEditingController();
   late DateTime _date;
@@ -44,17 +46,26 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
     super.initState();
     final e = widget.existing;
     _date = e?.date ?? DateTime.now();
-    if (e?.weightKg != null) _weight.text = _fmt(e!.weightKg!);
-    if (e?.heightCm != null) _height.text = _fmt(e!.heightCm!);
-    if (e?.headCm != null) _head.text = _fmt(e!.headCm!);
+    if (e?.weightKg != null) {
+      final w = kgToLbOz(e!.weightKg!);
+      _lb.text = w.lb.toString();
+      if (w.oz != 0) _oz.text = w.oz.toString();
+    }
+    if (e?.heightCm != null) _height.text = _fmt(cmToIn(e!.heightCm!));
+    if (e?.headCm != null) _head.text = _fmt(cmToIn(e!.headCm!));
   }
 
-  static String _fmt(double v) =>
-      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+  /// Formats a number for an editable field: one decimal place, trailing
+  /// ".0" stripped.
+  static String _fmt(double v) {
+    final r = (v * 10).round() / 10;
+    return r == r.roundToDouble() ? r.toStringAsFixed(0) : r.toString();
+  }
 
   @override
   void dispose() {
-    _weight.dispose();
+    _lb.dispose();
+    _oz.dispose();
     _height.dispose();
     _head.dispose();
     super.dispose();
@@ -77,7 +88,11 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
   }
 
   Future<void> _save() async {
-    final w = _parse(_weight);
+    final lb = _parse(_lb);
+    final oz = _parse(_oz);
+    final w = (lb == null && oz == null)
+        ? null
+        : lbOzToKg(lb?.toInt() ?? 0, oz ?? 0);
     final h = _parse(_height);
     final hc = _parse(_head);
     if (w == null && h == null && hc == null) {
@@ -93,8 +108,8 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
       id: widget.existing?.id ?? '',
       date: _date,
       weightKg: w,
-      heightCm: h,
-      headCm: hc,
+      heightCm: h == null ? null : inToCm(h),
+      headCm: hc == null ? null : inToCm(hc),
     );
     setState(() => _busy = true);
     try {
@@ -137,11 +152,18 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
               ],
             ),
             const SizedBox(height: 8),
-            _numberField(_weight, 'Weight', 'kg'),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _numberField(_lb, 'Weight', 'lb')),
+                const SizedBox(width: 12),
+                Expanded(child: _numberField(_oz, 'Ounces', 'oz')),
+              ],
+            ),
             const SizedBox(height: 12),
-            _numberField(_height, 'Height', 'cm'),
+            _numberField(_height, 'Height', 'in'),
             const SizedBox(height: 12),
-            _numberField(_head, 'Head circumference', 'cm'),
+            _numberField(_head, 'Head circumference', 'in'),
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(

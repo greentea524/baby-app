@@ -3,7 +3,9 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../core/format/volume_format.dart';
 import '../growth/growth_metric.dart';
+import '../growth/growth_units.dart';
 import '../timeline/timeline_format.dart';
 import 'export_data.dart';
 import 'report_summary.dart';
@@ -76,7 +78,10 @@ pw.Widget _overview(ReportSummary s) {
       'Avg interval between feeds',
       TimelineFormat.interval(s.avgFeedIntervalMinutes),
     ],
-    ['Bottle total', '${_num(s.totalBottleMl)} ml'],
+    [
+      'Bottle total',
+      '${_num(s.totalBottleMl)} ml (${formatFlOz(s.totalBottleMl)} fl oz)',
+    ],
     ['Breastfeeding total', '${s.totalBreastMinutes} min'],
     ['Total diaper changes', '${s.totalDiapers}'],
     ['Days with activity', '${s.daily.length}'],
@@ -101,6 +106,7 @@ pw.Widget _dailyTable(ReportSummary s) {
           _cell('Date', bold: true),
           _cell('Feeds', bold: true),
           _cell('Bottle (ml)', bold: true),
+          _cell('Bottle (fl oz)', bold: true),
           _cell('Breast (min)', bold: true),
           _cell('Diapers', bold: true),
         ],
@@ -111,6 +117,7 @@ pw.Widget _dailyTable(ReportSummary s) {
             _cell(_date(row.day)),
             _cell('${row.stats.feedCount}'),
             _cell(_num(row.stats.bottleMl)),
+            _cell(row.stats.bottleMl == 0 ? '' : formatFlOz(row.stats.bottleMl)),
             _cell('${row.stats.breastMinutes}'),
             _cell('${row.stats.diaperCount}'),
           ],
@@ -128,9 +135,9 @@ pw.Widget _growthTable(ExportData data) {
         children: [
           _cell('Date', bold: true),
           _cell('Age (mo)', bold: true),
-          _cell('Weight (kg)', bold: true),
-          _cell('Height (cm)', bold: true),
-          _cell('Head (cm)', bold: true),
+          _cell('Weight (lb oz)', bold: true),
+          _cell('Height (in)', bold: true),
+          _cell('Head (in)', bold: true),
         ],
       ),
       for (final m in data.growth)
@@ -138,9 +145,9 @@ pw.Widget _growthTable(ExportData data) {
           children: [
             _cell(_date(m.date)),
             _cell(ageInMonths(data.baby.birthDate, m.date).toStringAsFixed(1)),
-            _cell(_num(m.weightKg)),
-            _cell(_num(m.heightCm)),
-            _cell(_num(m.headCm)),
+            _cell(m.weightKg == null ? '' : formatLbOz(m.weightKg!)),
+            _cell(_inches(m.heightCm)),
+            _cell(_inches(m.headCm)),
           ],
         ),
     ],
@@ -184,6 +191,9 @@ String _num(double? v) {
   if (v == null || v == 0) return v == 0 ? '0' : '';
   return v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 }
+
+/// A stored (cm) length rendered in inches to one decimal, blank if null.
+String _inches(double? cm) => cm == null ? '' : cmToIn(cm).toStringAsFixed(1);
 
 extension on ExportData {
   /// The last day actually covered (end is exclusive).
