@@ -46,3 +46,11 @@ app.*.map.json
 
 # Firebase Hosting deploy cache
 .firebase/
+
+# Node deps for the Cloud Functions and the rules test suite
+node_modules/
+functions/lib/
+
+# Generated per-machine by `flutterfire configure` — contains project keys
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist

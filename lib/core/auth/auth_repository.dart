@@ -3,8 +3,12 @@ import 'package:flutter/foundation.dart';
 
 /// Thin wrapper over [FirebaseAuth] exposing just what the app needs.
 ///
-/// Web uses `signInWithPopup` (no extra plugin needed); native platforms
-/// will need the `google_sign_in` flow, added when mobile targets ship.
+/// Web uses `signInWithPopup`; Android/iOS use `signInWithProvider`, which
+/// firebase_auth backs with the platform's own OAuth flow. Neither needs the
+/// `google_sign_in` plugin — that would only buy a more native-looking
+/// account picker. What native builds *do* need is a real
+/// `firebase_options.dart` plus the platform config files; see the
+/// "Native mobile builds" section of the README.
 class AuthRepository {
   AuthRepository(this._auth);
 
@@ -19,7 +23,6 @@ class AuthRepository {
     if (kIsWeb) {
       await _auth.signInWithPopup(provider);
     } else {
-      // Mobile targets: swap in the google_sign_in credential flow here.
       await _auth.signInWithProvider(provider);
     }
   }

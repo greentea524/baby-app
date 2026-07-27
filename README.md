@@ -78,12 +78,53 @@ flutter build web
 
 Output is in `build/web/` (installable — includes manifest + service worker).
 
+## Native mobile builds (Android / iOS)
+
+The `android/` and `ios/` projects are scaffolded and the auth code already
+handles native sign-in (`signInWithProvider`), but **native builds will not
+run until you generate the platform Firebase config** — `firebase_options.dart`
+deliberately throws for every non-web platform, and the config files contain
+project-specific keys that can't be committed generically.
+
+1. Register the apps: `flutterfire configure` and select **android** and
+   **ios** alongside web. This rewrites `lib/firebase_options.dart` and drops
+   `android/app/google-services.json` + `ios/Runner/GoogleService-Info.plist`.
+2. **Android** — add your signing SHA-1 and SHA-256 under Firebase console →
+   Project settings → your Android app. Google sign-in fails without them:
+   ```bash
+   cd android && ./gradlew signingReport
+   ```
+3. **iOS** — add the reversed client ID from `GoogleService-Info.plist` as a
+   URL scheme in `ios/Runner/Info.plist`, so the OAuth redirect can return to
+   the app.
+4. Run:
+   ```bash
+   flutter run -d android
+   flutter run -d ios
+   ```
+
+The generated config files are gitignored by default — keep them out of the
+repo and regenerate per machine.
+
 ## Test & analyze
 
 ```bash
 flutter analyze
 flutter test
 ```
+
+### Firestore security rules tests
+
+`firestore.rules` carries all the multi-caregiver access control, so it has
+its own emulator-backed suite in `rules-tests/`:
+
+```bash
+cd rules-tests && npm install && npm test
+```
+
+This boots the Firestore emulator, runs the real rules against it, and checks
+that non-members are locked out, that only the owner can delete a profile,
+that invite acceptance can't be forged, and that FCM tokens stay private.
 
 ## Continuous deployment
 
