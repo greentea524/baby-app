@@ -175,6 +175,25 @@ describe("event subcollections", () => {
     // Holding an invite is not membership until it is accepted.
     await assertFails(getDoc(doc(asBob(), "babies", BABY, "feedings", "f1")));
   });
+
+  it("gates a newly added subcollection without a rules change", async () => {
+    // The wildcard `match /{sub}/{docId}` is what lets features like
+    // appointments ship without touching firestore.rules. Pin that down so a
+    // future narrowing of the wildcard fails loudly here.
+    await assertSucceeds(
+      setDoc(doc(asAlice(), "babies", BABY, "appointments", "ap1"), {
+        kind: "checkup",
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asMallory(), "babies", BABY, "appointments", "ap2"), {
+        kind: "checkup",
+      }),
+    );
+    await assertFails(
+      getDoc(doc(asMallory(), "babies", BABY, "appointments", "ap1")),
+    );
+  });
 });
 
 describe("invite acceptance", () => {

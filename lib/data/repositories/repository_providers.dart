@@ -8,9 +8,11 @@ import '../models/baby.dart';
 import '../models/caregiver_invite.dart';
 import '../models/diaper_event.dart';
 import '../models/feeding_event.dart';
+import '../models/appointment.dart';
 import '../models/growth_measurement.dart';
 import '../models/notification_prefs.dart';
 import '../models/pumping_event.dart';
+import 'appointments_repository.dart';
 import 'babies_repository.dart';
 import 'diaper_repository.dart';
 import 'feeding_repository.dart';
@@ -176,6 +178,27 @@ final growthMeasurementsProvider = StreamProvider<List<GrowthMeasurement>>((
   ref,
 ) {
   final repo = ref.watch(growthRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchAll();
+});
+
+// --- Appointments (KAN-176) ------------------------------------------------
+
+final appointmentsRepositoryProvider = Provider<AppointmentsRepository?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final baby = ref.watch(currentBabyProvider);
+  if (user == null || baby == null) return null;
+  return AppointmentsRepository(
+    ref.watch(firestoreProvider),
+    baby.id,
+    user.uid,
+  );
+});
+
+/// Every appointment in date order. The screen splits it around "now" so the
+/// boundary stays live while the app is open.
+final appointmentsProvider = StreamProvider<List<Appointment>>((ref) {
+  final repo = ref.watch(appointmentsRepositoryProvider);
   if (repo == null) return Stream.value(const []);
   return repo.watchAll();
 });
