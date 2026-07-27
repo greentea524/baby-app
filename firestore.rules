@@ -38,6 +38,13 @@ service cloud.firestore {
       return signedIn() && request.auth.uid in babyData(babyId).memberUids;
     }
 
+    // Notification preferences (KAN-167): quiet hours and the server-side
+    // reminder switch. Strictly per-user — the doc id is the uid — and read
+    // by the reminder Cloud Function via the Admin SDK.
+    match /notificationPrefs/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
     // Per-device push tokens (KAN-156): a user manages only their own; the
     // reminder Cloud Function reads them all via the Admin SDK.
     match /fcmTokens/{token} {

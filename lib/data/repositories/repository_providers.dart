@@ -9,11 +9,13 @@ import '../models/caregiver_invite.dart';
 import '../models/diaper_event.dart';
 import '../models/feeding_event.dart';
 import '../models/growth_measurement.dart';
+import '../models/notification_prefs.dart';
 import '../models/pumping_event.dart';
 import 'babies_repository.dart';
 import 'diaper_repository.dart';
 import 'feeding_repository.dart';
 import 'growth_repository.dart';
+import 'notification_prefs_repository.dart';
 import 'pumping_repository.dart';
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
@@ -176,6 +178,28 @@ final growthMeasurementsProvider = StreamProvider<List<GrowthMeasurement>>((
   final repo = ref.watch(growthRepositoryProvider);
   if (repo == null) return Stream.value(const []);
   return repo.watchAll();
+});
+
+// --- Notification preferences (KAN-167) ------------------------------------
+
+/// Scoped to the signed-in user; preferences follow the caregiver, not the
+/// baby.
+final notificationPrefsRepositoryProvider =
+    Provider<NotificationPrefsRepository?>((ref) {
+      final user = ref.watch(authStateProvider).value;
+      if (user == null) return null;
+      return NotificationPrefsRepository(
+        ref.watch(firestoreProvider),
+        user.uid,
+      );
+    });
+
+/// Falls back to defaults while loading or when signed out, so the settings
+/// UI always has something sensible to render.
+final notificationPrefsProvider = StreamProvider<NotificationPrefs>((ref) {
+  final repo = ref.watch(notificationPrefsRepositoryProvider);
+  if (repo == null) return Stream.value(const NotificationPrefs());
+  return repo.watch();
 });
 
 // --- Multi-caregiver (KAN-134) ---------------------------------------------

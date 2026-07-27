@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
 import '../../core/theme/theme_mode_provider.dart';
+import '../../data/models/notification_prefs.dart';
+import '../../data/repositories/repository_providers.dart';
 import '../caregivers/caregivers_screen.dart';
 import '../export/export_screen.dart';
 import '../notifications/push_service.dart';
@@ -138,6 +140,7 @@ class _ReminderSection extends ConsumerWidget {
             ),
           ),
         const _PushToggle(),
+        const _QuietHoursSection(),
       ],
     );
   }
@@ -147,6 +150,95 @@ class _ReminderSection extends ConsumerWidget {
     final m = minutes % 60;
     if (h == 0) return '$m min';
     return m == 0 ? '$h hr' : '$h hr $m min';
+  }
+}
+
+/// Quiet hours and the server-side reminder switch (KAN-167). Unlike the
+/// device push toggle above, these are stored in Firestore because the
+/// scheduled Cloud Function needs to read them when deciding whether to send.
+class _QuietHoursSection extends ConsumerWidget {
+  const _QuietHoursSection();
+
+  /// Saves, stamping the caregiver's current UTC offset — the server has no
+  /// other way to resolve what their local "10 PM" means.
+  Future<void> _save(WidgetRef ref, NotificationPrefs prefs) async {
+    await ref
+        .read(notificationPrefsRepositoryProvider)
+        ?.save(
+          prefs.copyWith(
+            timezoneOffsetMinutes: DateTime.now().timeZoneOffset.inMinutes,
+          ),
+        );
+  }
+
+  Future<void> _pickTime(
+    BuildContext context,
+    WidgetRef ref,
+    NotificationPrefs prefs, {
+    required bool isStart,
+  }) async {
+    final current = isStart ? prefs.quietStartMinutes : prefs.quietEndMinutes;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: current ~/ 60, minute: current % 60),
+    );
+    if (picked == null) return;
+    final minutes = picked.hour * 60 + picked.minute;
+    await _save(
+      ref,
+      isStart
+          ? prefs.copyWith(quietStartMinutes: minutes)
+          : prefs.copyWith(quietEndMinutes: minutes),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefs =
+        ref.watch(notificationPrefsProvider).value ?? const NotificationPrefs();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SwitchListTile(
+          secondary: const Icon(Icons.bedtime_outlined),
+          title: const Text('Quiet hours'),
+          subtitle: Text(
+            prefs.quietHoursEnabled
+                ? 'No reminders ${prefs.quietWindowLabel}'
+                : 'Reminders can arrive at any hour',
+          ),
+          value: prefs.quietHoursEnabled,
+          onChanged: (v) => _save(ref, prefs.copyWith(quietHoursEnabled: v)),
+        ),
+        if (prefs.quietHoursEnabled)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(72, 0, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () =>
+                        _pickTime(context, ref, prefs, isStart: true),
+                    child: Text(
+                      'From ${NotificationPrefs.formatMinutes(prefs.quietStartMinutes)}',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () =>
+                        _pickTime(context, ref, prefs, isStart: false),
+                    child: Text(
+                      'Until ${NotificationPrefs.formatMinutes(prefs.quietEndMinutes)}',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
   }
 }
 
