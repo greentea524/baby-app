@@ -1,6 +1,28 @@
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/features/feeding/feeding_format.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Evaluates a context-dependent formatter inside a real MaterialApp, which
+/// TimeOfDay.format needs for its localizations.
+Future<String> _stamp(
+  WidgetTester tester,
+  DateTime time, {
+  required DateTime now,
+}) async {
+  late String result;
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Builder(
+        builder: (context) {
+          result = FeedingFormat.clockStamp(context, time, now: now);
+          return const SizedBox.shrink();
+        },
+      ),
+    ),
+  );
+  return result;
+}
 
 void main() {
   group('FeedingFormat.timeAgo', () {
@@ -75,6 +97,43 @@ void main() {
         amountMl: 120,
       );
       expect(FeedingFormat.details(e), '120 ml (4.1 fl oz)');
+    });
+  });
+
+  group('FeedingFormat.clockStamp', () {
+    final now = DateTime(2026, 7, 23, 15, 0);
+
+    testWidgets('shows just the clock time for an entry from today', (
+      tester,
+    ) async {
+      final stamp = await _stamp(
+        tester,
+        DateTime(2026, 7, 23, 9, 30),
+        now: now,
+      );
+      expect(stamp, '9:30 AM');
+    });
+
+    testWidgets('prefixes a short date once the entry is from another day', (
+      tester,
+    ) async {
+      // Without the date, a row logged days ago would read as if it were
+      // this morning.
+      final stamp = await _stamp(
+        tester,
+        DateTime(2026, 7, 21, 9, 30),
+        now: now,
+      );
+      expect(stamp, 'Jul 21, 9:30 AM');
+    });
+
+    testWidgets('treats just-past-midnight as a different day', (tester) async {
+      final stamp = await _stamp(
+        tester,
+        DateTime(2026, 7, 22, 23, 45),
+        now: now,
+      );
+      expect(stamp, 'Jul 22, 11:45 PM');
     });
   });
 

@@ -41,4 +41,35 @@ void main() {
       expect(TimelineFormat.ml(12.5), '12.5');
     });
   });
+
+  group('TimelineFormat.isSameDay', () {
+    final morning = DateTime(2026, 7, 24, 8, 30);
+
+    test('a late-evening instant is still the same day', () {
+      expect(
+        TimelineFormat.isSameDay(morning, DateTime(2026, 7, 24, 23, 59)),
+        isTrue,
+      );
+    });
+
+    test('one minute past midnight is a different day', () {
+      expect(
+        TimelineFormat.isSameDay(morning, DateTime(2026, 7, 25, 0, 1)),
+        isFalse,
+      );
+    });
+
+    test('the same day number in another month or year does not match', () {
+      expect(TimelineFormat.isSameDay(morning, DateTime(2026, 8, 24)), isFalse);
+      expect(TimelineFormat.isSameDay(morning, DateTime(2025, 7, 24)), isFalse);
+    });
+  });
+
+  group('TimelineFormat.shortDate', () {
+    test('stamps a compact month and day', () {
+      expect(TimelineFormat.shortDate(DateTime(2026, 7, 24)), 'Jul 24');
+      expect(TimelineFormat.shortDate(DateTime(2026, 1, 1)), 'Jan 1');
+      expect(TimelineFormat.shortDate(DateTime(2026, 12, 31)), 'Dec 31');
+    });
+  });
 }

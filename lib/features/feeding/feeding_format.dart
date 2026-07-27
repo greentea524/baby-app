@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/format/volume_format.dart';
 import '../../data/models/feeding_event.dart';
+import '../timeline/timeline_format.dart';
 
 /// Display helpers for feeding events, kept out of widgets so the timeline
 /// and stats epics (KAN-132) can reuse them.
@@ -52,6 +53,22 @@ abstract final class FeedingFormat {
     }
     final d = diff.inDays;
     return d == 1 ? '1 day ago' : '$d days ago';
+  }
+
+  /// The absolute time an entry was logged, to sit alongside the relative
+  /// "x ago" label: just the clock time for today, prefixed with a short date
+  /// otherwise so older rows aren't ambiguous.
+  ///
+  /// Takes a [BuildContext] so the clock follows the device's 12/24-hour
+  /// setting. [now] is injectable for testing.
+  static String clockStamp(
+    BuildContext context,
+    DateTime time, {
+    DateTime? now,
+  }) {
+    final clock = TimeOfDay.fromDateTime(time).format(context);
+    if (TimelineFormat.isSameDay(time, now ?? DateTime.now())) return clock;
+    return '${TimelineFormat.shortDate(time)}, $clock';
   }
 
   /// mm:ss for a running or recorded stopwatch duration.

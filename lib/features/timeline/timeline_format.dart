@@ -29,6 +29,13 @@ abstract final class TimelineFormat {
         '${_months[target.month - 1]} ${target.day}';
   }
 
+  /// Whether two instants fall on the same calendar day.
+  static bool isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// "Jul 24" — a compact date used to stamp rows that aren't from today.
+  static String shortDate(DateTime d) => '${_months[d.month - 1]} ${d.day}';
+
   /// Minutes → "2h 30m" / "45m" / "—" when null.
   static String interval(int? minutes) {
     if (minutes == null) return '—';

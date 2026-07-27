@@ -9,6 +9,7 @@ class EventTile extends StatelessWidget {
     required this.title,
     this.subtitle,
     required this.trailing,
+    this.trailingDetail,
     required this.onTap,
     required this.onDelete,
     this.confirmTitle = 'Delete entry?',
@@ -19,6 +20,10 @@ class EventTile extends StatelessWidget {
   final String title;
   final String? subtitle;
   final String trailing;
+
+  /// Optional second line under [trailing], dimmer and smaller — used to pair
+  /// a relative "x ago" with the absolute clock time.
+  final String? trailingDetail;
   final VoidCallback onTap;
   final Future<void> Function() onDelete;
   final String confirmTitle;
@@ -81,9 +86,39 @@ class EventTile extends StatelessWidget {
         subtitle: (subtitle == null || subtitle!.isEmpty)
             ? null
             : Text(subtitle!),
-        trailing: Text(trailing, style: Theme.of(context).textTheme.bodySmall),
+        trailing: _Trailing(text: trailing, detail: trailingDetail),
         onTap: onTap,
       ),
+    );
+  }
+}
+
+/// Right-hand label: one line, or two when a [detail] stamp is supplied.
+class _Trailing extends StatelessWidget {
+  const _Trailing({required this.text, this.detail});
+
+  final String text;
+  final String? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (detail == null) {
+      return Text(text, style: theme.textTheme.bodySmall);
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(text, style: theme.textTheme.bodySmall),
+        Text(
+          detail!,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }

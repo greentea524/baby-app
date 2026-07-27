@@ -128,8 +128,15 @@ class _SummaryCard extends ConsumerWidget {
               detail: lastFeed == null
                   ? null
                   : _join(
-                      FeedingFormat.typeLabel(lastFeed.type),
-                      FeedingFormat.details(lastFeed),
+                      FeedingFormat.clockStamp(
+                        context,
+                        lastFeed.startTime,
+                        now: now,
+                      ),
+                      _join(
+                        FeedingFormat.typeLabel(lastFeed.type),
+                        FeedingFormat.details(lastFeed),
+                      ),
                     ),
             ),
             const Divider(height: 1, indent: 16, endIndent: 16),
@@ -144,8 +151,15 @@ class _SummaryCard extends ConsumerWidget {
               detail: lastDiaper == null
                   ? null
                   : _join(
-                      DiaperFormat.typeLabel(lastDiaper.type),
-                      DiaperFormat.details(lastDiaper),
+                      FeedingFormat.clockStamp(
+                        context,
+                        lastDiaper.time,
+                        now: now,
+                      ),
+                      _join(
+                        DiaperFormat.typeLabel(lastDiaper.type),
+                        DiaperFormat.details(lastDiaper),
+                      ),
                     ),
             ),
           ],

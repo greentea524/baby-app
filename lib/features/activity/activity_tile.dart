@@ -32,9 +32,16 @@ class ActivityTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Relative mode also carries the absolute stamp underneath: "2 hr ago" is
+    // easy to scan, but you often want to know it was actually 9:30 AM.
+    // The timeline already leads with the clock time, so it needs no second
+    // line.
     final trailing = clockTime
         ? TimeOfDay.fromDateTime(entry.time).format(context)
         : FeedingFormat.timeAgo(entry.time, now: now);
+    final trailingDetail = clockTime
+        ? null
+        : FeedingFormat.clockStamp(context, entry.time, now: now);
 
     return switch (entry) {
       FeedingEntry(:final event) => EventTile(
@@ -43,6 +50,7 @@ class ActivityTile extends ConsumerWidget {
         title: FeedingFormat.typeLabel(event.type),
         subtitle: FeedingFormat.details(event),
         trailing: trailing,
+        trailingDetail: trailingDetail,
         confirmTitle: 'Delete feed?',
         deletedMessage: 'Feed deleted',
         onTap: () => showFeedingQuickLog(context, existing: event),
@@ -55,6 +63,7 @@ class ActivityTile extends ConsumerWidget {
         title: DiaperFormat.typeLabel(event.type),
         subtitle: DiaperFormat.details(event),
         trailing: trailing,
+        trailingDetail: trailingDetail,
         confirmTitle: 'Delete diaper change?',
         deletedMessage: 'Diaper change deleted',
         onTap: () => showDiaperQuickLog(context, existing: event),
@@ -67,6 +76,7 @@ class ActivityTile extends ConsumerWidget {
         title: PumpingFormat.label,
         subtitle: PumpingFormat.details(event),
         trailing: trailing,
+        trailingDetail: trailingDetail,
         confirmTitle: 'Delete pumping?',
         deletedMessage: 'Pumping deleted',
         onTap: () => showPumpingQuickLog(context, existing: event),
