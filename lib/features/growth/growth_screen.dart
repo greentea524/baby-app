@@ -89,9 +89,10 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
                     if (baby.sex != null)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          'Shaded band: WHO 3rd–97th percentiles',
-                          style: Theme.of(context).textTheme.bodySmall,
+                        child: _PercentileSummary(
+                          metric: _metric,
+                          sex: baby.sex!,
+                          points: points,
                         ),
                       ),
                     const Divider(),
@@ -157,6 +158,45 @@ class _SetSexBanner extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Where the most recent measurement sits on the WHO reference, plus the
+/// caption explaining the shaded band.
+class _PercentileSummary extends StatelessWidget {
+  const _PercentileSummary({
+    required this.metric,
+    required this.sex,
+    required this.points,
+  });
+
+  final GrowthMetric metric;
+  final BabySex sex;
+  final List<GrowthPoint> points;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final latest = points.isEmpty ? null : points.last;
+    final percentile = latest == null
+        ? null
+        : whoPercentile(metric, sex, latest.ageMonths, latest.value);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (percentile != null) ...[
+          Text(
+            '${metric.label}: ${percentileLabel(percentile)} for age',
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: 2),
+        ],
+        Text(
+          'Shaded band: WHO 3rd–97th percentiles',
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
     );
   }
 }

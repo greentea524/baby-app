@@ -56,4 +56,74 @@ void main() {
       expect(curves.first.points.last.ageMonths, 60);
     });
   });
+
+  group('whoPercentile', () {
+    test('the WHO median reads as the 50th percentile', () {
+      // Boys weight-for-age median at 12 months is 9.6479 kg.
+      expect(
+        whoPercentile(GrowthMetric.weight, BabySex.male, 12, 9.6479),
+        closeTo(50, 0.1),
+      );
+    });
+
+    test('round-trips the plotted reference curves', () {
+      // Every curve value should map back to the percentile it was drawn for.
+      final curves = whoPercentileCurves(
+        GrowthMetric.weight,
+        BabySex.male,
+        maxMonth: 12,
+      );
+      for (final c in curves) {
+        final point = c.points[12];
+        expect(
+          whoPercentile(GrowthMetric.weight, BabySex.male, 12, point.value),
+          closeTo(double.parse(c.label), 0.1),
+          reason: 'curve ${c.label} should round-trip',
+        );
+      }
+    });
+
+    test('rises with the measured value at a fixed age', () {
+      final low = whoPercentile(GrowthMetric.weight, BabySex.female, 6, 6.0)!;
+      final high = whoPercentile(GrowthMetric.weight, BabySex.female, 6, 8.5)!;
+      expect(high, greaterThan(low));
+    });
+
+    test('interpolates between whole months', () {
+      // Mid-month sits between the two neighbouring medians, so a fixed
+      // value yields a percentile between the two whole-month answers.
+      final at6 = whoPercentile(GrowthMetric.weight, BabySex.male, 6, 8.0)!;
+      final at7 = whoPercentile(GrowthMetric.weight, BabySex.male, 7, 8.0)!;
+      final at6h = whoPercentile(GrowthMetric.weight, BabySex.male, 6.5, 8.0)!;
+      expect(at6h, lessThan(at6));
+      expect(at6h, greaterThan(at7));
+    });
+
+    test('returns null outside the reference range', () {
+      // Beyond the 0–60 month standard, and for non-positive values.
+      expect(whoPercentile(GrowthMetric.weight, BabySex.male, 61, 20), isNull);
+      expect(whoPercentile(GrowthMetric.weight, BabySex.male, -1, 5), isNull);
+      expect(whoPercentile(GrowthMetric.weight, BabySex.male, 6, 0), isNull);
+    });
+  });
+
+  group('percentileLabel', () {
+    test('uses the right ordinal suffix', () {
+      expect(percentileLabel(62), '62nd percentile');
+      expect(percentileLabel(21), '21st percentile');
+      expect(percentileLabel(3), '3rd percentile');
+      expect(percentileLabel(40), '40th percentile');
+    });
+
+    test('teens always take "th"', () {
+      expect(percentileLabel(11), '11th percentile');
+      expect(percentileLabel(12), '12th percentile');
+      expect(percentileLabel(13), '13th percentile');
+    });
+
+    test('clamps the tails rather than showing false precision', () {
+      expect(percentileLabel(0.3), '<1st percentile');
+      expect(percentileLabel(99.8), '>99th percentile');
+    });
+  });
 }
