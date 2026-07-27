@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../auth/auth_providers.dart';
+import '../../features/appointments/appointments_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/growth/growth_screen.dart';
 import '../../features/home/home_screen.dart';
@@ -16,6 +17,7 @@ abstract final class AppRoutes {
   static const timeline = '/timeline';
   static const insights = '/insights';
   static const growth = '/growth';
+  static const appointments = '/appointments';
   static const settings = '/settings';
 }
 
@@ -44,6 +46,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.login,
         builder: (context, state) => const LoginScreen(),
       ),
+      // Outside the shell: the timeline is a drill-down of Home's recent
+      // list, reached from there rather than being a top-level destination.
+      // It pushes over the nav bar and gets a back button for free.
+      GoRoute(
+        path: AppRoutes.timeline,
+        builder: (context, state) => const TimelineScreen(),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             _NavigationShell(navigationShell: navigationShell),
@@ -53,14 +62,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.home,
                 builder: (context, state) => const HomeScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.timeline,
-                builder: (context, state) => const TimelineScreen(),
               ),
             ],
           ),
@@ -77,6 +78,14 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.growth,
                 builder: (context, state) => const GrowthScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.appointments,
+                builder: (context, state) => const AppointmentsScreen(),
               ),
             ],
           ),
@@ -135,11 +144,6 @@ class _NavigationShell extends StatelessWidget {
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.timeline_outlined),
-            selectedIcon: Icon(Icons.timeline),
-            label: 'Timeline',
-          ),
-          NavigationDestination(
             icon: Icon(Icons.insights_outlined),
             selectedIcon: Icon(Icons.insights),
             label: 'Insights',
@@ -148,6 +152,11 @@ class _NavigationShell extends StatelessWidget {
             icon: Icon(Icons.monitor_weight_outlined),
             selectedIcon: Icon(Icons.monitor_weight),
             label: 'Growth',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.event_outlined),
+            selectedIcon: Icon(Icons.event),
+            label: 'Visits',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/launch_action.dart';
+import '../../core/router/app_router.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../caregivers/incoming_invites.dart';
 import '../diaper/diaper_format.dart';
@@ -89,13 +91,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   _SummaryCard(now: _now),
                   NextFeedCard(now: _now),
                   const _QuickActions(),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-                    child: Text('Recent'),
-                  ),
+                  const _RecentHeader(),
                   Expanded(child: RecentActivityList(now: _now)),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+/// "Recent" with the way through to the full daily timeline. The recent list
+/// below is the short version of the same data, so this is a "see all" link
+/// rather than a separate destination (KAN-175).
+class _RecentHeader extends StatelessWidget {
+  const _RecentHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+      child: Row(
+        children: [
+          const Text('Recent'),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: () => context.push(AppRoutes.timeline),
+            icon: const Icon(Icons.timeline, size: 18),
+            label: const Text('Full timeline'),
+          ),
+        ],
       ),
     );
   }
