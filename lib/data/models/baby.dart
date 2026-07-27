@@ -6,6 +6,37 @@ enum BabySex { male, female }
 /// Caregiver role on a baby (KAN-134).
 enum CaregiverRole { owner, editor }
 
+/// A picture for the profile, so caregivers with more than one baby can tell
+/// them apart at a glance (KAN-168).
+///
+/// Emoji rather than image assets: they theme themselves, need no bundling or
+/// network fetch, and render on every platform the app targets. Persisted by
+/// [name], never by glyph, so the artwork can change without migrating data.
+enum BabyAvatar {
+  baby('👶', 'Baby'),
+  bottle('🍼', 'Bottle'),
+  teddy('🧸', 'Teddy'),
+  bear('🐻', 'Bear'),
+  bunny('🐰', 'Bunny'),
+  fox('🦊', 'Fox'),
+  panda('🐼', 'Panda'),
+  koala('🐨', 'Koala'),
+  chick('🐣', 'Chick'),
+  lion('🦁', 'Lion'),
+  frog('🐸', 'Frog'),
+  star('🌟', 'Star');
+
+  const BabyAvatar(this.emoji, this.label);
+
+  final String emoji;
+  final String label;
+
+  /// Falls back to [BabyAvatar.baby] for profiles saved before avatars
+  /// existed, or for a value this build doesn't recognise.
+  static BabyAvatar fromName(String? name) =>
+      values.asNameMap()[name] ?? BabyAvatar.baby;
+}
+
 /// A baby profile. Stored at the top-level `babies/{id}` so it can be shared
 /// across caregiver accounts (KAN-134): [members] maps each caregiver's uid
 /// to their role, and [memberUids] mirrors those keys as an array so the
@@ -18,12 +49,14 @@ class Baby {
     required this.ownerUid,
     required this.members,
     this.sex,
+    this.avatar = BabyAvatar.baby,
   });
 
   final String id;
   final String name;
   final DateTime birthDate;
   final BabySex? sex;
+  final BabyAvatar avatar;
   final String ownerUid;
   final Map<String, CaregiverRole> members;
 
@@ -40,6 +73,7 @@ class Baby {
       name: data['name'] as String,
       birthDate: (data['birthDate'] as Timestamp).toDate(),
       sex: sexName == null ? null : BabySex.values.asNameMap()[sexName],
+      avatar: BabyAvatar.fromName(data['avatar'] as String?),
       ownerUid: data['ownerUid'] as String? ?? '',
       members: {
         for (final entry in rawMembers.entries)
@@ -56,13 +90,20 @@ class Baby {
     'name': name,
     'birthDate': Timestamp.fromDate(birthDate),
     'sex': sex?.name,
+    'avatar': avatar.name,
   };
 
-  Baby copyWith({String? name, DateTime? birthDate, BabySex? sex}) => Baby(
+  Baby copyWith({
+    String? name,
+    DateTime? birthDate,
+    BabySex? sex,
+    BabyAvatar? avatar,
+  }) => Baby(
     id: id,
     name: name ?? this.name,
     birthDate: birthDate ?? this.birthDate,
     sex: sex ?? this.sex,
+    avatar: avatar ?? this.avatar,
     ownerUid: ownerUid,
     members: members,
   );

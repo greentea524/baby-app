@@ -24,6 +24,10 @@ class BabySwitcher extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (baby != null) ...[
+              Text(baby.avatar.emoji, style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+            ],
             Text(baby?.name ?? 'Home'),
             Icon(
               canSwitch ? Icons.arrow_drop_down : Icons.expand_more,
@@ -99,7 +103,8 @@ class _BabyPickerSheet extends ConsumerWidget {
             ListTile(
               leading: CircleAvatar(
                 child: Text(
-                  baby.name.isEmpty ? '?' : baby.name[0].toUpperCase(),
+                  baby.avatar.emoji,
+                  style: const TextStyle(fontSize: 20),
                 ),
               ),
               title: Text(baby.name),

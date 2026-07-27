@@ -39,11 +39,13 @@ class BabiesRepository {
     required String name,
     required DateTime birthDate,
     BabySex? sex,
+    BabyAvatar avatar = BabyAvatar.baby,
   }) async {
     final doc = await _col.add({
       'name': name,
       'birthDate': Timestamp.fromDate(birthDate),
       'sex': sex?.name,
+      'avatar': avatar.name,
       'ownerUid': _uid,
       'members': {_uid: CaregiverRole.owner.name},
       'memberUids': [_uid],

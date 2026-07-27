@@ -31,6 +31,7 @@ class _BabyDialogState extends ConsumerState<_BabyDialog> {
   );
   late DateTime _birthDate = widget.existing?.birthDate ?? DateTime.now();
   late BabySex? _sex = widget.existing?.sex;
+  late BabyAvatar _avatar = widget.existing?.avatar ?? BabyAvatar.baby;
   String? _nameError;
   bool _busy = false;
 
@@ -68,6 +69,7 @@ class _BabyDialogState extends ConsumerState<_BabyDialog> {
             name: name,
             birthDate: _birthDate,
             sex: _sex,
+            avatar: _avatar,
           ),
         );
       } else {
@@ -75,6 +77,7 @@ class _BabyDialogState extends ConsumerState<_BabyDialog> {
           name: name,
           birthDate: _birthDate,
           sex: _sex,
+          avatar: _avatar,
         );
         await ref.read(selectedBabyIdProvider.notifier).select(id);
       }
@@ -93,54 +96,74 @@ class _BabyDialogState extends ConsumerState<_BabyDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(_isEdit ? 'Edit baby' : 'Add your baby'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _nameController,
-            autofocus: !_isEdit,
-            textCapitalization: TextCapitalization.words,
-            decoration: InputDecoration(
-              labelText: 'Name',
-              errorText: _nameError,
-            ),
-            onChanged: (_) {
-              if (_nameError != null) setState(() => _nameError = null);
-            },
-          ),
-          const SizedBox(height: 16),
-          Row(
+      // Fixed width so the avatar grid wraps instead of stretching the
+      // dialog, and scrollable so it survives a short/landscape window.
+      content: SizedBox(
+        width: 300,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cake_outlined, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
+              TextField(
+                controller: _nameController,
+                autofocus: !_isEdit,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: 'Name',
+                  errorText: _nameError,
+                ),
+                onChanged: (_) {
+                  if (_nameError != null) setState(() => _nameError = null);
+                },
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
                 child: Text(
-                  'Born ${_birthDate.month}/${_birthDate.day}/${_birthDate.year}',
+                  'Avatar',
+                  style: Theme.of(context).textTheme.labelMedium,
                 ),
               ),
-              TextButton(onPressed: _pickDate, child: const Text('Change')),
+              const SizedBox(height: 8),
+              _AvatarPicker(
+                selected: _avatar,
+                onSelected: (a) => setState(() => _avatar = a),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.cake_outlined, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Born ${_birthDate.month}/${_birthDate.day}/${_birthDate.year}',
+                    ),
+                  ),
+                  TextButton(onPressed: _pickDate, child: const Text('Change')),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Sex (for growth percentiles)',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+              ),
+              const SizedBox(height: 4),
+              SegmentedButton<BabySex?>(
+                emptySelectionAllowed: true,
+                segments: const [
+                  ButtonSegment(value: BabySex.male, label: Text('Male')),
+                  ButtonSegment(value: BabySex.female, label: Text('Female')),
+                ],
+                selected: {_sex},
+                onSelectionChanged: (s) =>
+                    setState(() => _sex = s.isEmpty ? null : s.first),
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Sex (for growth percentiles)',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-          ),
-          const SizedBox(height: 4),
-          SegmentedButton<BabySex?>(
-            emptySelectionAllowed: true,
-            segments: const [
-              ButtonSegment(value: BabySex.male, label: Text('Male')),
-              ButtonSegment(value: BabySex.female, label: Text('Female')),
-            ],
-            selected: {_sex},
-            onSelectionChanged: (s) =>
-                setState(() => _sex = s.isEmpty ? null : s.first),
-          ),
-        ],
+        ),
       ),
       actions: [
         TextButton(
@@ -157,6 +180,52 @@ class _BabyDialogState extends ConsumerState<_BabyDialog> {
                 )
               : const Text('Save'),
         ),
+      ],
+    );
+  }
+}
+
+/// The avatar choices as tappable circles, the selected one ringed in the
+/// primary colour. Each carries a [Semantics] label because an emoji on its
+/// own reads poorly to a screen reader.
+class _AvatarPicker extends StatelessWidget {
+  const _AvatarPicker({required this.selected, required this.onSelected});
+
+  final BabyAvatar selected;
+  final ValueChanged<BabyAvatar> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final avatar in BabyAvatar.values)
+          Semantics(
+            label: avatar.label,
+            button: true,
+            selected: avatar == selected,
+            child: InkWell(
+              onTap: () => onSelected(avatar),
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: avatar == selected
+                      ? scheme.primaryContainer
+                      : scheme.surfaceContainerHighest,
+                  border: avatar == selected
+                      ? Border.all(color: scheme.primary, width: 2)
+                      : null,
+                ),
+                child: Text(avatar.emoji, style: const TextStyle(fontSize: 22)),
+              ),
+            ),
+          ),
       ],
     );
   }
