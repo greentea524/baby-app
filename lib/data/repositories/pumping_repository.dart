@@ -33,6 +33,17 @@ class PumpingRepository {
         .map((snap) => snap.docs.map(PumpingEvent.fromDoc).toList());
   }
 
+  /// One-shot fetch of every pump session in [start, end), earliest first.
+  /// Powers the insights trends (KAN-166) rather than a live stream.
+  Future<List<PumpingEvent>> fetchRange(DateTime start, DateTime end) async {
+    final snap = await _col
+        .where('time', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+        .where('time', isLessThan: Timestamp.fromDate(end))
+        .orderBy('time')
+        .get();
+    return snap.docs.map(PumpingEvent.fromDoc).toList();
+  }
+
   Future<String> add(PumpingEvent event) async {
     final doc = await _col.add({
       ...event.toMap(),
