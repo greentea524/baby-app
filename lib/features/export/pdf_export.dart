@@ -117,7 +117,9 @@ pw.Widget _dailyTable(ReportSummary s) {
             _cell(_date(row.day)),
             _cell('${row.stats.feedCount}'),
             _cell(_num(row.stats.bottleMl)),
-            _cell(row.stats.bottleMl == 0 ? '' : formatFlOz(row.stats.bottleMl)),
+            _cell(
+              row.stats.bottleMl == 0 ? '' : formatFlOz(row.stats.bottleMl),
+            ),
             _cell('${row.stats.breastMinutes}'),
             _cell('${row.stats.diaperCount}'),
           ],

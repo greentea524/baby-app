@@ -184,7 +184,8 @@ class _StatsCard extends StatelessWidget {
               icon: Icons.opacity,
               label: 'Pumped',
               value: '${TimelineFormat.ml(stats.pumpedMl)} ml',
-              detail: '${stats.pumpCount}x · ${formatFlOz(stats.pumpedMl)} fl oz',
+              detail:
+                  '${stats.pumpCount}x · ${formatFlOz(stats.pumpedMl)} fl oz',
             ),
           _StatChip(
             icon: Icons.baby_changing_station,
