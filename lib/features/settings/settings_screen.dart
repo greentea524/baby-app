@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../core/theme/app_accent.dart';
 import '../../core/theme/theme_mode_provider.dart';
 import '../../data/models/notification_prefs.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../caregivers/caregivers_screen.dart';
+import '../home/home_layout.dart';
 import '../export/export_screen.dart';
 import '../notifications/push_service.dart';
 import '../reminders/reminder_providers.dart';
@@ -47,6 +49,8 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
           ),
+          const _AccentPicker(),
+          const _HomeLayoutPicker(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.group_outlined),
@@ -80,6 +84,85 @@ class SettingsScreen extends ConsumerWidget {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
             onTap: () => ref.read(authRepositoryProvider).signOut(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Theme colour (KAN-180). Swatches rather than names alone — the point of
+/// the setting is the colour, so showing it beats describing it.
+class _AccentPicker extends ConsumerWidget {
+  const _AccentPicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(accentProvider);
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: const Icon(Icons.palette_outlined),
+      title: const Text('Colour'),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Wrap(
+          spacing: 12,
+          children: [
+            for (final accent in AppAccent.values)
+              Semantics(
+                label: accent.label,
+                button: true,
+                selected: accent == selected,
+                child: InkWell(
+                  onTap: () =>
+                      ref.read(accentProvider.notifier).setAccent(accent),
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accent.seed,
+                      border: accent == selected
+                          ? Border.all(color: scheme.onSurface, width: 2)
+                          : null,
+                    ),
+                    child: accent == selected
+                        ? Icon(Icons.check, size: 18, color: scheme.onPrimary)
+                        : null,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Whether the Home status rows share a card or get their own (KAN-180).
+class _HomeLayoutPicker extends ConsumerWidget {
+  const _HomeLayoutPicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(homeLayoutProvider);
+    return ListTile(
+      leading: const Icon(Icons.dashboard_outlined),
+      title: const Text('Home layout'),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(selected.description),
+          const SizedBox(height: 8),
+          SegmentedButton<HomeLayout>(
+            segments: [
+              for (final layout in HomeLayout.values)
+                ButtonSegment(value: layout, label: Text(layout.label)),
+            ],
+            selected: {selected},
+            onSelectionChanged: (s) =>
+                ref.read(homeLayoutProvider.notifier).setLayout(s.first),
           ),
         ],
       ),

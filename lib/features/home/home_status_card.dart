@@ -9,6 +9,7 @@ import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
+import 'home_layout.dart';
 
 /// The Home status card (KAN-179): where feeding, diapers, and the next
 /// visit stand, in one place.
@@ -24,11 +25,31 @@ class HomeStatusCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // The same rows either way — only the grouping differs, so there is one
+    // set of rows to maintain rather than two layouts.
     final rows = <Widget>[
       _feedingRow(context, ref),
       _diaperRow(context, ref),
       ?_appointmentRow(context, ref),
     ];
+
+    if (ref.watch(homeLayoutProvider) == HomeLayout.separate) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Column(
+          children: [
+            for (final row in rows)
+              Card(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: row,
+                ),
+              ),
+          ],
+        ),
+      );
+    }
 
     return Card(
       margin: const EdgeInsets.all(16),

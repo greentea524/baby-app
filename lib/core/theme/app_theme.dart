@@ -4,15 +4,18 @@ import 'package:flutter/material.dart';
 /// derive from one seed so they stay consistent, with component tweaks that
 /// keep surfaces legible and calm in dark mode.
 abstract final class AppTheme {
-  static const _seed = Color(0xFF7E9BD0);
+  /// The palette used when the caregiver hasn't picked one (KAN-180).
+  static const defaultSeed = Color(0xFF7E9BD0);
 
-  static ThemeData get light => _base(Brightness.light);
+  static ThemeData light([Color seed = defaultSeed]) =>
+      _base(Brightness.light, seed);
 
-  static ThemeData get dark => _base(Brightness.dark);
+  static ThemeData dark([Color seed = defaultSeed]) =>
+      _base(Brightness.dark, seed);
 
-  static ThemeData _base(Brightness brightness) {
+  static ThemeData _base(Brightness brightness, Color seed) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: _seed,
+      seedColor: seed,
       brightness: brightness,
     );
     final isDark = brightness == Brightness.dark;
