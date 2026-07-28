@@ -8,16 +8,14 @@ import '../../core/launch_action.dart';
 import '../../core/router/app_router.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../caregivers/incoming_invites.dart';
-import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
-import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
+import 'home_status_card.dart';
 import 'recent_activity_list.dart';
-import 'up_next_card.dart';
 
 /// Home dashboard: last-fed / last-changed indicators, quick-log entry
 /// points for feeds (KAN-130) and diapers (KAN-131), and recent activity.
@@ -88,8 +86,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const IncomingInvitesBanner(),
-                  _SummaryCard(now: _now),
-                  UpNextCard(now: _now),
+                  HomeStatusCard(now: _now),
                   const _QuickActions(),
                   const _RecentHeader(),
                   Expanded(child: RecentActivityList(now: _now)),
@@ -118,120 +115,6 @@ class _RecentHeader extends StatelessWidget {
             onPressed: () => context.push(AppRoutes.timeline),
             icon: const Icon(Icons.timeline, size: 18),
             label: const Text('Full timeline'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Compact card summarising the last feed and last diaper change.
-class _SummaryCard extends ConsumerWidget {
-  const _SummaryCard({required this.now});
-
-  final DateTime now;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final lastFeed = ref.watch(lastFeedingProvider);
-    final lastDiaper = ref.watch(lastDiaperProvider);
-    return Card(
-      margin: const EdgeInsets.all(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          children: [
-            _SummaryRow(
-              icon: lastFeed == null
-                  ? Icons.child_care
-                  : FeedingFormat.typeIcon(lastFeed.type),
-              label: 'Last fed',
-              value: lastFeed == null
-                  ? 'No feeds yet'
-                  : FeedingFormat.timeAgo(lastFeed.startTime, now: now),
-              detail: lastFeed == null
-                  ? null
-                  : _join(
-                      FeedingFormat.clockStamp(
-                        context,
-                        lastFeed.startTime,
-                        now: now,
-                      ),
-                      _join(
-                        FeedingFormat.typeLabel(lastFeed.type),
-                        FeedingFormat.details(lastFeed),
-                      ),
-                    ),
-            ),
-            const Divider(height: 1, indent: 16, endIndent: 16),
-            _SummaryRow(
-              icon: lastDiaper == null
-                  ? Icons.baby_changing_station
-                  : DiaperFormat.typeIcon(lastDiaper.type),
-              label: 'Last changed',
-              value: lastDiaper == null
-                  ? 'No changes yet'
-                  : FeedingFormat.timeAgo(lastDiaper.time, now: now),
-              detail: lastDiaper == null
-                  ? null
-                  : _join(
-                      FeedingFormat.clockStamp(
-                        context,
-                        lastDiaper.time,
-                        now: now,
-                      ),
-                      _join(
-                        DiaperFormat.typeLabel(lastDiaper.type),
-                        DiaperFormat.details(lastDiaper),
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static String _join(String label, String details) =>
-      details.isEmpty ? label : '$label · $details';
-}
-
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.detail,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final String? detail;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: theme.colorScheme.primaryContainer,
-            child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: theme.textTheme.labelMedium),
-                Text(value, style: theme.textTheme.titleLarge),
-                if (detail != null)
-                  Text(detail!, style: theme.textTheme.bodySmall),
-              ],
-            ),
           ),
         ],
       ),
