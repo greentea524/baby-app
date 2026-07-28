@@ -275,10 +275,33 @@ class _StatusRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: theme.textTheme.labelMedium),
-                Text(
-                  value,
-                  style: theme.textTheme.titleLarge?.copyWith(color: accent),
+                // Label left, elapsed time hard right — matching the activity
+                // list below, where every row's "x ago" sits on the right
+                // edge. Pairing them on one line also buys back a line of
+                // height on what had become a four-line row.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: theme.textTheme.labelMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Natural width, so the value never truncates — the label
+                    // ellipsizes instead if the row gets tight.
+                    Text(
+                      value,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.end,
+                    ),
+                  ],
                 ),
                 if (detailText != null)
                   Text(
