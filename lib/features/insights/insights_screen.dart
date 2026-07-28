@@ -85,7 +85,7 @@ class _Trends extends ConsumerWidget {
             padding: const EdgeInsets.all(32),
             child: Center(
               child: Text(
-                'Nothing logged in the last ${range.days} days.',
+                'Nothing logged ${range.emptyPhrase}.',
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
@@ -100,8 +100,10 @@ class _Trends extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
-        _SummaryGrid(stats: stats),
-        const SizedBox(height: 8),
+        _SummaryGrid(stats: stats, range: range),
+        if (!range.hasTrend) const SizedBox(height: 8),
+        if (range.hasTrend) ...[
+          const SizedBox(height: 8),
           _ChartSection(
             title: 'Feeds per day',
             values: [for (final d in stats.days) d.stats.feedCount.toDouble()],
@@ -148,18 +150,24 @@ class _Trends extends ConsumerWidget {
 
 /// The headline figures for the whole range.
 class _SummaryGrid extends ConsumerWidget {
-  const _SummaryGrid({required this.stats});
+  const _SummaryGrid({required this.stats, required this.range});
 
   final RangeStats stats;
+  final InsightsRange range;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final units = ref.watch(unitSystemProvider);
+    // Over a single day a per-day average is just the count, so the tiles
+    // report plain totals instead of dressing them up as rates.
+    final perDay = range.hasTrend;
     final tiles = <({String label, String value, String? detail})>[
       (
-        label: 'Feeds / day',
-        value: stats.feedsPerDay.toStringAsFixed(1),
-        detail: '${stats.totalFeeds} total',
+        label: perDay ? 'Feeds / day' : 'Feeds',
+        value: perDay
+            ? stats.feedsPerDay.toStringAsFixed(1)
+            : '${stats.totalFeeds}',
+        detail: perDay ? '${stats.totalFeeds} total' : null,
       ),
       (
         label: 'Avg interval',
@@ -167,13 +175,15 @@ class _SummaryGrid extends ConsumerWidget {
         detail: null,
       ),
       (
-        label: 'Diapers / day',
-        value: stats.diapersPerDay.toStringAsFixed(1),
-        detail: '${stats.totalDiapers} total',
+        label: perDay ? 'Diapers / day' : 'Diapers',
+        value: perDay
+            ? stats.diapersPerDay.toStringAsFixed(1)
+            : '${stats.totalDiapers}',
+        detail: perDay ? '${stats.totalDiapers} total' : null,
       ),
       if (stats.totalBottleMl > 0)
         (
-          label: 'Bottle total',
+          label: perDay ? 'Bottle total' : 'Bottle',
           value: '${TimelineFormat.ml(stats.totalBottleMl)} ml',
           detail: units.isMetric
               ? null
@@ -181,13 +191,13 @@ class _SummaryGrid extends ConsumerWidget {
         ),
       if (stats.totalBreastMinutes > 0)
         (
-          label: 'Breast total',
+          label: perDay ? 'Breast total' : 'Breast',
           value: '${stats.totalBreastMinutes} min',
           detail: null,
         ),
       if (stats.totalPumpedMl > 0)
         (
-          label: 'Pumped total',
+          label: perDay ? 'Pumped total' : 'Pumped',
           value: '${TimelineFormat.ml(stats.totalPumpedMl)} ml',
           detail: units.isMetric
               ? null
