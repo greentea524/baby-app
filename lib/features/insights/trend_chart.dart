@@ -16,7 +16,8 @@ class TrendChart extends StatelessWidget {
   /// One value per day, earliest first. Days with no activity are zeros.
   final List<double> values;
 
-  /// One label per value; only the first, middle, and last are drawn.
+  /// One label per value. As many are drawn as fit without overlapping,
+  /// always including the last day.
   final List<String> labels;
 
   final double height;
@@ -133,11 +134,22 @@ class _TrendChartPainter extends CustomPainter {
       );
     }
 
-    // X labels: first, middle, last only — more would collide on a month.
-    final marks = values.length <= 2
-        ? [0, values.length - 1]
-        : [0, values.length ~/ 2, values.length - 1];
-    for (final i in marks.toSet()) {
+    // X labels: as many as fit without colliding, rather than a fixed three.
+    // Measure a real label instead of guessing — "12/31" is wider than "7/4",
+    // and the widest one is what decides the spacing.
+    if (labels.isEmpty) return;
+    final widest = labels.map(_measure).reduce((a, b) => a > b ? a : b);
+    const gap = 10.0;
+    final fits = (plot.width / (widest + gap)).floor().clamp(1, labels.length);
+    final step = (labels.length / fits).ceil();
+
+    // Walk back from the last day so the end of the range is always labelled
+    // — that's the one people look for — then step evenly backwards.
+    final marks = <int>{};
+    for (var i = labels.length - 1; i >= 0; i -= step) {
+      marks.add(i);
+    }
+    for (final i in marks) {
       if (i >= labels.length) continue;
       _label(
         canvas,
@@ -146,6 +158,15 @@ class _TrendChartPainter extends CustomPainter {
         centerX: true,
       );
     }
+  }
+
+  /// Rendered width of [text] at the label style.
+  double _measure(String text) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: const TextStyle(fontSize: 9)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    return tp.width;
   }
 
   void _label(
