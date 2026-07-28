@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/format/unit_system.dart';
-import '../../core/format/volume_format.dart';
 import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_tile.dart';
+import '../common/day_stats_chips.dart';
 import 'day_stats.dart';
 import 'timeline_format.dart';
 
@@ -55,7 +54,10 @@ class TimelineScreen extends ConsumerWidget {
                     child: Center(child: CircularProgressIndicator()),
                   )
                 else ...[
-                  _StatsCard(stats: stats),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: DayStatsChips(stats: stats),
+                  ),
                   const Divider(height: 1),
                   Expanded(
                     child: entries.isEmpty
@@ -132,114 +134,6 @@ class _DayNavBar extends ConsumerWidget {
             onPressed: _isToday ? null : () => _shift(ref, 1),
             tooltip: 'Next day',
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatsCard extends ConsumerWidget {
-  const _StatsCard({required this.stats});
-
-  final DayStats stats;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final units = ref.watch(unitSystemProvider);
-    final diaperDetail = [
-      if (stats.wetCount > 0) '${stats.wetCount} wet',
-      if (stats.dirtyCount > 0) '${stats.dirtyCount} dirty',
-      if (stats.bothCount > 0) '${stats.bothCount} both',
-    ].join(', ');
-
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          _StatChip(
-            icon: Icons.restaurant,
-            label: 'Feeds',
-            value: '${stats.feedCount}',
-          ),
-          _StatChip(
-            icon: Icons.timelapse,
-            label: 'Avg interval',
-            value: TimelineFormat.interval(stats.avgFeedIntervalMinutes),
-          ),
-          if (stats.breastMinutes > 0)
-            _StatChip(
-              icon: Icons.child_friendly,
-              label: 'Breast',
-              value: '${stats.breastMinutes} min',
-            ),
-          if (stats.bottleMl > 0)
-            _StatChip(
-              icon: Icons.local_drink,
-              label: 'Bottle',
-              value: '${TimelineFormat.ml(stats.bottleMl)} ml',
-              detail: units.isMetric
-                  ? null
-                  : '${formatFlOz(stats.bottleMl)} fl oz',
-            ),
-          if (stats.pumpCount > 0)
-            _StatChip(
-              icon: Icons.opacity,
-              label: 'Pumped',
-              value: '${TimelineFormat.ml(stats.pumpedMl)} ml',
-              detail: units.isMetric
-                  ? '${stats.pumpCount}x'
-                  : '${stats.pumpCount}x · ${formatFlOz(stats.pumpedMl)} fl oz',
-            ),
-          _StatChip(
-            icon: Icons.baby_changing_station,
-            label: 'Diapers',
-            value: '${stats.diaperCount}',
-            detail: diaperDetail.isEmpty ? null : diaperDetail,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  const _StatChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.detail,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final String? detail;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: theme.colorScheme.primary),
-              const SizedBox(width: 6),
-              Text(label, style: theme.textTheme.labelSmall),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(value, style: theme.textTheme.titleMedium),
-          if (detail != null) Text(detail!, style: theme.textTheme.bodySmall),
         ],
       ),
     );
