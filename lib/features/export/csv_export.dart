@@ -7,18 +7,20 @@ import 'export_data.dart';
 /// Type column is the most useful thing to hand a pediatrician or open in
 /// a spreadsheet.
 String buildCsv(ExportData data) {
-  const headers = [
+  final units = data.units;
+  final metric = units.isMetric;
+  final headers = [
     'Type',
     'Date',
     'Time',
     'Subtype',
     'Duration (min)',
     'Amount (ml)',
-    'Amount (fl oz)',
+    if (!metric) 'Amount (fl oz)',
     'Side',
-    'Weight (lb oz)',
-    'Height (in)',
-    'Head (in)',
+    metric ? 'Weight (kg)' : 'Weight (lb oz)',
+    metric ? 'Height (cm)' : 'Height (in)',
+    metric ? 'Head (cm)' : 'Head (in)',
     'Notes',
   ];
 
@@ -33,7 +35,7 @@ String buildCsv(ExportData data) {
           f.type.name,
           f.durationMinutes?.toString() ?? '',
           _num(f.amountMl),
-          f.amountMl == null ? '' : formatFlOz(f.amountMl!),
+          if (!metric) f.amountMl == null ? '' : formatFlOz(f.amountMl!),
           f.side?.name ?? '',
           '',
           '',
@@ -51,7 +53,7 @@ String buildCsv(ExportData data) {
           d.type.name,
           '',
           '',
-          '',
+          if (!metric) '',
           '',
           '',
           '',
@@ -69,11 +71,11 @@ String buildCsv(ExportData data) {
           '',
           '',
           '',
+          if (!metric) '',
           '',
-          '',
-          g.weightKg == null ? '' : formatLbOz(g.weightKg!),
-          _inches(g.heightCm),
-          _inches(g.headCm),
+          g.weightKg == null ? '' : formatWeight(g.weightKg!, units),
+          g.heightCm == null ? '' : formatLength(g.heightCm!, units),
+          g.headCm == null ? '' : formatLength(g.headCm!, units),
           '',
         ],
       ),
@@ -105,9 +107,6 @@ String _num(double? v) {
   if (v == null) return '';
   return v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
 }
-
-/// A stored (cm) length rendered in inches to one decimal, blank if null.
-String _inches(double? cm) => cm == null ? '' : cmToIn(cm).toStringAsFixed(1);
 
 /// Suggested filename, e.g. `Ada-log-2026-07-01-to-2026-07-24.csv`.
 String csvFilename(ExportData data) {

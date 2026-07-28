@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/feeding_event.dart';
 import '../timeline/timeline_format.dart';
@@ -25,12 +26,13 @@ abstract final class FeedingFormat {
     BreastSide.both => 'Both',
   };
 
-  /// A compact one-line detail for an event, e.g. "18 min · Left" or "120 ml".
-  static String details(FeedingEvent e) {
+  /// A compact one-line detail for an event, e.g. "18 min · Left" or
+  /// "120 ml (4.1 fl oz)", in the caregiver's [units].
+  static String details(FeedingEvent e, UnitSystem units) {
     final parts = <String>[];
     if (e.durationMinutes != null) parts.add('${e.durationMinutes} min');
     if (e.side != null) parts.add(sideLabel(e.side!));
-    if (e.amountMl != null) parts.add(formatVolume(e.amountMl!));
+    if (e.amountMl != null) parts.add(formatVolume(e.amountMl!, units));
     if (e.notes != null && e.notes!.trim().isNotEmpty) {
       parts.add(e.notes!.trim());
     }

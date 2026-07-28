@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/format/unit_system.dart';
 import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/event_tile.dart';
@@ -36,6 +37,7 @@ class ActivityTile extends ConsumerWidget {
     // easy to scan, but you often want to know it was actually 9:30 AM.
     // The timeline already leads with the clock time, so it needs no second
     // line.
+    final units = ref.watch(unitSystemProvider);
     final trailing = clockTime
         ? TimeOfDay.fromDateTime(entry.time).format(context)
         : FeedingFormat.timeAgo(entry.time, now: now);
@@ -48,7 +50,7 @@ class ActivityTile extends ConsumerWidget {
         key: ValueKey('feed_${event.id}'),
         icon: FeedingFormat.typeIcon(event.type),
         title: FeedingFormat.typeLabel(event.type),
-        subtitle: FeedingFormat.details(event),
+        subtitle: FeedingFormat.details(event, units),
         trailing: trailing,
         trailingDetail: trailingDetail,
         confirmTitle: 'Delete feed?',
@@ -74,7 +76,7 @@ class ActivityTile extends ConsumerWidget {
         key: ValueKey('pump_${event.id}'),
         icon: PumpingFormat.icon,
         title: PumpingFormat.label,
-        subtitle: PumpingFormat.details(event),
+        subtitle: PumpingFormat.details(event, units),
         trailing: trailing,
         trailingDetail: trailingDetail,
         confirmTitle: 'Delete pumping?',

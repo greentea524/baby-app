@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/format/unit_system.dart';
 import '../../data/models/baby.dart';
 import '../../data/models/growth_measurement.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -26,6 +27,7 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
   @override
   Widget build(BuildContext context) {
     final baby = ref.watch(currentBabyProvider);
+    final units = ref.watch(unitSystemProvider);
     final measurementsAsync = ref.watch(growthMeasurementsProvider);
 
     return Scaffold(
@@ -83,6 +85,7 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
                       child: GrowthChart(
                         points: points,
                         metric: _metric,
+                        units: units,
                         curves: curves,
                       ),
                     ),
@@ -209,12 +212,14 @@ class _MeasurementTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final units = ref.watch(unitSystemProvider);
     final parts = <String>[
-      if (measurement.weightKg != null) formatLbOz(measurement.weightKg!),
+      if (measurement.weightKg != null)
+        formatWeight(measurement.weightKg!, units),
       if (measurement.heightCm != null)
-        '${cmToIn(measurement.heightCm!).toStringAsFixed(1)} in',
+        formatLength(measurement.heightCm!, units),
       if (measurement.headCm != null)
-        '${cmToIn(measurement.headCm!).toStringAsFixed(1)} in head',
+        '${formatLength(measurement.headCm!, units)} head',
     ];
     final months = ageInMonths(birthDate, measurement.date);
     final age = months < 1

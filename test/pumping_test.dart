@@ -1,3 +1,4 @@
+import 'package:baby_app/core/format/unit_system.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/activity_entry.dart';
@@ -16,7 +17,14 @@ void main() {
         side: BreastSide.both,
         amountMl: 120,
       );
-      expect(PumpingFormat.details(e), '18 min · Both · 120 ml (4.1 fl oz)');
+      expect(
+        PumpingFormat.details(e, UnitSystem.us),
+        '18 min · Both · 120 ml (4.1 fl oz)',
+      );
+      expect(
+        PumpingFormat.details(e, UnitSystem.metric),
+        '18 min · Both · 120 ml',
+      );
     });
 
     test('omits missing fields', () {
@@ -25,7 +33,7 @@ void main() {
         time: DateTime(2026, 7, 23, 8),
         amountMl: 90,
       );
-      expect(PumpingFormat.details(e), '90 ml (3 fl oz)');
+      expect(PumpingFormat.details(e, UnitSystem.us), '90 ml (3 fl oz)');
     });
   });
 

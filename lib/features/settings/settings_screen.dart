@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../core/format/unit_system.dart';
 import '../../core/theme/app_accent.dart';
 import '../../core/theme/theme_mode_provider.dart';
 import '../../data/models/notification_prefs.dart';
@@ -52,6 +53,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const _AccentPicker(),
           const _HomeLayoutPicker(),
+          const _UnitsPicker(),
           const _PumpingActionToggle(),
           const Divider(),
           ListTile(
@@ -165,6 +167,37 @@ class _HomeLayoutPicker extends ConsumerWidget {
             selected: {selected},
             onSelectionChanged: (s) =>
                 ref.read(homeLayoutProvider.notifier).setLayout(s.first),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Units for weights, lengths, and volumes (KAN-182). Storage stays metric;
+/// this only changes what is displayed and what the entry fields expect.
+class _UnitsPicker extends ConsumerWidget {
+  const _UnitsPicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(unitSystemProvider);
+    return ListTile(
+      leading: const Icon(Icons.straighten),
+      title: const Text('Units'),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(selected.description),
+          const SizedBox(height: 8),
+          SegmentedButton<UnitSystem>(
+            segments: [
+              for (final u in UnitSystem.values)
+                ButtonSegment(value: u, label: Text(u.label)),
+            ],
+            selected: {selected},
+            onSelectionChanged: (s) =>
+                ref.read(unitSystemProvider.notifier).setUnits(s.first),
           ),
         ],
       ),

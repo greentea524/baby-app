@@ -1,3 +1,4 @@
+import '../../core/format/unit_system.dart';
 import '../../data/models/baby.dart';
 import '../../data/models/diaper_event.dart';
 import '../../data/models/feeding_event.dart';
@@ -13,6 +14,7 @@ class ExportData {
     required this.feedings,
     required this.diapers,
     required this.growth,
+    this.units = UnitSystem.us,
   });
 
   final Baby baby;
@@ -24,6 +26,9 @@ class ExportData {
   final List<FeedingEvent> feedings;
   final List<DiaperEvent> diapers;
   final List<GrowthMeasurement> growth;
+
+  /// Units the report is rendered in; storage stays metric.
+  final UnitSystem units;
 
   bool get isEmpty => feedings.isEmpty && diapers.isEmpty && growth.isEmpty;
 }

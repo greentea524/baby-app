@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../timeline/timeline_format.dart';
@@ -136,13 +137,14 @@ class _Trends extends StatelessWidget {
 }
 
 /// The headline figures for the whole range.
-class _SummaryGrid extends StatelessWidget {
+class _SummaryGrid extends ConsumerWidget {
   const _SummaryGrid({required this.stats});
 
   final RangeStats stats;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final units = ref.watch(unitSystemProvider);
     final tiles = <({String label, String value, String? detail})>[
       (
         label: 'Feeds / day',
@@ -163,7 +165,9 @@ class _SummaryGrid extends StatelessWidget {
         (
           label: 'Bottle total',
           value: '${TimelineFormat.ml(stats.totalBottleMl)} ml',
-          detail: '${formatFlOz(stats.totalBottleMl)} fl oz',
+          detail: units.isMetric
+              ? null
+              : '${formatFlOz(stats.totalBottleMl)} fl oz',
         ),
       if (stats.totalBreastMinutes > 0)
         (
@@ -175,7 +179,9 @@ class _SummaryGrid extends StatelessWidget {
         (
           label: 'Pumped total',
           value: '${TimelineFormat.ml(stats.totalPumpedMl)} ml',
-          detail: '${formatFlOz(stats.totalPumpedMl)} fl oz',
+          detail: units.isMetric
+              ? null
+              : '${formatFlOz(stats.totalPumpedMl)} fl oz',
         ),
     ];
 

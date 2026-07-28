@@ -1,3 +1,4 @@
+import 'package:baby_app/core/format/unit_system.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/features/feeding/feeding_format.dart';
 import 'package:flutter/material.dart';
@@ -86,7 +87,7 @@ void main() {
         durationMinutes: 18,
         side: BreastSide.left,
       );
-      expect(FeedingFormat.details(e), '18 min · Left');
+      expect(FeedingFormat.details(e, UnitSystem.us), '18 min · Left');
     });
 
     test('bottle shows a whole-number amount without decimals', () {
@@ -96,7 +97,9 @@ void main() {
         startTime: DateTime(2026, 7, 23),
         amountMl: 120,
       );
-      expect(FeedingFormat.details(e), '120 ml (4.1 fl oz)');
+      expect(FeedingFormat.details(e, UnitSystem.us), '120 ml (4.1 fl oz)');
+      // Metric drops the conversion rather than showing both.
+      expect(FeedingFormat.details(e, UnitSystem.metric), '120 ml');
     });
   });
 

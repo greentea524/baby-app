@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -137,13 +138,14 @@ class _DayNavBar extends ConsumerWidget {
   }
 }
 
-class _StatsCard extends StatelessWidget {
+class _StatsCard extends ConsumerWidget {
   const _StatsCard({required this.stats});
 
   final DayStats stats;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final units = ref.watch(unitSystemProvider);
     final diaperDetail = [
       if (stats.wetCount > 0) '${stats.wetCount} wet',
       if (stats.dirtyCount > 0) '${stats.dirtyCount} dirty',
@@ -177,15 +179,18 @@ class _StatsCard extends StatelessWidget {
               icon: Icons.local_drink,
               label: 'Bottle',
               value: '${TimelineFormat.ml(stats.bottleMl)} ml',
-              detail: '${formatFlOz(stats.bottleMl)} fl oz',
+              detail: units.isMetric
+                  ? null
+                  : '${formatFlOz(stats.bottleMl)} fl oz',
             ),
           if (stats.pumpCount > 0)
             _StatChip(
               icon: Icons.opacity,
               label: 'Pumped',
               value: '${TimelineFormat.ml(stats.pumpedMl)} ml',
-              detail:
-                  '${stats.pumpCount}x · ${formatFlOz(stats.pumpedMl)} fl oz',
+              detail: units.isMetric
+                  ? '${stats.pumpCount}x'
+                  : '${stats.pumpCount}x · ${formatFlOz(stats.pumpedMl)} fl oz',
             ),
           _StatChip(
             icon: Icons.baby_changing_station,

@@ -5,6 +5,7 @@ import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/format/unit_system.dart';
 import '../../data/repositories/repository_providers.dart';
 import 'csv_export.dart';
 import 'export_data.dart';
@@ -75,6 +76,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       feedings: feedings,
       diapers: diapers,
       growth: growth,
+      units: ref.read(unitSystemProvider),
     );
   }
 

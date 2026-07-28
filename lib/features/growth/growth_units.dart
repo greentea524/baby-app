@@ -4,6 +4,8 @@
 /// these helpers convert to/from US units for display and data entry.
 library;
 
+import '../../core/format/unit_system.dart';
+
 const double _lbPerKg = 2.2046226218487757;
 const double _kgPerLb = 0.45359237;
 const double _inPerCm = 0.39370078740157477;
@@ -39,3 +41,20 @@ String formatLbOz(double kg) {
   final w = kgToLbOz(kg);
   return '${w.lb} lb ${w.oz} oz';
 }
+
+/// Rounds to one decimal and drops a trailing ".0".
+String trimNumber(double v) {
+  final r = (v * 10).round() / 10;
+  return r == r.roundToDouble() ? r.toStringAsFixed(0) : r.toString();
+}
+
+/// A stored weight (kg) rendered in the caregiver's units — "6.4 kg" or
+/// "14 lb 2 oz".
+String formatWeight(double kg, UnitSystem units) =>
+    units.isMetric ? '${trimNumber(kg)} kg' : formatLbOz(kg);
+
+/// A stored length (cm) rendered in the caregiver's units — "62.5 cm" or
+/// "24.6 in".
+String formatLength(double cm, UnitSystem units) => units.isMetric
+    ? '${trimNumber(cm)} cm'
+    : '${cmToIn(cm).toStringAsFixed(1)} in';

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/format/unit_system.dart';
 import '../../data/models/growth_measurement.dart';
 import '../../data/repositories/repository_providers.dart';
 import 'growth_units.dart';
@@ -33,10 +34,16 @@ class _GrowthSheet extends ConsumerStatefulWidget {
 }
 
 class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
-  final _lb = TextEditingController();
+  /// In metric this holds kilograms; in US it holds whole pounds and [_oz]
+  /// carries the remainder.
+  final _weight = TextEditingController();
   final _oz = TextEditingController();
   final _height = TextEditingController();
   final _head = TextEditingController();
+
+  /// Captured in initState so the fields can't be reinterpreted mid-edit if
+  /// the setting changes in another tab.
+  late final UnitSystem _units;
   late DateTime _date;
   String? _error;
   bool _busy = false;
@@ -44,15 +51,26 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
   @override
   void initState() {
     super.initState();
+    _units = ref.read(unitSystemProvider);
     final e = widget.existing;
     _date = e?.date ?? DateTime.now();
     if (e?.weightKg != null) {
-      final w = kgToLbOz(e!.weightKg!);
-      _lb.text = w.lb.toString();
-      if (w.oz != 0) _oz.text = w.oz.toString();
+      if (_units.isMetric) {
+        _weight.text = _fmt(e!.weightKg!);
+      } else {
+        final w = kgToLbOz(e!.weightKg!);
+        _weight.text = w.lb.toString();
+        if (w.oz != 0) _oz.text = w.oz.toString();
+      }
     }
-    if (e?.heightCm != null) _height.text = _fmt(cmToIn(e!.heightCm!));
-    if (e?.headCm != null) _head.text = _fmt(cmToIn(e!.headCm!));
+    if (e?.heightCm != null) {
+      _height.text = _fmt(
+        _units.isMetric ? e!.heightCm! : cmToIn(e!.heightCm!),
+      );
+    }
+    if (e?.headCm != null) {
+      _head.text = _fmt(_units.isMetric ? e!.headCm! : cmToIn(e!.headCm!));
+    }
   }
 
   /// Formats a number for an editable field: one decimal place, trailing
@@ -64,7 +82,7 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
 
   @override
   void dispose() {
-    _lb.dispose();
+    _weight.dispose();
     _oz.dispose();
     _height.dispose();
     _head.dispose();
@@ -87,14 +105,28 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
     return double.tryParse(t);
   }
 
+  String get _lengthUnit => _units.isMetric ? 'cm' : 'in';
+
+  /// A typed length in the caregiver's units, as centimetres for storage.
+  double? _toCm(double? entered) {
+    if (entered == null) return null;
+    return _units.isMetric ? entered : inToCm(entered);
+  }
+
   Future<void> _save() async {
-    final lb = _parse(_lb);
+    // Whatever was typed, what gets stored is always kg and cm.
+    final weight = _parse(_weight);
     final oz = _parse(_oz);
-    final w = (lb == null && oz == null)
-        ? null
-        : lbOzToKg(lb?.toInt() ?? 0, oz ?? 0);
-    final h = _parse(_height);
-    final hc = _parse(_head);
+    final double? w;
+    if (_units.isMetric) {
+      w = weight;
+    } else {
+      w = (weight == null && oz == null)
+          ? null
+          : lbOzToKg(weight?.toInt() ?? 0, oz ?? 0);
+    }
+    final h = _toCm(_parse(_height));
+    final hc = _toCm(_parse(_head));
     if (w == null && h == null && hc == null) {
       setState(() => _error = 'Enter at least one measurement.');
       return;
@@ -108,8 +140,8 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
       id: widget.existing?.id ?? '',
       date: _date,
       weightKg: w,
-      heightCm: h == null ? null : inToCm(h),
-      headCm: hc == null ? null : inToCm(hc),
+      heightCm: h,
+      headCm: hc,
     );
     setState(() => _busy = true);
     try {
@@ -152,18 +184,24 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
               ],
             ),
             const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _numberField(_lb, 'Weight', 'lb')),
-                const SizedBox(width: 12),
-                Expanded(child: _numberField(_oz, 'Ounces', 'oz')),
-              ],
-            ),
+            // Metric weighs in a single decimal field; US splits into whole
+            // pounds plus ounces, which is how scales and paediatricians
+            // report it.
+            if (_units.isMetric)
+              _numberField(_weight, 'Weight', 'kg')
+            else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _numberField(_weight, 'Weight', 'lb')),
+                  const SizedBox(width: 12),
+                  Expanded(child: _numberField(_oz, 'Ounces', 'oz')),
+                ],
+              ),
             const SizedBox(height: 12),
-            _numberField(_height, 'Height', 'in'),
+            _numberField(_height, 'Height', _lengthUnit),
             const SizedBox(height: 12),
-            _numberField(_head, 'Head circumference', 'in'),
+            _numberField(_head, 'Head circumference', _lengthUnit),
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(

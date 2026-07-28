@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../growth/growth_metric.dart';
 import '../growth/growth_units.dart';
@@ -14,6 +15,7 @@ import 'report_summary.dart';
 /// (KAN-165): header, overall figures, a per-day table, and growth history.
 Future<Uint8List> buildPdfReport(ExportData data) async {
   final summary = ReportSummary.from(data);
+  final units = data.units;
   final doc = pw.Document();
 
   doc.addPage(
@@ -23,18 +25,18 @@ Future<Uint8List> buildPdfReport(ExportData data) async {
       build: (context) => [
         _header(data),
         pw.SizedBox(height: 16),
-        _overview(summary),
+        _overview(summary, units),
         pw.SizedBox(height: 20),
         if (summary.daily.isNotEmpty) ...[
           _sectionTitle('Daily breakdown'),
           pw.SizedBox(height: 6),
-          _dailyTable(summary),
+          _dailyTable(summary, units),
           pw.SizedBox(height: 20),
         ],
         if (data.growth.isNotEmpty) ...[
           _sectionTitle('Growth measurements'),
           pw.SizedBox(height: 6),
-          _growthTable(data),
+          _growthTable(data, units),
         ],
         if (data.isEmpty)
           pw.Text(ascii('No entries were logged in this period.')),
@@ -70,7 +72,7 @@ pw.Widget _header(ExportData data) {
   );
 }
 
-pw.Widget _overview(ReportSummary s) {
+pw.Widget _overview(ReportSummary s, UnitSystem units) {
   final cells = <List<String>>[
     ['Total feeds', '${s.totalFeeds}'],
     ['Feeds per day (avg)', s.feedsPerDay.toStringAsFixed(1)],
@@ -80,7 +82,9 @@ pw.Widget _overview(ReportSummary s) {
     ],
     [
       'Bottle total',
-      '${_num(s.totalBottleMl)} ml (${formatFlOz(s.totalBottleMl)} fl oz)',
+      units.isMetric
+          ? '${_num(s.totalBottleMl)} ml'
+          : '${_num(s.totalBottleMl)} ml (${formatFlOz(s.totalBottleMl)} fl oz)',
     ],
     ['Breastfeeding total', '${s.totalBreastMinutes} min'],
     ['Total diaper changes', '${s.totalDiapers}'],
@@ -96,7 +100,7 @@ pw.Widget _overview(ReportSummary s) {
   );
 }
 
-pw.Widget _dailyTable(ReportSummary s) {
+pw.Widget _dailyTable(ReportSummary s, UnitSystem units) {
   return pw.Table(
     border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
     children: [
@@ -106,7 +110,7 @@ pw.Widget _dailyTable(ReportSummary s) {
           _cell('Date', bold: true),
           _cell('Feeds', bold: true),
           _cell('Bottle (ml)', bold: true),
-          _cell('Bottle (fl oz)', bold: true),
+          if (!units.isMetric) _cell('Bottle (fl oz)', bold: true),
           _cell('Breast (min)', bold: true),
           _cell('Diapers', bold: true),
         ],
@@ -117,9 +121,10 @@ pw.Widget _dailyTable(ReportSummary s) {
             _cell(_date(row.day)),
             _cell('${row.stats.feedCount}'),
             _cell(_num(row.stats.bottleMl)),
-            _cell(
-              row.stats.bottleMl == 0 ? '' : formatFlOz(row.stats.bottleMl),
-            ),
+            if (!units.isMetric)
+              _cell(
+                row.stats.bottleMl == 0 ? '' : formatFlOz(row.stats.bottleMl),
+              ),
             _cell('${row.stats.breastMinutes}'),
             _cell('${row.stats.diaperCount}'),
           ],
@@ -128,7 +133,7 @@ pw.Widget _dailyTable(ReportSummary s) {
   );
 }
 
-pw.Widget _growthTable(ExportData data) {
+pw.Widget _growthTable(ExportData data, UnitSystem units) {
   return pw.Table(
     border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
     children: [
@@ -137,9 +142,9 @@ pw.Widget _growthTable(ExportData data) {
         children: [
           _cell('Date', bold: true),
           _cell('Age (mo)', bold: true),
-          _cell('Weight (lb oz)', bold: true),
-          _cell('Height (in)', bold: true),
-          _cell('Head (in)', bold: true),
+          _cell(units.isMetric ? 'Weight (kg)' : 'Weight (lb oz)', bold: true),
+          _cell(units.isMetric ? 'Height (cm)' : 'Height (in)', bold: true),
+          _cell(units.isMetric ? 'Head (cm)' : 'Head (in)', bold: true),
         ],
       ),
       for (final m in data.growth)
@@ -147,9 +152,9 @@ pw.Widget _growthTable(ExportData data) {
           children: [
             _cell(_date(m.date)),
             _cell(ageInMonths(data.baby.birthDate, m.date).toStringAsFixed(1)),
-            _cell(m.weightKg == null ? '' : formatLbOz(m.weightKg!)),
-            _cell(_inches(m.heightCm)),
-            _cell(_inches(m.headCm)),
+            _cell(m.weightKg == null ? '' : formatWeight(m.weightKg!, units)),
+            _cell(m.heightCm == null ? '' : formatLength(m.heightCm!, units)),
+            _cell(m.headCm == null ? '' : formatLength(m.headCm!, units)),
           ],
         ),
     ],
@@ -193,9 +198,6 @@ String _num(double? v) {
   if (v == null || v == 0) return v == 0 ? '0' : '';
   return v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 }
-
-/// A stored (cm) length rendered in inches to one decimal, blank if null.
-String _inches(double? cm) => cm == null ? '' : cmToIn(cm).toStringAsFixed(1);
 
 extension on ExportData {
   /// The last day actually covered (end is exclusive).

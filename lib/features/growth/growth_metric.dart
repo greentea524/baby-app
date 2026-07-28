@@ -1,22 +1,22 @@
+import '../../core/format/unit_system.dart';
 import '../../data/models/growth_measurement.dart';
 import 'growth_units.dart';
 
 /// The three tracked growth metrics, with display metadata and pure helpers
 /// (kept out of widgets so the chart math is unit-testable).
 enum GrowthMetric {
-  weight('Weight', 'kg', 'lb'),
-  height('Height', 'cm', 'in'),
-  head('Head', 'cm', 'in');
+  weight('Weight', 'kg'),
+  height('Height', 'cm'),
+  head('Head', 'cm');
 
-  const GrowthMetric(this.label, this.unit, this.displayUnit);
+  const GrowthMetric(this.label, this.unit);
 
   final String label;
 
   /// The metric unit values are stored in (matches the WHO reference data).
   final String unit;
 
-  /// The US-customary unit shown to the user.
-  final String displayUnit;
+  bool get isWeight => this == GrowthMetric.weight;
 
   double? valueOf(GrowthMeasurement m) => switch (this) {
     GrowthMetric.weight => m.weightKg,
@@ -24,13 +24,15 @@ enum GrowthMetric {
     GrowthMetric.head => m.headCm,
   };
 
-  /// Converts a stored (metric) value to its US-customary display value:
-  /// pounds for weight, inches for height/head.
-  double toDisplay(double metricValue) => switch (this) {
-    GrowthMetric.weight => kgToLb(metricValue),
-    GrowthMetric.height => cmToIn(metricValue),
-    GrowthMetric.head => cmToIn(metricValue),
-  };
+  /// The axis unit for [units] — "kg"/"cm" or "lb"/"in".
+  String displayUnit(UnitSystem units) =>
+      units.isMetric ? unit : (isWeight ? 'lb' : 'in');
+
+  /// Converts a stored (metric) value into [units] for display. Metric is a
+  /// no-op, since that's what is stored.
+  double toDisplay(double metricValue, UnitSystem units) => units.isMetric
+      ? metricValue
+      : (isWeight ? kgToLb(metricValue) : cmToIn(metricValue));
 }
 
 /// Average days per month (365.25 / 12), used to convert a date to the

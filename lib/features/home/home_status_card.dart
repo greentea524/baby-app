@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/format/unit_system.dart';
 import '../../core/router/app_router.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../appointments/appointment_format.dart';
@@ -71,6 +72,7 @@ class HomeStatusCard extends ConsumerWidget {
   /// Last feed on top, next due underneath.
   Widget _feedingRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastFeedingProvider);
+    final units = ref.watch(unitSystemProvider);
     final settings = ref.watch(reminderSettingsProvider);
     final due = settings.mode == ReminderMode.off
         ? null
@@ -102,7 +104,7 @@ class HomeStatusCard extends ConsumerWidget {
               FeedingFormat.clockStamp(context, last.startTime, now: now),
               _join(
                 FeedingFormat.typeLabel(last.type),
-                FeedingFormat.details(last),
+                FeedingFormat.details(last, units),
               ),
             ),
       footer: next,

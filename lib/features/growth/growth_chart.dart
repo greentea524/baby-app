@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/format/unit_system.dart';
 import 'growth_metric.dart';
 import 'who_percentiles.dart';
 
@@ -11,12 +12,14 @@ class GrowthChart extends StatelessWidget {
     super.key,
     required this.points,
     required this.metric,
+    required this.units,
     this.curves = const [],
     this.height = 240,
   });
 
   final List<GrowthPoint> points;
   final GrowthMetric metric;
+  final UnitSystem units;
   final List<PercentileCurve> curves;
   final double height;
 
@@ -38,7 +41,7 @@ class GrowthChart extends StatelessWidget {
     // Convert stored (metric) values to US-customary units for the axis.
     List<GrowthPoint> toDisplay(List<GrowthPoint> pts) => [
       for (final p in pts)
-        (ageMonths: p.ageMonths, value: metric.toDisplay(p.value)),
+        (ageMonths: p.ageMonths, value: metric.toDisplay(p.value, units)),
     ];
     return SizedBox(
       height: height,
@@ -49,7 +52,7 @@ class GrowthChart extends StatelessWidget {
             for (final c in curves)
               (label: c.label, points: toDisplay(c.points)),
           ],
-          unit: metric.displayUnit,
+          unit: metric.displayUnit(units),
           line: theme.colorScheme.primary,
           band: theme.colorScheme.tertiary,
           grid: theme.colorScheme.outlineVariant,
