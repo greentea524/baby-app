@@ -70,24 +70,23 @@ class HomeStatusCard extends ConsumerWidget {
   /// Last feed on top, next due underneath.
   Widget _feedingRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastFeedingProvider);
-    final theme = Theme.of(context);
-
     final settings = ref.watch(reminderSettingsProvider);
     final due = settings.mode == ReminderMode.off
         ? null
         : ref.watch(feedPredictionProvider).nextDue;
 
-    String? next;
-    Color? nextColor;
+    Widget? next;
     if (due != null) {
       final at = TimeOfDay.fromDateTime(due).format(context);
       final overdue = !due.isAfter(now);
-      // "Next 2h overdue" reads badly, so the prefix is dropped once it has
-      // slipped past.
-      next = overdue
-          ? '${countdownLabel(due, now: now)} · $at'
-          : 'Next ${countdownLabel(due, now: now)} · $at';
-      nextColor = overdue ? theme.colorScheme.error : null;
+      next = _NextFeedChip(
+        overdue: overdue,
+        // "Next feed 2h overdue" reads badly, so the wording flips once it
+        // has slipped past.
+        text: overdue
+            ? 'Feed ${countdownLabel(due, now: now)} · due $at'
+            : 'Next feed ${countdownLabel(due, now: now)} · $at',
+      );
     }
 
     return _StatusRow(
@@ -106,7 +105,6 @@ class HomeStatusCard extends ConsumerWidget {
               ),
             ),
       footer: next,
-      footerColor: nextColor,
     );
   }
 
@@ -161,9 +159,63 @@ class HomeStatusCard extends ConsumerWidget {
       details.isEmpty ? label : '$label · $details';
 }
 
+/// The next-feed countdown, as a tinted pill.
+///
+/// It used to be a small grey line under the last feed, which buried the one
+/// piece of information on the row you can still act on. A filled chip at
+/// [TextTheme.titleSmall] reads as its own thing, and turns to the error
+/// palette once the feed is overdue.
+class _NextFeedChip extends StatelessWidget {
+  const _NextFeedChip({required this.text, required this.overdue});
+
+  final String text;
+  final bool overdue;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final background = overdue
+        ? scheme.errorContainer
+        : scheme.secondaryContainer;
+    final foreground = overdue
+        ? scheme.onErrorContainer
+        : scheme.onSecondaryContainer;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            overdue ? Icons.notifications_active : Icons.schedule,
+            size: 16,
+            color: foreground,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// One row: icon, label, headline value, a supporting detail, and an optional
-/// footer that can carry its own colour (used for the next-feed countdown,
-/// which turns red once overdue).
+/// footer widget.
 class _StatusRow extends StatelessWidget {
   const _StatusRow({
     required this.icon,
@@ -171,7 +223,6 @@ class _StatusRow extends StatelessWidget {
     required this.value,
     this.detail,
     this.footer,
-    this.footerColor,
     this.accent,
     this.onTap,
   });
@@ -180,18 +231,20 @@ class _StatusRow extends StatelessWidget {
   final String label;
   final String value;
   final String? detail;
-  final String? footer;
-  final Color? footerColor;
+
+  /// An extra line below the detail, given as a widget so it can carry its
+  /// own emphasis — the next-feed chip needs to outweigh the detail text.
+  final Widget? footer;
+
   final Color? accent;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Captured so the null checks below read as plain conditions rather than
+    // Captured so the null check below reads as a plain condition rather than
     // needing a bang operator on every use.
     final detailText = detail;
-    final footerText = footer;
 
     final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -218,23 +271,15 @@ class _StatusRow extends StatelessWidget {
                 if (detailText != null)
                   Text(
                     detailText,
-                    style: theme.textTheme.bodySmall,
+                    // bodyMedium rather than bodySmall: this is the only
+                    // place the actual feed amount is shown on Home.
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                if (footerText != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      footerText,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: footerColor,
-                        fontWeight: footerColor == null
-                            ? null
-                            : FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                ?footer,
               ],
             ),
           ),
