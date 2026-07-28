@@ -85,7 +85,7 @@ class _Trends extends ConsumerWidget {
             padding: const EdgeInsets.all(32),
             child: Center(
               child: Text(
-                'Nothing logged ${range.emptyPhrase}.',
+                'Nothing logged in the last ${range.days} days.',
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
@@ -100,49 +100,44 @@ class _Trends extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
-        _SummaryGrid(stats: stats, range: range),
-        if (!range.hasTrend) const SizedBox(height: 8),
-        if (range.hasTrend) ...[
-          const SizedBox(height: 8),
+        _SummaryGrid(stats: stats),
+        const SizedBox(height: 8),
+        _ChartSection(
+          title: 'Feeds per day',
+          values: [for (final d in stats.days) d.stats.feedCount.toDouble()],
+          labels: labels,
+        ),
+        _ChartSection(
+          title: 'Diapers per day',
+          values: [for (final d in stats.days) d.stats.diaperCount.toDouble()],
+          labels: labels,
+        ),
+        if (stats.totalBottleMl > 0)
           _ChartSection(
-            title: 'Feeds per day',
-            values: [for (final d in stats.days) d.stats.feedCount.toDouble()],
+            title: units.isMetric
+                ? 'Bottle per day (ml)'
+                : 'Bottle per day (ml · fl oz)',
+            values: [for (final d in stats.days) d.stats.bottleMl],
             labels: labels,
+            secondaryFormat: units.isMetric ? null : formatFlOz,
           ),
+        if (stats.totalBreastMinutes > 0)
           _ChartSection(
-            title: 'Diapers per day',
+            title: 'Breastfeeding per day (min)',
             values: [
-              for (final d in stats.days) d.stats.diaperCount.toDouble(),
+              for (final d in stats.days) d.stats.breastMinutes.toDouble(),
             ],
             labels: labels,
           ),
-          if (stats.totalBottleMl > 0)
-            _ChartSection(
-              title: units.isMetric
-                  ? 'Bottle per day (ml)'
-                  : 'Bottle per day (ml · fl oz)',
-              values: [for (final d in stats.days) d.stats.bottleMl],
-              labels: labels,
-              secondaryFormat: units.isMetric ? null : formatFlOz,
-            ),
-          if (stats.totalBreastMinutes > 0)
-            _ChartSection(
-              title: 'Breastfeeding per day (min)',
-              values: [
-                for (final d in stats.days) d.stats.breastMinutes.toDouble(),
-              ],
-              labels: labels,
-            ),
-          if (stats.totalPumpedMl > 0)
-            _ChartSection(
-              title: units.isMetric
-                  ? 'Pumped per day (ml)'
-                  : 'Pumped per day (ml · fl oz)',
-              values: [for (final d in stats.days) d.stats.pumpedMl],
-              labels: labels,
-              secondaryFormat: units.isMetric ? null : formatFlOz,
-            ),
-        ],
+        if (stats.totalPumpedMl > 0)
+          _ChartSection(
+            title: units.isMetric
+                ? 'Pumped per day (ml)'
+                : 'Pumped per day (ml · fl oz)',
+            values: [for (final d in stats.days) d.stats.pumpedMl],
+            labels: labels,
+            secondaryFormat: units.isMetric ? null : formatFlOz,
+          ),
       ],
     );
   }
@@ -150,24 +145,18 @@ class _Trends extends ConsumerWidget {
 
 /// The headline figures for the whole range.
 class _SummaryGrid extends ConsumerWidget {
-  const _SummaryGrid({required this.stats, required this.range});
+  const _SummaryGrid({required this.stats});
 
   final RangeStats stats;
-  final InsightsRange range;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final units = ref.watch(unitSystemProvider);
-    // Over a single day a per-day average is just the count, so the tiles
-    // report plain totals instead of dressing them up as rates.
-    final perDay = range.hasTrend;
     final tiles = <({String label, String value, String? detail})>[
       (
-        label: perDay ? 'Feeds / day' : 'Feeds',
-        value: perDay
-            ? stats.feedsPerDay.toStringAsFixed(1)
-            : '${stats.totalFeeds}',
-        detail: perDay ? '${stats.totalFeeds} total' : null,
+        label: 'Feeds / day',
+        value: stats.feedsPerDay.toStringAsFixed(1),
+        detail: '${stats.totalFeeds} total',
       ),
       (
         label: 'Avg interval',
@@ -175,15 +164,13 @@ class _SummaryGrid extends ConsumerWidget {
         detail: null,
       ),
       (
-        label: perDay ? 'Diapers / day' : 'Diapers',
-        value: perDay
-            ? stats.diapersPerDay.toStringAsFixed(1)
-            : '${stats.totalDiapers}',
-        detail: perDay ? '${stats.totalDiapers} total' : null,
+        label: 'Diapers / day',
+        value: stats.diapersPerDay.toStringAsFixed(1),
+        detail: '${stats.totalDiapers} total',
       ),
       if (stats.totalBottleMl > 0)
         (
-          label: perDay ? 'Bottle total' : 'Bottle',
+          label: 'Bottle total',
           value: '${TimelineFormat.ml(stats.totalBottleMl)} ml',
           detail: units.isMetric
               ? null
@@ -191,13 +178,13 @@ class _SummaryGrid extends ConsumerWidget {
         ),
       if (stats.totalBreastMinutes > 0)
         (
-          label: perDay ? 'Breast total' : 'Breast',
+          label: 'Breast total',
           value: '${stats.totalBreastMinutes} min',
           detail: null,
         ),
       if (stats.totalPumpedMl > 0)
         (
-          label: perDay ? 'Pumped total' : 'Pumped',
+          label: 'Pumped total',
           value: '${TimelineFormat.ml(stats.totalPumpedMl)} ml',
           detail: units.isMetric
               ? null
