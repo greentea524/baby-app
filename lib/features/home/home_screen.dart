@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/launch_action.dart';
 import '../../core/router/app_router.dart';
 import '../../data/repositories/repository_providers.dart';
-import '../appointments/next_appointment_card.dart';
 import '../caregivers/incoming_invites.dart';
 import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
@@ -15,10 +14,10 @@ import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
-import '../reminders/next_feed_card.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
 import 'recent_activity_list.dart';
+import 'up_next_card.dart';
 
 /// Home dashboard: last-fed / last-changed indicators, quick-log entry
 /// points for feeds (KAN-130) and diapers (KAN-131), and recent activity.
@@ -90,8 +89,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   const IncomingInvitesBanner(),
                   _SummaryCard(now: _now),
-                  NextFeedCard(now: _now),
-                  NextAppointmentCard(now: _now),
+                  UpNextCard(now: _now),
                   const _QuickActions(),
                   const _RecentHeader(),
                   Expanded(child: RecentActivityList(now: _now)),
