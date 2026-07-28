@@ -1,3 +1,4 @@
+import 'package:baby_app/core/format/unit_system.dart';
 import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
@@ -7,7 +8,8 @@ import 'package:baby_app/features/export/pdf_export.dart';
 import 'package:baby_app/features/export/report_summary.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-ExportData _sample() => ExportData(
+ExportData _sample({UnitSystem units = UnitSystem.us}) => ExportData(
+  units: units,
   baby: Baby(
     id: 'b',
     name: 'Ada',
@@ -125,5 +127,17 @@ void main() {
       final bytes = await buildPdfReport(empty);
       expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
     });
+  });
+
+  group('units', () {
+    // The daily table drops a column in metric, so the header and body rows
+    // have to agree — a mismatch throws inside the pdf table builder.
+    for (final units in UnitSystem.values) {
+      test('renders a valid report in ${units.name}', () async {
+        final bytes = await buildPdfReport(_sample(units: units));
+        expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+        expect(bytes.length, greaterThan(1000));
+      });
+    }
   });
 }
