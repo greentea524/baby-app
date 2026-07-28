@@ -14,10 +14,8 @@ import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
-import '../common/day_stats_chips.dart';
 import 'home_prefs.dart';
 import 'home_status_card.dart';
-import 'today_stats.dart';
 import 'recent_activity_list.dart';
 
 /// Home dashboard: last-fed / last-changed indicators, quick-log entry
@@ -90,42 +88,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   const IncomingInvitesBanner(),
                   HomeStatusCard(now: _now),
-                  const _TodaySection(),
                   const _QuickActions(),
                   const _RecentHeader(),
                   Expanded(child: RecentActivityList(now: _now)),
                 ],
               ),
-      ),
-    );
-  }
-}
-
-/// Today's running totals, the same figures the timeline shows for a day.
-/// Home is where you are when you wonder how the day is going, so making you
-/// open the timeline for it was a needless hop.
-class _TodaySection extends ConsumerWidget {
-  const _TodaySection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final stats = ref.watch(todayStatsProvider);
-    // Nothing logged yet reads as an empty row of zeros, which is noise on a
-    // dashboard — the quick-log buttons below are the useful thing then.
-    if (stats.feedCount == 0 &&
-        stats.diaperCount == 0 &&
-        stats.pumpCount == 0) {
-      return const SizedBox.shrink();
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Today', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          DayStatsChips(stats: stats),
-        ],
       ),
     );
   }
