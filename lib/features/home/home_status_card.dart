@@ -25,11 +25,12 @@ class HomeStatusCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // The same rows either way — only the grouping differs, so there is one
-    // set of rows to maintain rather than two layouts.
+    // Feeding and diapers sit side by side: they are the two things you check
+    // constantly, and stacking them pushed the second one down the screen.
+    // The next-feed chip spans both columns because its text is too long to
+    // live in half a card.
     final rows = <Widget>[
-      _feedingRow(context, ref),
-      _diaperRow(context, ref),
+      _lastPair(context, ref),
       ?_appointmentRow(context, ref),
     ];
 
@@ -67,30 +68,35 @@ class HomeStatusCard extends ConsumerWidget {
     );
   }
 
-  /// Last feed on top, next due underneath.
-  Widget _feedingRow(BuildContext context, WidgetRef ref) {
+  /// Last feed and last diaper change, in two columns, with the next-feed
+  /// countdown underneath spanning both.
+  Widget _lastPair(BuildContext context, WidgetRef ref) {
+    final chip = _nextFeedChip(context, ref);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _feedingHalf(context, ref)),
+                const VerticalDivider(width: 24, thickness: 1),
+                Expanded(child: _diaperHalf(context, ref)),
+              ],
+            ),
+          ),
+          ?chip,
+        ],
+      ),
+    );
+  }
+
+  Widget _feedingHalf(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastFeedingProvider);
     final units = ref.watch(unitSystemProvider);
-    final settings = ref.watch(reminderSettingsProvider);
-    final due = settings.mode == ReminderMode.off
-        ? null
-        : ref.watch(feedPredictionProvider).nextDue;
-
-    Widget? next;
-    if (due != null) {
-      final at = TimeOfDay.fromDateTime(due).format(context);
-      final overdue = !due.isAfter(now);
-      next = _NextFeedChip(
-        overdue: overdue,
-        // "Next feed 2h overdue" reads badly, so the wording flips once it
-        // has slipped past.
-        text: overdue
-            ? 'Feed ${countdownLabel(due, now: now)} · due $at'
-            : 'Next feed ${countdownLabel(due, now: now)} · $at',
-      );
-    }
-
-    return _StatusRow(
+    return _HalfStat(
       icon: last == null ? Icons.child_care : FeedingFormat.typeIcon(last.type),
       label: 'Last fed',
       value: last == null
@@ -105,17 +111,16 @@ class HomeStatusCard extends ConsumerWidget {
                 FeedingFormat.details(last, units),
               ),
             ),
-      footer: next,
     );
   }
 
-  Widget _diaperRow(BuildContext context, WidgetRef ref) {
+  Widget _diaperHalf(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastDiaperProvider);
-    return _StatusRow(
+    return _HalfStat(
       icon: last == null
           ? Icons.baby_changing_station
           : DiaperFormat.typeIcon(last.type),
-      label: 'Last diaper changed',
+      label: 'Last diaper',
       value: last == null
           ? 'No changes yet'
           : FeedingFormat.timeAgo(last.time, now: now),
@@ -128,6 +133,25 @@ class HomeStatusCard extends ConsumerWidget {
                 DiaperFormat.details(last),
               ),
             ),
+    );
+  }
+
+  /// Null when reminders are off or there isn't enough history to predict.
+  Widget? _nextFeedChip(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(reminderSettingsProvider);
+    if (settings.mode == ReminderMode.off) return null;
+    final due = ref.watch(feedPredictionProvider).nextDue;
+    if (due == null) return null;
+
+    final at = TimeOfDay.fromDateTime(due).format(context);
+    final overdue = !due.isAfter(now);
+    return _NextFeedChip(
+      overdue: overdue,
+      // "Next feed 2h overdue" reads badly, so the wording flips once it has
+      // slipped past.
+      text: overdue
+          ? 'Feed ${countdownLabel(due, now: now)} · due $at'
+          : 'Next feed ${countdownLabel(due, now: now)} · $at',
     );
   }
 
@@ -168,6 +192,66 @@ class HomeStatusCard extends ConsumerWidget {
 
   static String _join(String label, String details) =>
       details.isEmpty ? label : '$label · $details';
+}
+
+/// One side of the last-fed / last-diaper pair. Compact by necessity: at half
+/// a card's width there is no room for the avatar the full-width rows use.
+class _HalfStat extends StatelessWidget {
+  const _HalfStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.detail,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final String? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final detailText = detail;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: theme.colorScheme.primary),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                style: theme.textTheme.labelMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (detailText != null)
+          Text(
+            detailText,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            // Two lines, because half-width can't hold "9:30 AM · Bottle ·
+            // 120 ml (4.1 fl oz)" on one.
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+      ],
+    );
+  }
 }
 
 /// The next-feed countdown, as a tinted pill.
