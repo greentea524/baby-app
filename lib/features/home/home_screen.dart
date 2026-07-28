@@ -17,6 +17,7 @@ import 'baby_switcher.dart';
 import 'home_prefs.dart';
 import 'home_status_card.dart';
 import 'recent_activity_list.dart';
+import 'today_summary.dart';
 
 /// Home dashboard: last-fed / last-changed indicators, quick-log entry
 /// points for feeds (KAN-130) and diapers (KAN-131), and recent activity.
@@ -88,6 +89,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: [
                   const IncomingInvitesBanner(),
                   HomeStatusCard(now: _now),
+                  const TodaySummaryRow(),
                   const _QuickActions(),
                   const _RecentHeader(),
                   Expanded(child: RecentActivityList(now: _now)),
