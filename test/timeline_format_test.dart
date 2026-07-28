@@ -72,4 +72,21 @@ void main() {
       expect(TimelineFormat.shortDate(DateTime(2026, 12, 31)), 'Dec 31');
     });
   });
+
+  group('TimelineFormat.weekdayDate', () {
+    test('prefixes the weekday', () {
+      // 2026-07-30 is a Thursday.
+      expect(TimelineFormat.weekdayDate(DateTime(2026, 7, 30)), 'Thu, Jul 30');
+      // 2026-07-20 is a Monday.
+      expect(TimelineFormat.weekdayDate(DateTime(2026, 7, 20)), 'Mon, Jul 20');
+    });
+
+    test('stays concrete for today, unlike dayLabel', () {
+      // The point of this helper: it can sit next to a relative countdown
+      // without repeating it.
+      final today = DateTime(2026, 7, 26); // a Sunday
+      expect(TimelineFormat.dayLabel(today, now: today), 'Today');
+      expect(TimelineFormat.weekdayDate(today), 'Sun, Jul 26');
+    });
+  });
 }

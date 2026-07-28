@@ -36,6 +36,12 @@ abstract final class TimelineFormat {
   /// "Jul 24" — a compact date used to stamp rows that aren't from today.
   static String shortDate(DateTime d) => '${_months[d.month - 1]} ${d.day}';
 
+  /// "Thu, Jul 30" — weekday and date, always concrete. Unlike [dayLabel]
+  /// this never collapses to "Today", so it can sit beside a relative
+  /// countdown without repeating it.
+  static String weekdayDate(DateTime d) =>
+      '${_weekdays[d.weekday - 1]}, ${shortDate(d)}';
+
   /// Minutes → "2h 30m" / "45m" / "—" when null.
   static String interval(int? minutes) {
     if (minutes == null) return '—';

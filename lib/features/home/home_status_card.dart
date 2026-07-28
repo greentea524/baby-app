@@ -9,6 +9,7 @@ import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
+import '../timeline/timeline_format.dart';
 import 'home_layout.dart';
 
 /// The Home status card (KAN-179): where feeding, diapers, and the next
@@ -146,10 +147,21 @@ class HomeStatusCard extends ConsumerWidget {
     return _StatusRow(
       icon: AppointmentFormat.kindIcon(next.kind),
       label: 'Next appointment',
-      value:
-          '${AppointmentFormat.countdown(next.at, now: now)} · '
+      // Countdown leads because it's what you scan for, but on its own "in 3
+      // days" doesn't tell you which day to keep free — so the concrete date
+      // sits right under it.
+      value: AppointmentFormat.countdown(next.at, now: now),
+      detail:
+          '${TimelineFormat.weekdayDate(next.at)} · '
           '${TimeOfDay.fromDateTime(next.at).format(context)}',
-      detail: details.isEmpty ? title : '$title · $details',
+      footer: Text(
+        details.isEmpty ? title : '$title · $details',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       accent: imminent ? theme.colorScheme.tertiary : null,
       onTap: () => context.go(AppRoutes.appointments),
     );
