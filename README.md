@@ -146,6 +146,25 @@ After that, `git push` to `main` deploys automatically. (To also inject the
 push VAPID key, add `--dart-define=VAPID_KEY=${{ secrets.VAPID_KEY }}` to the
 build step and set that secret too.)
 
+### Why hosting sends `Cache-Control: no-cache`
+
+`firebase.json` sets `no-cache` on every hosted file. Without it, Hosting
+defaults to `max-age=3600` on *everything* — including `index.html` and
+`flutter_service_worker.js` — so a returning device wouldn't even ask whether
+a new build exists until an hour after a deploy.
+
+`no-cache` means "revalidate before using", not "don't store". Hosting sends
+strong ETags, so unchanged files come back as tiny `304`s and the service
+worker still serves assets from the Cache API. It applies to everything
+because none of Flutter's web output is content-hashed in its filename
+(`main.dart.js` is always `main.dart.js`), so a stale HTTP cache can hand the
+service worker an old copy of a file it is trying to update.
+
+Note that even with this, the service worker activates a new build on the
+*next* load — so a returning visitor sees the previous version once. That is
+inherent to how the Flutter service worker updates, not something the headers
+can fix.
+
 ## Background push notifications (KAN-156) — optional, requires setup
 
 Feed reminders can be delivered while the app is closed, via Firebase Cloud
