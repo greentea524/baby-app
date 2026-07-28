@@ -318,11 +318,19 @@ class _StatusRow extends StatelessWidget {
               ],
             ),
           ),
-          if (onTap != null)
-            Icon(
-              Icons.chevron_right,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          // The slot is always reserved, even on rows that aren't tappable.
+          // Showing the chevron only when present would make the appointment
+          // row's content a chevron-width narrower than the rest, so its
+          // countdown would stop short of the other rows' elapsed times.
+          SizedBox(
+            width: 24,
+            child: onTap == null
+                ? null
+                : Icon(
+                    Icons.chevron_right,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+          ),
         ],
       ),
     );
