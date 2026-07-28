@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/format/unit_system.dart';
-import '../../core/router/app_router.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../appointments/appointment_format.dart';
 import '../diaper/diaper_format.dart';
@@ -165,7 +163,6 @@ class HomeStatusCard extends ConsumerWidget {
         overflow: TextOverflow.ellipsis,
       ),
       accent: imminent ? theme.colorScheme.tertiary : null,
-      onTap: () => context.go(AppRoutes.appointments),
     );
   }
 
@@ -238,7 +235,6 @@ class _StatusRow extends StatelessWidget {
     this.detail,
     this.footer,
     this.accent,
-    this.onTap,
   });
 
   final IconData icon;
@@ -251,7 +247,6 @@ class _StatusRow extends StatelessWidget {
   final Widget? footer;
 
   final Color? accent;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -260,7 +255,7 @@ class _StatusRow extends StatelessWidget {
     // needing a bang operator on every use.
     final detailText = detail;
 
-    final content = Padding(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
@@ -320,24 +315,8 @@ class _StatusRow extends StatelessWidget {
               ],
             ),
           ),
-          // The slot is always reserved, even on rows that aren't tappable.
-          // Showing the chevron only when present would make the appointment
-          // row's content a chevron-width narrower than the rest, so its
-          // countdown would stop short of the other rows' elapsed times.
-          SizedBox(
-            width: 24,
-            child: onTap == null
-                ? null
-                : Icon(
-                    Icons.chevron_right,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-          ),
         ],
       ),
     );
-
-    if (onTap == null) return content;
-    return InkWell(onTap: onTap, child: content);
   }
 }
