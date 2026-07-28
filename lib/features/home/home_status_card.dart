@@ -10,7 +10,7 @@ import '../feeding/feeding_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
 import '../timeline/timeline_format.dart';
-import 'home_layout.dart';
+import 'home_prefs.dart';
 
 /// The Home status card (KAN-179): where feeding, diapers, and the next
 /// visit stand, in one place.
@@ -115,7 +115,7 @@ class HomeStatusCard extends ConsumerWidget {
       icon: last == null
           ? Icons.baby_changing_station
           : DiaperFormat.typeIcon(last.type),
-      label: 'Last changed',
+      label: 'Last diaper changed',
       value: last == null
           ? 'No changes yet'
           : FeedingFormat.timeAgo(last.time, now: now),

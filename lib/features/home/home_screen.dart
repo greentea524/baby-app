@@ -14,6 +14,7 @@ import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
+import 'home_prefs.dart';
 import 'home_status_card.dart';
 import 'recent_activity_list.dart';
 
@@ -122,11 +123,14 @@ class _RecentHeader extends StatelessWidget {
   }
 }
 
-class _QuickActions extends StatelessWidget {
+class _QuickActions extends ConsumerWidget {
   const _QuickActions();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Pumping is opt-in (KAN-181): it only applies to some caregivers, and
+    // feeds and diapers are what most people open the app to log.
+    final showPumping = ref.watch(showPumpingActionProvider);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -150,11 +154,12 @@ class _QuickActions extends StatelessWidget {
               ),
             ],
           ),
-          TextButton.icon(
-            onPressed: () => showPumpingQuickLog(context),
-            icon: const Icon(PumpingFormat.icon, size: 18),
-            label: const Text('Log pumping'),
-          ),
+          if (showPumping)
+            TextButton.icon(
+              onPressed: () => showPumpingQuickLog(context),
+              icon: const Icon(PumpingFormat.icon, size: 18),
+              label: const Text('Log pumping'),
+            ),
         ],
       ),
     );

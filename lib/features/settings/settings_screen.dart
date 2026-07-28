@@ -7,9 +7,10 @@ import '../../core/theme/theme_mode_provider.dart';
 import '../../data/models/notification_prefs.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../caregivers/caregivers_screen.dart';
-import '../home/home_layout.dart';
 import '../export/export_screen.dart';
+import '../home/home_prefs.dart';
 import '../notifications/push_service.dart';
+import '../pumping/pumping_format.dart';
 import '../reminders/reminder_providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -51,6 +52,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const _AccentPicker(),
           const _HomeLayoutPicker(),
+          const _PumpingActionToggle(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.group_outlined),
@@ -166,6 +168,29 @@ class _HomeLayoutPicker extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Whether Home offers a "Log pumping" button (KAN-181). On by default, since
+/// it is the only way to start a pump entry; the subtitle spells out what
+/// turning it off costs.
+class _PumpingActionToggle extends ConsumerWidget {
+  const _PumpingActionToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(showPumpingActionProvider);
+    return SwitchListTile(
+      secondary: const Icon(PumpingFormat.icon),
+      title: const Text('Pumping button'),
+      subtitle: Text(
+        enabled
+            ? 'Shown on Home under the feed and diaper buttons'
+            : 'Hidden — turn on to log pump sessions',
+      ),
+      value: enabled,
+      onChanged: (v) => ref.read(showPumpingActionProvider.notifier).set(v),
     );
   }
 }

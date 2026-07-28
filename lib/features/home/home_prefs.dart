@@ -43,3 +43,28 @@ class HomeLayoutNotifier extends Notifier<HomeLayout> {
         .setString(_homeLayoutKey, layout.name);
   }
 }
+
+const _showPumpingKey = 'show_pumping_action';
+
+/// Whether Home offers a "Log pumping" button (KAN-181).
+///
+/// On by default, because this button is the only way to *create* a pump
+/// entry — the activity list can edit existing sessions but not start new
+/// ones. Defaulting it off would silently make pump logging unreachable, so
+/// hiding it is a deliberate choice the caregiver makes rather than one they
+/// discover the hard way.
+final showPumpingActionProvider =
+    NotifierProvider<ShowPumpingActionNotifier, bool>(
+      ShowPumpingActionNotifier.new,
+    );
+
+class ShowPumpingActionNotifier extends Notifier<bool> {
+  @override
+  bool build() =>
+      ref.read(sharedPreferencesProvider).getBool(_showPumpingKey) ?? true;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await ref.read(sharedPreferencesProvider).setBool(_showPumpingKey, value);
+  }
+}
