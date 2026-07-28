@@ -11,6 +11,7 @@ class TrendChart extends StatelessWidget {
     required this.labels,
     this.height = 160,
     this.valueFormat,
+    this.secondaryFormat,
   });
 
   /// One value per day, earliest first. Days with no activity are zeros.
@@ -24,6 +25,10 @@ class TrendChart extends StatelessWidget {
 
   /// Formats the y-axis ticks. Defaults to a trimmed number.
   final String Function(double)? valueFormat;
+
+  /// When set, draws a second set of tick labels down the right edge —
+  /// used to read the same bars in a second unit without a second chart.
+  final String Function(double)? secondaryFormat;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +54,7 @@ class TrendChart extends StatelessWidget {
           grid: theme.colorScheme.outlineVariant,
           text: theme.colorScheme.onSurfaceVariant,
           format: valueFormat ?? _trim,
+          secondary: secondaryFormat,
         ),
         child: const SizedBox.expand(),
       ),
@@ -67,6 +73,7 @@ class _TrendChartPainter extends CustomPainter {
     required this.grid,
     required this.text,
     required this.format,
+    this.secondary,
   });
 
   final List<double> values;
@@ -75,11 +82,14 @@ class _TrendChartPainter extends CustomPainter {
   final Color grid;
   final Color text;
   final String Function(double) format;
+  final String Function(double)? secondary;
 
   static const _leftPad = 36.0;
   static const _bottomPad = 20.0;
   static const _topPad = 10.0;
-  static const _rightPad = 8.0;
+
+  /// Room for the second unit's labels when there is one.
+  double get _rightPad => secondary == null ? 8.0 : 34.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -108,6 +118,9 @@ class _TrendChartPainter extends CustomPainter {
         Offset(plot.left - 5, y),
         anchorRight: true,
       );
+      if (secondary case final f?) {
+        _label(canvas, f(value), Offset(plot.right + 5, y));
+      }
     }
 
     // Bars: one slot per day, with a small gap between them.
@@ -191,5 +204,5 @@ class _TrendChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TrendChartPainter old) =>
-      old.values != values || old.bar != bar;
+      old.values != values || old.bar != bar || old.secondary != secondary;
 }

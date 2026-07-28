@@ -69,14 +69,15 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   }
 }
 
-class _Trends extends StatelessWidget {
+class _Trends extends ConsumerWidget {
   const _Trends({required this.stats, required this.range});
 
   final RangeStats stats;
   final InsightsRange range;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final units = ref.watch(unitSystemProvider);
     if (stats.isEmpty) {
       return ListView(
         children: [
@@ -101,36 +102,45 @@ class _Trends extends StatelessWidget {
       children: [
         _SummaryGrid(stats: stats),
         const SizedBox(height: 8),
-        _ChartSection(
-          title: 'Feeds per day',
-          values: [for (final d in stats.days) d.stats.feedCount.toDouble()],
-          labels: labels,
-        ),
-        _ChartSection(
-          title: 'Diapers per day',
-          values: [for (final d in stats.days) d.stats.diaperCount.toDouble()],
-          labels: labels,
-        ),
-        if (stats.totalBottleMl > 0)
           _ChartSection(
-            title: 'Bottle per day (ml)',
-            values: [for (final d in stats.days) d.stats.bottleMl],
+            title: 'Feeds per day',
+            values: [for (final d in stats.days) d.stats.feedCount.toDouble()],
             labels: labels,
           ),
-        if (stats.totalBreastMinutes > 0)
           _ChartSection(
-            title: 'Breastfeeding per day (min)',
+            title: 'Diapers per day',
             values: [
-              for (final d in stats.days) d.stats.breastMinutes.toDouble(),
+              for (final d in stats.days) d.stats.diaperCount.toDouble(),
             ],
             labels: labels,
           ),
-        if (stats.totalPumpedMl > 0)
-          _ChartSection(
-            title: 'Pumped per day (ml)',
-            values: [for (final d in stats.days) d.stats.pumpedMl],
-            labels: labels,
-          ),
+          if (stats.totalBottleMl > 0)
+            _ChartSection(
+              title: units.isMetric
+                  ? 'Bottle per day (ml)'
+                  : 'Bottle per day (ml · fl oz)',
+              values: [for (final d in stats.days) d.stats.bottleMl],
+              labels: labels,
+              secondaryFormat: units.isMetric ? null : formatFlOz,
+            ),
+          if (stats.totalBreastMinutes > 0)
+            _ChartSection(
+              title: 'Breastfeeding per day (min)',
+              values: [
+                for (final d in stats.days) d.stats.breastMinutes.toDouble(),
+              ],
+              labels: labels,
+            ),
+          if (stats.totalPumpedMl > 0)
+            _ChartSection(
+              title: units.isMetric
+                  ? 'Pumped per day (ml)'
+                  : 'Pumped per day (ml · fl oz)',
+              values: [for (final d in stats.days) d.stats.pumpedMl],
+              labels: labels,
+              secondaryFormat: units.isMetric ? null : formatFlOz,
+            ),
+        ],
       ],
     );
   }
@@ -222,11 +232,13 @@ class _ChartSection extends StatelessWidget {
     required this.title,
     required this.values,
     required this.labels,
+    this.secondaryFormat,
   });
 
   final String title;
   final List<double> values;
   final List<String> labels;
+  final String Function(double)? secondaryFormat;
 
   @override
   Widget build(BuildContext context) {
@@ -237,7 +249,11 @@ class _ChartSection extends StatelessWidget {
         children: [
           Text(title, style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 4),
-          TrendChart(values: values, labels: labels),
+          TrendChart(
+            values: values,
+            labels: labels,
+            secondaryFormat: secondaryFormat,
+          ),
         ],
       ),
     );
