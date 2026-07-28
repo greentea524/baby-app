@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/launch_action.dart';
 import '../../core/router/app_router.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../appointments/next_appointment_card.dart';
 import '../caregivers/incoming_invites.dart';
 import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
@@ -90,6 +91,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const IncomingInvitesBanner(),
                   _SummaryCard(now: _now),
                   NextFeedCard(now: _now),
+                  NextAppointmentCard(now: _now),
                   const _QuickActions(),
                   const _RecentHeader(),
                   Expanded(child: RecentActivityList(now: _now)),

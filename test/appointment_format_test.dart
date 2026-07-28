@@ -52,6 +52,30 @@ void main() {
     });
   });
 
+  group('daysUntil', () {
+    final now = DateTime(2026, 7, 27, 12, 0);
+
+    test('measures calendar days, so late tonight is still 0', () {
+      expect(
+        AppointmentFormat.daysUntil(DateTime(2026, 7, 27, 23, 0), now: now),
+        0,
+      );
+      // Nearer in real time than 11pm tonight, but a day away.
+      expect(
+        AppointmentFormat.daysUntil(DateTime(2026, 7, 28, 1, 0), now: now),
+        1,
+      );
+    });
+
+    test('goes negative once the visit has passed', () {
+      expect(AppointmentFormat.daysUntil(DateTime(2026, 7, 24), now: now), -3);
+    });
+
+    test('spans month boundaries', () {
+      expect(AppointmentFormat.daysUntil(DateTime(2026, 8, 3), now: now), 7);
+    });
+  });
+
   group('countdown', () {
     final now = DateTime(2026, 7, 27, 12, 0);
 

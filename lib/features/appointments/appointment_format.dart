@@ -41,15 +41,22 @@ abstract final class AppointmentFormat {
     return parts.join(' · ');
   }
 
-  /// How far off an appointment is, in calendar days rather than elapsed
-  /// hours — "tomorrow" should mean the next calendar day even if it is only
-  /// 14 hours away. Past appointments read as "3 days ago".
-  static String countdown(DateTime at, {DateTime? now}) {
+  /// Whole calendar days from [now] until [at]; negative once it has passed.
+  ///
+  /// Deliberately calendar-based rather than elapsed hours: 11pm tonight is
+  /// 0 days off even though 1am tomorrow — which is 1 day off — is nearer in
+  /// real time. That is what people mean by "today" and "tomorrow".
+  static int daysUntil(DateTime at, {DateTime? now}) {
     final reference = now ?? DateTime.now();
     final today = DateTime(reference.year, reference.month, reference.day);
     final target = DateTime(at.year, at.month, at.day);
-    final days = target.difference(today).inDays;
+    return target.difference(today).inDays;
+  }
 
+  /// How far off an appointment is, in calendar days. Past appointments read
+  /// as "3 days ago".
+  static String countdown(DateTime at, {DateTime? now}) {
+    final days = daysUntil(at, now: now);
     if (days == 0) return 'Today';
     if (days == 1) return 'Tomorrow';
     if (days == -1) return 'Yesterday';
