@@ -12,7 +12,9 @@ import '../export/export_screen.dart';
 import '../home/home_prefs.dart';
 import '../notifications/push_service.dart';
 import '../pumping/pumping_format.dart';
+import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
+import '../timeline/timeline_format.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -273,13 +275,7 @@ class _ReminderSection extends ConsumerWidget {
             ),
           ),
         if (settings.mode == ReminderMode.predictive)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(72, 0, 16, 8),
-            child: Text(
-              'Uses a rolling average of recent feed intervals.',
-              style: TextStyle(fontSize: 12),
-            ),
-          ),
+          const _PredictiveExplainer(),
         const _PushToggle(),
         const _QuietHoursSection(),
       ],
@@ -379,6 +375,52 @@ class _QuietHoursSection extends ConsumerWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// What "Predicted" actually does, plus the figure it currently arrives at
+/// (KAN-186).
+///
+/// The method used to be summarised in four words, and the resulting average
+/// wasn't shown anywhere at all — so a prediction that drifted looked like
+/// the app being vague rather than something with a number behind it you
+/// could sanity-check.
+class _PredictiveExplainer extends ConsumerWidget {
+  const _PredictiveExplainer();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final prediction = ref.watch(feedPredictionProvider);
+    final average = prediction.averageIntervalMinutes;
+    final samples = prediction.intervalSamples;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(72, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Averages the gaps between your recent feeds. Entries less than '
+            '$sameSessionMinutes minutes apart count as one feed, so a '
+            'topped-up bottle does not pull the estimate early.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            average == null || samples == 0
+                ? 'Not enough history yet — log two feeds to start.'
+                : 'Right now: every ${TimelineFormat.interval(average)}, '
+                      'from $samples recent '
+                      '${samples == 1 ? 'interval' : 'intervals'}.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
