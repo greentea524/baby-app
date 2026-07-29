@@ -31,12 +31,27 @@ class FeedPrediction {
   );
 }
 
+/// Gaps shorter than this are treated as the same feeding session rather than
+/// a new one (KAN-184).
+///
+/// Topping up a bottle, logging each breast separately, or correcting an
+/// entry all produce two records minutes apart. Counting those as feeding
+/// intervals drags the rolling average down and makes every later reminder
+/// fire early — a single one-minute gap in a 78-minute rhythm pulls the
+/// prediction forward by ten minutes.
+const int sameSessionMinutes = 20;
+
 /// Predicts the next feed from a rolling average of recent intervals.
 ///
 /// Uses at most the last [window] gaps so the estimate tracks the baby's
-/// current rhythm rather than being dragged by older newborn patterns.
+/// current rhythm rather than being dragged by older newborn patterns, and
+/// ignores gaps under [minGapMinutes] as same-session entries.
 /// Needs at least two feeds (one gap) to predict anything.
-FeedPrediction predictNextFeed(List<FeedingEvent> feedings, {int window = 8}) {
+FeedPrediction predictNextFeed(
+  List<FeedingEvent> feedings, {
+  int window = 8,
+  int minGapMinutes = sameSessionMinutes,
+}) {
   if (feedings.length < 2) {
     return FeedPrediction(
       nextDue: null,
@@ -49,10 +64,20 @@ FeedPrediction predictNextFeed(List<FeedingEvent> feedings, {int window = 8}) {
   final sorted = [...feedings]
     ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
-  final gaps = <int>[];
+  final allGaps = <int>[];
   for (var i = 1; i < sorted.length; i++) {
-    gaps.add(sorted[i].startTime.difference(sorted[i - 1].startTime).inMinutes);
+    allGaps.add(
+      sorted[i].startTime.difference(sorted[i - 1].startTime).inMinutes,
+    );
   }
+
+  // Filter before windowing, so same-session entries don't consume slots that
+  // real intervals should occupy.
+  var gaps = allGaps.where((g) => g >= minGapMinutes).toList();
+  // Every gap being short is a genuine cluster-feeding stretch, not logging
+  // noise — better to predict from it than to refuse to predict at all.
+  if (gaps.isEmpty) gaps = allGaps;
+
   final recent = gaps.length <= window
       ? gaps
       : gaps.sublist(gaps.length - window);

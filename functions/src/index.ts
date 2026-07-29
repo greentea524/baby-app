@@ -5,14 +5,30 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 const db = admin.firestore();
 
-/** How many recent feeds to average when predicting the next one. */
+/** How many recent gaps to average when predicting the next feed. */
 const WINDOW = 8;
+
+/**
+ * Fetch more feeds than the window needs, so that discarding same-session
+ * entries still leaves WINDOW real intervals to average.
+ */
+const FETCH = WINDOW * 2;
+
 
 /** Firestore `in` queries cap out at 10 values. */
 const IN_QUERY_LIMIT = 10;
 
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_DAY = 24 * 60;
+/**
+ * Gaps shorter than this are the same feeding session, not a new one
+ * (KAN-184) — a topped-up bottle or a corrected entry. Counting them as
+ * intervals drags the average down and fires every later reminder early.
+ *
+ * Mirrors `sameSessionMinutes` in lib/features/reminders/feed_prediction.dart
+ * — keep the two in step.
+ */
+const SAME_SESSION_MS = 20 * MS_PER_MINUTE;
 
 /**
  * A caregiver's notification preferences (KAN-167), stored at
@@ -107,7 +123,7 @@ export const feedReminder = onSchedule("every 15 minutes", async () => {
       const feedsSnap = await babyDoc.ref
         .collection("feedings")
         .orderBy("startTime", "desc")
-        .limit(WINDOW)
+        .limit(FETCH)
         .get();
       if (feedsSnap.size < 2) continue;
 
@@ -116,9 +132,18 @@ export const feedReminder = onSchedule("every 15 minutes", async () => {
         .map((d) => (d.get("startTime") as admin.firestore.Timestamp).toMillis())
         .reverse();
 
-      let total = 0;
-      for (let i = 1; i < times.length; i++) total += times[i] - times[i - 1];
-      const avg = total / (times.length - 1);
+      const allGaps: number[] = [];
+      for (let i = 1; i < times.length; i++) {
+        allGaps.push(times[i] - times[i - 1]);
+      }
+      // Filter before windowing, so same-session entries don't consume slots
+      // that real intervals should occupy.
+      const realGaps = allGaps.filter((g) => g >= SAME_SESSION_MS);
+      // All gaps being short is genuine cluster feeding, not logging noise.
+      const usable = realGaps.length > 0 ? realGaps : allGaps;
+      const gaps = usable.slice(-WINDOW);
+
+      const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length;
       const due = times[times.length - 1] + avg;
       if (now < due) continue;
 

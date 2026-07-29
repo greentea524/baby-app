@@ -90,4 +90,104 @@ void main() {
       );
     });
   });
+
+  group('same-session entries (KAN-184)', () {
+    /// A steady rhythm of [gapMinutes], oldest first.
+    List<FeedingEvent> steady(int count, int gapMinutes) {
+      var t = DateTime(2026, 7, 28, 8, 0);
+      return [
+        for (var i = 0; i < count; i++)
+          () {
+            final e = FeedingEvent(
+              id: 'f$i',
+              type: FeedingType.bottle,
+              startTime: t,
+            );
+            t = t.add(Duration(minutes: gapMinutes));
+            return e;
+          }(),
+      ];
+    }
+
+    test('a topped-up bottle does not drag the average down', () {
+      final feeds = steady(8, 78);
+      final baseline = predictNextFeed(feeds);
+      expect(baseline.averageIntervalMinutes, 78);
+
+      // A second bottle a minute after the last: one feed logged twice.
+      final withSplit = [
+        ...feeds,
+        FeedingEvent(
+          id: 'topup',
+          type: FeedingType.bottle,
+          startTime: feeds.last.startTime.add(const Duration(minutes: 1)),
+        ),
+      ];
+      // Before the fix this averaged to 68, pulling every later reminder ten
+      // minutes early.
+      expect(predictNextFeed(withSplit).averageIntervalMinutes, 78);
+    });
+
+    test('several splits still leave the rhythm intact', () {
+      final feeds = [...steady(8, 78)];
+      for (var i = 0; i < 3; i++) {
+        feeds.add(
+          FeedingEvent(
+            id: 'split$i',
+            type: FeedingType.bottle,
+            startTime: feeds.last.startTime.add(const Duration(minutes: 2)),
+          ),
+        );
+      }
+      expect(predictNextFeed(feeds).averageIntervalMinutes, 78);
+    });
+
+    test('discarded gaps do not consume window slots', () {
+      // Filtering happens before windowing, so the average still draws on
+      // eight real intervals rather than however many survived.
+      final feeds = [...steady(9, 78)];
+      feeds.insert(
+        4,
+        FeedingEvent(
+          id: 'split',
+          type: FeedingType.bottle,
+          startTime: feeds[3].startTime.add(const Duration(minutes: 1)),
+        ),
+      );
+      final p = predictNextFeed(feeds);
+      expect(p.averageIntervalMinutes, 78);
+      expect(p.intervalSamples, 8);
+    });
+
+    test('genuine cluster feeding is still predicted from', () {
+      // Every gap under the threshold is a real pattern, not logging noise —
+      // refusing to predict would be worse than predicting short.
+      final feeds = steady(5, 12);
+      final p = predictNextFeed(feeds);
+      expect(p.averageIntervalMinutes, 12);
+      expect(p.nextDue, isNotNull);
+    });
+
+    test('the threshold is adjustable', () {
+      final feeds = steady(4, 30);
+      expect(
+        predictNextFeed(feeds, minGapMinutes: 45).averageIntervalMinutes,
+        30,
+      );
+    });
+
+    test('the prediction still counts from the most recent feed', () {
+      final feeds = steady(8, 78);
+      final topUp = feeds.last.startTime.add(const Duration(minutes: 1));
+      final withSplit = [
+        ...feeds,
+        FeedingEvent(id: 't', type: FeedingType.bottle, startTime: topUp),
+      ];
+      // The baby ate at the top-up time, so that is what the gap runs from.
+      expect(
+        predictNextFeed(withSplit).nextDue,
+        topUp.add(const Duration(minutes: 78)),
+      );
+    });
+  });
 }
