@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
+import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../timeline/timeline_format.dart';
+import 'feed_clock_chart.dart';
+import 'feed_clock_data.dart';
 import 'insights_providers.dart';
 import 'range_stats.dart';
 import 'trend_chart.dart';
@@ -54,12 +57,16 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
                     error: (e, _) => Center(child: Text('Could not load: $e')),
-                    data: (stats) => stats == null
+                    data: (data) => data == null
                         ? const SizedBox.shrink()
                         : RefreshIndicator(
                             onRefresh: () async =>
                                 ref.invalidate(rangeStatsProvider(_range)),
-                            child: _Trends(stats: stats, range: _range),
+                            child: _Trends(
+                              stats: data.stats,
+                              feedings: data.feedings,
+                              range: _range,
+                            ),
                           ),
                   ),
                 ),
@@ -70,10 +77,21 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
 }
 
 class _Trends extends ConsumerWidget {
-  const _Trends({required this.stats, required this.range});
+  const _Trends({
+    required this.stats,
+    required this.feedings,
+    required this.range,
+  });
 
   final RangeStats stats;
+  final List<FeedingEvent> feedings;
   final InsightsRange range;
+
+  List<FeedClockRow> _clockRows() => feedClockRows(
+    start: stats.days.first.day,
+    end: stats.days.last.day.add(const Duration(days: 1)),
+    feedings: feedings,
+  );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -101,6 +119,7 @@ class _Trends extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: 24),
       children: [
         _SummaryGrid(stats: stats),
+        if (stats.totalFeeds > 0) _FeedClockSection(rows: _clockRows()),
         const SizedBox(height: 8),
         _ChartSection(
           title: 'Feeds per day',
@@ -218,6 +237,39 @@ class _SummaryGrid extends ConsumerWidget {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The feed-times chart with its title and the gap it reveals.
+class _FeedClockSection extends ConsumerWidget {
+  const _FeedClockSection({required this.rows});
+
+  final List<FeedClockRow> rows;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final longest = longestGapMinutes(rows);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Feed times by day',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          if (longest != null)
+            Text(
+              'Longest gap ${TimelineFormat.interval(longest)}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          const SizedBox(height: 8),
+          FeedClockChart(rows: rows, units: ref.watch(unitSystemProvider)),
         ],
       ),
     );
