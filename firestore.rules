@@ -63,13 +63,45 @@ service cloud.firestore {
         && request.resource.data.memberUids.hasOnly([request.auth.uid])
         && request.resource.data.members[request.auth.uid] == 'owner';
 
-      // Members may edit the baby; a non-member may accept an invite by
-      // adding only themselves (see below).
-      allow update: if isMemberOf(resource.data) || isAcceptingInvite(babyId);
+      // Members edit the profile; the owner manages the roster; anyone can
+      // show themselves out. An unconstrained member update would let an
+      // invited caregiver evict the owner or rewrite ownerUid to themselves —
+      // and the owner-only delete below would then be theirs too.
+      allow update: if isAcceptingInvite(babyId)
+        || (isMemberOf(resource.data)
+            && ownerUnchanged()
+            && (rosterUnchanged() || isLeaving()))
+        || (isOwnerOf(resource.data) && ownerUnchanged());
 
       // Only the owner may delete the profile.
       allow delete: if signedIn()
         && resource.data.ownerUid == request.auth.uid;
+
+      function isOwnerOf(data) {
+        return signedIn() && data.ownerUid == request.auth.uid;
+      }
+
+      // There is no hand-over feature, so any change to ownerUid is someone
+      // rewriting it rather than a transfer the app offers.
+      function ownerUnchanged() {
+        return request.resource.data.ownerUid == resource.data.ownerUid;
+      }
+
+      // The caregiver roster is untouched — an ordinary profile edit.
+      function rosterUnchanged() {
+        return request.resource.data.memberUids == resource.data.memberUids
+          && request.resource.data.members == resource.data.members;
+      }
+
+      // Removing exactly yourself: one uid fewer, none added, and the one
+      // that went is the caller's own.
+      function isLeaving() {
+        return !(request.auth.uid in request.resource.data.memberUids)
+          && !(request.auth.uid in request.resource.data.members)
+          && request.resource.data.memberUids.size()
+              == resource.data.memberUids.size() - 1
+          && request.resource.data.memberUids.hasOnly(resource.data.memberUids);
+      }
 
       // A signed-in, invited user adds exactly themselves to the member
       // lists, keeps the existing members, and leaves ownership unchanged.

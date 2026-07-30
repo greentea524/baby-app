@@ -247,6 +247,81 @@ describe("invite acceptance", () => {
   });
 });
 
+describe("membership changes", () => {
+  /** Promotes bob to a full member, bypassing rules. */
+  async function makeBobAMember() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(babyDoc(ctx.firestore()), {
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+      });
+    });
+  }
+
+  it("lets any member edit the profile fields", async () => {
+    await makeBobAMember();
+    await assertSucceeds(updateDoc(babyDoc(asBob()), { name: "Ada B" }));
+  });
+
+  it("lets the owner remove a caregiver", async () => {
+    await makeBobAMember();
+    await assertSucceeds(
+      updateDoc(babyDoc(asAlice()), {
+        memberUids: ["alice"],
+        members: { alice: "owner" },
+      }),
+    );
+  });
+
+  it("lets a caregiver remove themselves", async () => {
+    await makeBobAMember();
+    await assertSucceeds(
+      updateDoc(babyDoc(asBob()), {
+        memberUids: ["alice"],
+        members: { alice: "owner" },
+      }),
+    );
+  });
+
+  it("blocks a caregiver from removing someone else", async () => {
+    // carol and bob are both editors; neither may evict the other.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(babyDoc(ctx.firestore()), {
+        memberUids: ["alice", "bob", "carol"],
+        members: { alice: "owner", bob: "editor", carol: "editor" },
+      });
+    });
+    await assertFails(
+      updateDoc(babyDoc(asBob()), {
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+      }),
+    );
+  });
+
+  it("blocks a caregiver from removing the owner", async () => {
+    await makeBobAMember();
+    await assertFails(
+      updateDoc(babyDoc(asBob()), {
+        memberUids: ["bob"],
+        members: { bob: "editor" },
+      }),
+    );
+  });
+
+  it("blocks a caregiver from seizing ownership", async () => {
+    // The worst case: an editor rewrites ownerUid to themselves, which would
+    // also hand them the owner-only delete.
+    await makeBobAMember();
+    await assertFails(updateDoc(babyDoc(asBob()), { ownerUid: "bob" }));
+  });
+
+  it("blocks the owner from handing ownership to someone else", async () => {
+    await makeBobAMember();
+    await assertFails(updateDoc(babyDoc(asAlice()), { ownerUid: "bob" }));
+  });
+});
+
 describe("fcm tokens", () => {
   it("lets a user register a token under their own uid", async () => {
     await assertSucceeds(
