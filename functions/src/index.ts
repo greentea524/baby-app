@@ -1,3 +1,15 @@
+// DORMANT — this function has never been deployed.
+//
+// It is complete and kept deliberately: enabling it is a billing decision (the
+// Blaze plan) rather than a development one. Until `npm run deploy` is run
+// against a Blaze project, the app sends no background notifications, and the
+// reminder switches in Settings stay hidden — see `backgroundRemindersAvailable`
+// in lib/features/notifications/push_service.dart and the README.
+//
+// Nothing here has ever run against real Firestore, so the first deploy is
+// where per-caregiver intervals and `lastNotifiedByUid` get their first real
+// exercise. Watch for duplicate or missing pushes.
+
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
 import * as admin from "firebase-admin";

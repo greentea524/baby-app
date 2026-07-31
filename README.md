@@ -205,7 +205,16 @@ Note that even with this, the service worker activates a new build on the
 inherent to how the Flutter service worker updates, not something the headers
 can fix.
 
-## Background push notifications (KAN-156) — optional, requires setup
+## Background push notifications (KAN-156) — built, not deployed
+
+> **Status: dormant.** The code is complete and merged, but the Cloud Function
+> has never been deployed, so **the live app does not send notifications** and
+> the reminder switches are hidden. Nothing here is described as a feature of
+> the running app — treat it as ready to enable, not as working.
+>
+> Kept rather than deleted because enabling it is a billing decision, not a
+> development one: the three steps below are all that stand between this and
+> working. Do not describe it as a shipped feature until they are done.
 
 Feed reminders can be delivered while the app is closed, via Firebase Cloud
 Messaging + a scheduled Cloud Function. This needs a few one-time steps that
