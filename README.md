@@ -123,8 +123,17 @@ cd rules-tests && npm install && npm test
 ```
 
 This boots the Firestore emulator, runs the real rules against it, and checks
-that non-members are locked out, that only the owner can delete a profile,
-that invite acceptance can't be forged, and that FCM tokens stay private.
+that non-members are locked out, that only the owner can delete a profile or
+manage invites, that invite acceptance can't be forged, and that FCM tokens
+stay private.
+
+Run it after any rules edit. The wildcard `match /{sub}/{docId}` covers every
+subcollection, and Firestore allows an operation if **any** rule permits it —
+so a narrower rule written above it can be silently overridden by the wildcard
+below. The suite catches that; reading the rules does not.
+
+Passing tests only mean the rules are correct, not that they are live — see
+[deploying them](#security-rules-deploy-by-hand).
 
 ## Continuous deployment
 
@@ -142,9 +151,42 @@ the Action can deploy:
    gh secret set FIREBASE_SERVICE_ACCOUNT --repo greentea524/baby-app < path/to/serviceAccountKey.json
    ```
 
-After that, `git push` to `main` deploys automatically. (To also inject the
-push VAPID key, add `--dart-define=VAPID_KEY=${{ secrets.VAPID_KEY }}` to the
-build step and set that secret too.)
+After that, `git push` to `main` deploys the **app** automatically. (To also
+inject the push VAPID key, add `--dart-define=VAPID_KEY=${{ secrets.VAPID_KEY }}`
+to the build step and set that secret too.)
+
+### Security rules deploy by hand
+
+The workflow runs `action-hosting-deploy`, which publishes `build/web` and
+nothing else. **Changes to `firestore.rules` do not ship with it** — merging a
+rules change to `main` leaves `main` looking correct while the old rules are
+still the ones enforced in production. Deploy them yourself:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+If that fails with *"No currently active project"*, the CLI does not know which
+project to target — `.firebaserc` is not in the repo. Either pass the project
+once:
+
+```bash
+firebase deploy --only firestore:rules --project baby-6f5b0
+```
+
+or set it permanently, which writes `.firebaserc`:
+
+```bash
+firebase use --add        # pick the project, alias it "default"
+```
+
+`.firebaserc` only maps an alias to a project ID — nothing secret — so it is
+worth committing once created.
+
+Afterwards, confirm the change is live in the Firebase console under
+**Firestore → Rules**, which shows the ruleset actually in force. The same
+applies to `firestore.indexes.json` (`--only firestore:indexes`) and to the
+reminder function in `functions/` (`npm run deploy`).
 
 ### Why hosting sends `Cache-Control: no-cache`
 
