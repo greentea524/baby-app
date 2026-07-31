@@ -10,10 +10,10 @@ import 'appointment_format.dart';
 
 /// The next appointment, in the app bar's top-right corner.
 ///
-/// Shows the day and what the visit is — "Tomorrow · Jabs", "Aug 6 · Checkup"
-/// — because a bare countdown tells you something is coming without telling
-/// you what to prepare for. Tapping opens the Appointments screen, which is
-/// where the rest of them live.
+/// Shows when the visit is and what it is — "Tomorrow, 2:00 PM · Jabs" —
+/// because a bare countdown says something is coming without saying what to
+/// prepare for or when to be there. Tapping opens the Appointments screen,
+/// which is where the rest of them live.
 ///
 /// Renders nothing when there is no upcoming visit, so the corner stays empty
 /// for anyone not using appointments rather than showing a dead button.
@@ -53,7 +53,16 @@ class NextAppointmentLabel extends StatelessWidget {
 
   /// Keeps the button from crowding out the baby switcher in the title. The
   /// label ellipsizes inside this rather than the app bar overflowing.
-  static const maxWidth = 190.0;
+  ///
+  /// Wide enough for "Tomorrow, 2:00 PM · 4-month jabs" — at 240 the visit's
+  /// name was being cut off even on a desktop window.
+  static const maxWidth = 300.0;
+
+  /// Below this the app bar cannot hold the day, the time, the visit's name
+  /// *and* the baby switcher, so the name is dropped rather than letting the
+  /// pill squeeze the switcher down to "Wilhelm…". When it is due is the part
+  /// you cannot infer; what it is can be read on the screen this opens.
+  static const compactBelowWidth = 480.0;
 
   /// "Today" / "Tomorrow" / "Aug 6".
   ///
@@ -72,26 +81,67 @@ class NextAppointmentLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final imminent = AppointmentFormat.daysUntil(appt.at, now: now) <= 1;
-    final label =
-        '${dayLabel(appt.at, now: now)} · ${AppointmentFormat.title(appt)}';
+
+    // Day and time read as one fact, so they sit together; what the visit is
+    // follows after the separator, and is the first thing dropped when the
+    // bar is too narrow to hold everything.
+    final when =
+        '${dayLabel(appt.at, now: now)}, '
+        '${TimeOfDay.fromDateTime(appt.at).format(context)}';
+    final compact = MediaQuery.sizeOf(context).width < compactBelowWidth;
+    final label = compact
+        ? when
+        : '$when · ${AppointmentFormat.title(appt)}';
+
+    // A visit today or tomorrow is the one worth catching your eye; anything
+    // further out sits in the quieter container. Mirrors the next-feed chip on
+    // Home, which uses the same tinted-pill treatment.
+    final background = imminent
+        ? scheme.tertiaryContainer
+        : scheme.secondaryContainer;
+    final foreground = imminent
+        ? scheme.onTertiaryContainer
+        : scheme.onSecondaryContainer;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: maxWidth),
-        child: TextButton.icon(
-          onPressed: onTap,
-          icon: Icon(AppointmentFormat.kindIcon(appt.kind), size: 18),
-          label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-          style: TextButton.styleFrom(
-            // A visit today or tomorrow is the one worth catching your eye;
-            // anything further out sits in the ordinary app bar colour.
-            foregroundColor: imminent
-                ? theme.colorScheme.tertiary
-                : theme.colorScheme.onSurfaceVariant,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            visualDensity: VisualDensity.compact,
+        // A filled pill with a chevron, rather than bare text: in an app bar a
+        // plain label reads as a heading, and nothing about it invites a tap.
+        child: Material(
+          color: background,
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    AppointmentFormat.kindIcon(appt.kind),
+                    size: 16,
+                    color: foreground,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: foreground,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, size: 16, color: foreground),
+                ],
+              ),
+            ),
           ),
         ),
       ),

@@ -17,26 +17,28 @@ void main() {
         title: title,
       );
 
+  /// [viewportWidth] drives the compact/full decision, which the button reads
+  /// from MediaQuery.
   Future<void> pumpButton(
     WidgetTester tester,
     Appointment appt, {
     VoidCallback? onTap,
-    double width = 400,
+    double viewportWidth = 800,
   }) => tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Home'),
-          actions: [
-            SizedBox(
-              width: width,
-              child: NextAppointmentLabel(
+    MediaQuery(
+      data: MediaQueryData(size: Size(viewportWidth, 600)),
+      child: MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(
+            title: const Text('Home'),
+            actions: [
+              NextAppointmentLabel(
                 appt: appt,
                 now: now,
                 onTap: onTap ?? () {},
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ),
@@ -75,14 +77,29 @@ void main() {
     });
   });
 
-  testWidgets('shows the day and what the appointment is', (tester) async {
+  testWidgets('shows the day, the time, and what the appointment is', (
+    tester,
+  ) async {
     await pumpButton(
       tester,
       at(DateTime(2026, 8, 6, 14), title: '4-month jabs'),
     );
     final text = labelText(tester);
     expect(text, contains('Aug 6'));
+    expect(text, contains('2:00'), reason: 'the time you have to be there');
     expect(text, contains('4-month jabs'));
+  });
+
+  testWidgets('reads as tappable, not as a heading', (tester) async {
+    await pumpButton(tester, at(DateTime(2026, 8, 6, 14)));
+    // A filled pill with a chevron: an app bar full of bare text gives no
+    // sign that this one responds to a tap.
+    expect(find.byType(InkWell), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    final material = tester.widget<Material>(
+      find.ancestor(of: find.byType(InkWell), matching: find.byType(Material)).first,
+    );
+    expect(material.color, isNotNull, reason: 'filled, not transparent');
   });
 
   testWidgets('falls back to the kind when untitled', (tester) async {
@@ -108,7 +125,7 @@ void main() {
       at(DateTime(2026, 8, 6, 14)),
       onTap: () => tapped = true,
     );
-    await tester.tap(find.byType(TextButton));
+    await tester.tap(find.byType(InkWell));
     expect(tapped, isTrue);
   });
 
@@ -117,24 +134,35 @@ void main() {
     expect(labelText(tester), startsWith('Today'));
   });
 
+  testWidgets('drops the name on a phone so the baby switcher survives', (
+    tester,
+  ) async {
+    // Below the breakpoint the app bar cannot hold day, time, name and the
+    // switcher. When it is due is the part you cannot infer.
+    await pumpButton(
+      tester,
+      at(DateTime(2026, 8, 6, 14), title: '4-month jabs'),
+      viewportWidth: 400,
+    );
+    final text = labelText(tester);
+    expect(text, contains('Aug 6'));
+    expect(text, contains('2:00'));
+    expect(text, isNot(contains('4-month jabs')));
+  });
+
   testWidgets('truncates rather than pushing the title out of the bar', (
     tester,
   ) async {
-    // The app bar has a baby switcher to its left; the button must give way.
+    // Wide enough to show the name, but not one this long.
     await pumpButton(
       tester,
       at(
         DateTime(2026, 8, 6, 14),
         title: 'An extremely long appointment name that cannot possibly fit',
       ),
-      width: 200,
     );
     expect(tester.takeException(), isNull);
-    final text = tester.widget<Text>(
-      find.text(
-        'Aug 6 · An extremely long appointment name that cannot possibly fit',
-      ),
-    );
+    final text = tester.widget<Text>(find.textContaining('extremely long'));
     expect(text.maxLines, 1);
     expect(text.overflow, TextOverflow.ellipsis);
   });
