@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
+import '../../data/models/appointment.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../appointments/appointment_format.dart';
@@ -32,7 +33,7 @@ class HomeStatusCard extends ConsumerWidget {
       _feedingRow(context, ref),
       ?_solidsRow(context, ref),
       _diaperRow(context, ref),
-      ?_appointmentRow(context, ref),
+      ..._appointmentRows(context, ref),
     ];
 
     if (ref.watch(homeLayoutProvider) == HomeLayout.separate) {
@@ -155,29 +156,46 @@ class HomeStatusCard extends ConsumerWidget {
     );
   }
 
-  /// Null when nothing is scheduled — an empty row would be permanent clutter
-  /// for anyone not using appointments.
-  Widget? _appointmentRow(BuildContext context, WidgetRef ref) {
+  /// The next few appointments, however many the caregiver asked for.
+  ///
+  /// Empty when nothing is scheduled — a permanent "no appointments" row would
+  /// be clutter for anyone not using them. Only the first is labelled "Next
+  /// appointment"; the rest say "Then", so a stack of identical labels doesn't
+  /// read as one row repeated.
+  List<Widget> _appointmentRows(BuildContext context, WidgetRef ref) {
     final all = ref.watch(appointmentsProvider).value ?? const [];
     final upcoming = splitAppointments(all, now).upcoming;
-    if (upcoming.isEmpty) return null;
+    if (upcoming.isEmpty) return const [];
 
-    final next = upcoming.first;
+    final wanted = ref.watch(homeAppointmentCountProvider);
+    final shown = upcoming.take(wanted);
+
+    return [
+      for (final (i, appt) in shown.indexed)
+        _appointmentRow(context, appt, isNext: i == 0),
+    ];
+  }
+
+  Widget _appointmentRow(
+    BuildContext context,
+    Appointment appt, {
+    required bool isNext,
+  }) {
     final theme = Theme.of(context);
-    final imminent = AppointmentFormat.daysUntil(next.at, now: now) <= 1;
-    final details = AppointmentFormat.details(next);
-    final title = AppointmentFormat.title(next);
+    final imminent = AppointmentFormat.daysUntil(appt.at, now: now) <= 1;
+    final details = AppointmentFormat.details(appt);
+    final title = AppointmentFormat.title(appt);
 
     return _StatusRow(
-      icon: AppointmentFormat.kindIcon(next.kind),
-      label: 'Next appointment',
+      icon: AppointmentFormat.kindIcon(appt.kind),
+      label: isNext ? 'Next appointment' : 'Then',
       // Countdown leads because it's what you scan for, but on its own "in 3
       // days" doesn't tell you which day to keep free — so the concrete date
       // sits right under it.
-      value: AppointmentFormat.countdown(next.at, now: now),
+      value: AppointmentFormat.countdown(appt.at, now: now),
       detail:
-          '${TimelineFormat.weekdayDate(next.at)} · '
-          '${TimeOfDay.fromDateTime(next.at).format(context)}',
+          '${TimelineFormat.weekdayDate(appt.at)} · '
+          '${TimeOfDay.fromDateTime(appt.at).format(context)}',
       footer: Text(
         details.isEmpty ? title : '$title · $details',
         style: theme.textTheme.bodySmall?.copyWith(
@@ -186,7 +204,10 @@ class HomeStatusCard extends ConsumerWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      accent: imminent ? theme.colorScheme.tertiary : null,
+      // Only the imminent one earns the accent. Tinting a later appointment
+      // the same way would compete with the thing that actually needs
+      // attention today.
+      accent: imminent && isNext ? theme.colorScheme.tertiary : null,
     );
   }
 
