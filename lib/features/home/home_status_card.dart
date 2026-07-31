@@ -160,56 +160,15 @@ class HomeStatusCard extends ConsumerWidget {
   ///
   /// Null when nothing is scheduled — a permanent "no appointments" row would
   /// be clutter for anyone not using them.
-  ///
-  /// One section rather than one row each, so the whole thing stays a single
-  /// card: under the Separate layout every row becomes its own card, and three
-  /// appointments would otherwise take over the screen. The next visit keeps
-  /// the full row; the ones after it are compact lines underneath, which is
-  /// also the right emphasis — you act on the next one and merely want to know
-  /// the others exist.
   Widget? _appointmentSection(BuildContext context, WidgetRef ref) {
     final all = ref.watch(appointmentsProvider).value ?? const [];
     final upcoming = splitAppointments(all, now).upcoming;
     if (upcoming.isEmpty) return null;
 
     final wanted = ref.watch(homeAppointmentCountProvider);
-    final shown = upcoming.take(wanted).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _nextAppointmentRow(context, shown.first),
-        for (final appt in shown.skip(1))
-          LaterAppointmentLine(appt: appt, now: now),
-      ],
-    );
-  }
-
-  Widget _nextAppointmentRow(BuildContext context, Appointment appt) {
-    final theme = Theme.of(context);
-    final imminent = AppointmentFormat.daysUntil(appt.at, now: now) <= 1;
-    final details = AppointmentFormat.details(appt);
-    final title = AppointmentFormat.title(appt);
-
-    return _StatusRow(
-      icon: AppointmentFormat.kindIcon(appt.kind),
-      label: 'Next appointment',
-      // Countdown leads because it's what you scan for, but on its own "in 3
-      // days" doesn't tell you which day to keep free — so the concrete date
-      // sits right under it.
-      value: AppointmentFormat.countdown(appt.at, now: now),
-      detail:
-          '${TimelineFormat.weekdayDate(appt.at)} · '
-          '${TimeOfDay.fromDateTime(appt.at).format(context)}',
-      footer: Text(
-        details.isEmpty ? title : '$title · $details',
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      accent: imminent ? theme.colorScheme.tertiary : null,
+    return AppointmentsSection(
+      appointments: upcoming.take(wanted).toList(),
+      now: now,
     );
   }
 
@@ -217,53 +176,170 @@ class HomeStatusCard extends ConsumerWidget {
       details.isEmpty ? label : '$label · $details';
 }
 
-/// An appointment after the next one, on a single line.
+/// The upcoming appointments, side by side under one icon.
 ///
-/// Deliberately lighter than the headline row — no avatar, no countdown chip,
-/// one line each — so two or three of them still read as "and then these"
-/// rather than competing with the visit you actually have to prepare for.
+/// Every appointment gets the same block — label, countdown, date, what it is
+/// — so none of them reads as a different kind of thing. Splitting them across
+/// columns is what keeps the section short enough to stay one card, which
+/// stacking full-height rows would not.
 ///
-/// Indented to line up with the headline row's text column rather than its
-/// icon, so the section reads as one block.
-class LaterAppointmentLine extends StatelessWidget {
-  const LaterAppointmentLine({
+/// Falls back to stacking when the columns would be too narrow to hold a date
+/// without truncating it, which is the common case on a phone.
+class AppointmentsSection extends StatelessWidget {
+  const AppointmentsSection({
     super.key,
-    required this.appt,
+    required this.appointments,
     required this.now,
   });
 
-  final Appointment appt;
+  final List<Appointment> appointments;
   final DateTime now;
 
-  /// 16 padding + 44 avatar + 16 gap, matching [_StatusRow]'s text column.
-  static const _textColumnInset = 76.0;
+  /// Roughly what "Thu, Aug 6 · 2:00 PM" needs at bodyMedium. Below this a
+  /// column ellipsizes the date itself, at which point stacking reads better
+  /// than truncating.
+  static const minColumnWidth = 150.0;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final details = AppointmentFormat.details(appt);
-    final title = AppointmentFormat.title(appt);
-
-    // Ordered by what gets scanned: when, then which day, then what it is.
-    // The title ellipsizes first on a narrow screen, which is the right thing
-    // to lose — the date is what you are checking.
-    final line = [
-      AppointmentFormat.countdown(appt.at, now: now),
-      TimelineFormat.weekdayDate(appt.at),
-      TimeOfDay.fromDateTime(appt.at).format(context),
-      if (title.isNotEmpty) details.isEmpty ? title : '$title · $details',
-    ].join(' · ');
+    final first = appointments.first;
+    final imminent = AppointmentFormat.daysUntil(first.at, now: now) <= 1;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(_textColumnInset, 0, 16, 12),
-      child: Text(
-        line,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // One icon for the section, not one per appointment: it marks the
+          // row as "appointments" the way the feeding and diaper rows do, and
+          // repeating it per column would eat the width the split needs.
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: theme.colorScheme.primaryContainer,
+            child: Icon(
+              AppointmentFormat.kindIcon(first.kind),
+              color: imminent
+                  ? theme.colorScheme.tertiary
+                  : theme.colorScheme.onPrimaryContainer,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final fits =
+                    appointments.length > 1 &&
+                    constraints.maxWidth / appointments.length >=
+                        minColumnWidth;
+                return fits ? _split(context) : _stacked(context);
+              },
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _split(BuildContext context) {
+    final theme = Theme.of(context);
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final (i, appt) in appointments.indexed) ...[
+            if (i > 0) ...[
+              const SizedBox(width: 12),
+              VerticalDivider(
+                width: 1,
+                thickness: 1,
+                color: theme.colorScheme.outlineVariant,
+              ),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: AppointmentBlock(appt: appt, now: now, isNext: i == 0),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _stacked(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final (i, appt) in appointments.indexed) ...[
+          if (i > 0) const SizedBox(height: 12),
+          AppointmentBlock(appt: appt, now: now, isNext: i == 0),
+        ],
+      ],
+    );
+  }
+}
+
+/// One appointment: when it is, which day, and what it is.
+///
+/// Identical for every appointment in the section — only the label and the
+/// imminent accent tell the next one apart, so nothing reads as a different
+/// class of item.
+class AppointmentBlock extends StatelessWidget {
+  const AppointmentBlock({
+    super.key,
+    required this.appt,
+    required this.now,
+    required this.isNext,
+  });
+
+  final Appointment appt;
+  final DateTime now;
+  final bool isNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final imminent = AppointmentFormat.daysUntil(appt.at, now: now) <= 1;
+    final details = AppointmentFormat.details(appt);
+    final title = AppointmentFormat.title(appt);
+    final muted = theme.colorScheme.onSurfaceVariant;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          isNext ? 'Next appointment' : 'Then',
+          style: theme.textTheme.labelMedium,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          AppointmentFormat.countdown(appt.at, now: now),
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            // Only a visit within a day earns the accent, and only when it is
+            // the next one — a later appointment tinted the same way would
+            // compete with what needs attention today.
+            color: imminent && isNext ? theme.colorScheme.tertiary : null,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          '${TimelineFormat.weekdayDate(appt.at)} · '
+          '${TimeOfDay.fromDateTime(appt.at).format(context)}',
+          style: theme.textTheme.bodyMedium?.copyWith(color: muted),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        Text(
+          details.isEmpty ? title : '$title · $details',
+          style: theme.textTheme.bodySmall?.copyWith(color: muted),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 }
@@ -332,7 +408,6 @@ class _StatusRow extends StatelessWidget {
     required this.value,
     this.detail,
     this.footer,
-    this.accent,
   });
 
   final IconData icon;
@@ -343,8 +418,6 @@ class _StatusRow extends StatelessWidget {
   /// An extra line below the detail, given as a widget so it can carry its
   /// own emphasis — the next-feed chip needs to outweigh the detail text.
   final Widget? footer;
-
-  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
@@ -360,10 +433,7 @@ class _StatusRow extends StatelessWidget {
           CircleAvatar(
             radius: 22,
             backgroundColor: theme.colorScheme.primaryContainer,
-            child: Icon(
-              icon,
-              color: accent ?? theme.colorScheme.onPrimaryContainer,
-            ),
+            child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -391,7 +461,6 @@ class _StatusRow extends StatelessWidget {
                     Text(
                       value,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        color: accent,
                         fontWeight: FontWeight.w600,
                       ),
                       textAlign: TextAlign.end,
