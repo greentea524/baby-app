@@ -127,13 +127,17 @@ export const feedReminder = onSchedule("every 15 minutes", async () => {
         .get();
       if (feedsSnap.size < 2) continue;
 
-      // Snacks don't reset or reshape the clock. Mirrors `_clockFeeds` in
-      // lib/features/reminders/feed_prediction.dart — including the fallback
-      // to every feed when top-ups are all that has been logged, so a
-      // reminder still fires rather than going silent.
+      // Snacks and solids don't reset or reshape the clock — a top-up isn't a
+      // feed's worth of fuel, and solids supplement milk rather than replace
+      // it. Mirrors `drivesFeedClock` / `_clockFeeds` in
+      // lib/features/reminders/feed_prediction.dart, including the fallback to
+      // every feed when those are all that has been logged, so a reminder
+      // still fires rather than going silent.
       // A missing `isSnack` means an event logged before the field existed.
-      const fullFeeds = feedsSnap.docs.filter((d) => d.get("isSnack") !== true);
-      const clockDocs = fullFeeds.length >= 2 ? fullFeeds : feedsSnap.docs;
+      const milkFeeds = feedsSnap.docs.filter(
+        (d) => d.get("isSnack") !== true && d.get("type") !== "solids",
+      );
+      const clockDocs = milkFeeds.length >= 2 ? milkFeeds : feedsSnap.docs;
 
       // startTimes ascending (oldest -> newest).
       const times = clockDocs

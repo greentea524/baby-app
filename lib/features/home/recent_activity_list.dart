@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_tile.dart';
+import 'activity_filter.dart';
 
 /// Unified recent activity: feeds and diaper changes merged by time. This is
 /// the home dashboard's "what happened recently" view; the full daily
@@ -40,10 +41,24 @@ class RecentActivityList extends ConsumerWidget {
       );
     }
 
+    final filter = ref.watch(activityFilterProvider);
+    final visible = applyActivityFilter(entries, filter);
+
+    // Distinct from "No activity yet": there *is* activity, just none of this
+    // kind, and saying so points at the filter as the reason.
+    if (visible.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('No ${filter.label.toLowerCase()} in recent activity.'),
+        ),
+      );
+    }
+
     return ListView.separated(
-      itemCount: entries.length,
+      itemCount: visible.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, i) => ActivityTile(entry: entries[i], now: now),
+      itemBuilder: (context, i) => ActivityTile(entry: visible[i], now: now),
     );
   }
 }

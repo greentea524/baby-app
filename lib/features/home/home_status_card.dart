@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
+import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../appointments/appointment_format.dart';
 import '../diaper/diaper_format.dart';
@@ -29,6 +30,7 @@ class HomeStatusCard extends ConsumerWidget {
     // set of rows to maintain rather than two layouts.
     final rows = <Widget>[
       _feedingRow(context, ref),
+      ?_solidsRow(context, ref),
       _diaperRow(context, ref),
       ?_appointmentRow(context, ref),
     ];
@@ -67,9 +69,9 @@ class HomeStatusCard extends ConsumerWidget {
     );
   }
 
-  /// Last feed on top, next due underneath.
+  /// Last milk feed on top, next due underneath.
   Widget _feedingRow(BuildContext context, WidgetRef ref) {
-    final last = ref.watch(lastFeedingProvider);
+    final last = ref.watch(lastMilkFeedProvider);
     final units = ref.watch(unitSystemProvider);
     final settings = ref.watch(reminderSettingsProvider);
     final due = settings.mode == ReminderMode.off
@@ -106,6 +108,31 @@ class HomeStatusCard extends ConsumerWidget {
               ),
             ),
       footer: next,
+    );
+  }
+
+  /// Solids, with no countdown attached.
+  ///
+  /// Null until solids have actually been logged — a permanently empty "Last
+  /// ate" row would be clutter for every family not weaning yet. Deliberately
+  /// has no next-feed chip: solids don't drive the milk clock, and there is
+  /// no meaningful "next solids" to predict.
+  Widget? _solidsRow(BuildContext context, WidgetRef ref) {
+    final last = ref.watch(lastSolidsProvider);
+    if (last == null) return null;
+    final units = ref.watch(unitSystemProvider);
+
+    return _StatusRow(
+      icon: FeedingFormat.typeIcon(FeedingType.solids),
+      label: 'Last ate',
+      value: FeedingFormat.timeAgo(last.startTime, now: now),
+      detail: _join(
+        FeedingFormat.clockStamp(context, last.startTime, now: now),
+        _join(
+          FeedingFormat.typeLabel(last.type),
+          FeedingFormat.details(last, units),
+        ),
+      ),
     );
   }
 

@@ -12,6 +12,7 @@ import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
+import 'activity_filter.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
 import 'home_prefs.dart';
@@ -92,6 +93,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const TodaySummaryRow(),
                   const _QuickActions(),
                   const _RecentHeader(),
+                  const ActivityFilterBar(),
                   Expanded(child: RecentActivityList(now: _now)),
                 ],
               ),

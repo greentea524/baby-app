@@ -41,15 +41,24 @@ class FeedPrediction {
 /// prediction forward by ten minutes.
 const int sameSessionMinutes = 20;
 
-/// Drops snacks, which shouldn't reset or reshape the feeding clock.
+/// Whether an event drives the milk clock.
 ///
-/// Falls back to the full list when snacks are all there is to go on: a
-/// caregiver who has only logged top-ups still deserves a reminder, and going
-/// silent is the more dangerous failure. Needs two survivors to be useful,
-/// since a single feed yields no interval.
+/// Snacks are excluded because a top-up isn't a feed's worth of fuel, and
+/// solids because they supplement milk rather than replace it — a spoon of
+/// purée doesn't change when the next bottle or nursing session is due, and
+/// there is no "next solids" to predict.
+bool drivesFeedClock(FeedingEvent f) =>
+    !f.isSnack && f.type != FeedingType.solids;
+
+/// Drops the events that shouldn't reset or reshape the feeding clock.
+///
+/// Falls back to the full list when those are all there is to go on: a
+/// caregiver who has only logged top-ups or solids still deserves a reminder,
+/// and going silent is the more dangerous failure. Needs two survivors to be
+/// useful, since a single feed yields no interval.
 List<FeedingEvent> _clockFeeds(List<FeedingEvent> feedings) {
-  final fullFeeds = feedings.where((f) => !f.isSnack).toList();
-  return fullFeeds.length >= 2 ? fullFeeds : feedings;
+  final milkFeeds = feedings.where(drivesFeedClock).toList();
+  return milkFeeds.length >= 2 ? milkFeeds : feedings;
 }
 
 /// Predicts the next feed from a rolling average of recent intervals.
@@ -111,14 +120,15 @@ FeedPrediction predictNextFeed(
 /// The next feed time for a fixed-interval reminder (KAN-155): simply the
 /// last full feed plus the configured gap.
 ///
-/// Snacks are skipped. A fixed interval is usually set as a safety floor
-/// ("don't go more than 4 hours"), so letting a 10 ml top-up push it out by a
-/// whole interval would fail in the dangerous direction.
+/// Snacks and solids are skipped. A fixed interval is usually set as a safety
+/// floor ("don't go more than 4 hours"), so letting a 10 ml top-up or a bowl
+/// of purée push it out by a whole interval would fail in the dangerous
+/// direction.
 DateTime? fixedIntervalDue(List<FeedingEvent> feedings, int intervalMinutes) {
   if (feedings.isEmpty) return null;
-  final fullFeeds = feedings.where((f) => !f.isSnack);
-  // Only top-ups logged so far — still better to remind than to stay silent.
-  final anchors = fullFeeds.isEmpty ? feedings : fullFeeds;
+  final milkFeeds = feedings.where(drivesFeedClock);
+  // Only top-ups or solids so far — still better to remind than stay silent.
+  final anchors = milkFeeds.isEmpty ? feedings : milkFeeds;
   final latest = anchors
       .map((f) => f.startTime)
       .reduce((a, b) => a.isAfter(b) ? a : b);

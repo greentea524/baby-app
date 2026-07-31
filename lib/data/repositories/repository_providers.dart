@@ -86,10 +86,34 @@ final recentFeedingsProvider = StreamProvider<List<FeedingEvent>>((ref) {
   return repo.watchRecent();
 });
 
-/// The most recent feeding, or null. Powers the home "last fed" indicator.
+/// The most recent feeding of any kind, or null.
 final lastFeedingProvider = Provider<FeedingEvent?>((ref) {
   final feeds = ref.watch(recentFeedingsProvider).value ?? const [];
   return feeds.isEmpty ? null : feeds.first;
+});
+
+/// The most recent milk feed — breast or bottle — or null.
+///
+/// Powers the home "Last fed" row, which sits next to the next-feed
+/// countdown. Solids are excluded so the two halves of that row answer the
+/// same question: a purée at 5pm shouldn't headline a row whose countdown is
+/// measured from the 3pm bottle.
+final lastMilkFeedProvider = Provider<FeedingEvent?>((ref) {
+  final feeds = ref.watch(recentFeedingsProvider).value ?? const [];
+  for (final f in feeds) {
+    if (f.type != FeedingType.solids) return f;
+  }
+  return null;
+});
+
+/// The most recent solids, or null when none have been logged. Powers the
+/// home "Last ate" row, which has no prediction attached.
+final lastSolidsProvider = Provider<FeedingEvent?>((ref) {
+  final feeds = ref.watch(recentFeedingsProvider).value ?? const [];
+  for (final f in feeds) {
+    if (f.type == FeedingType.solids) return f;
+  }
+  return null;
 });
 
 /// Diaper repository scoped to the current uid + current baby.

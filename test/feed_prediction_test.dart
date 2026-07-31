@@ -271,4 +271,71 @@ void main() {
       expect(_feed(base).isSnack, isFalse);
     });
   });
+
+  group('solids', () {
+    FeedingEvent solids(DateTime at, {String id = 'solids'}) =>
+        FeedingEvent(id: id, type: FeedingType.solids, startTime: at);
+
+    test('solids do not push the prediction out', () {
+      final feeds = [
+        _feed(base),
+        _feed(base.add(const Duration(hours: 3))),
+        _feed(base.add(const Duration(hours: 6))),
+        solids(base.add(const Duration(hours: 7))),
+      ];
+      final p = predictNextFeed(feeds);
+      // Anchored to the 12:00 milk feed, not the 13:00 purée.
+      expect(p.lastFeedAt, base.add(const Duration(hours: 6)));
+      expect(p.nextDue, base.add(const Duration(hours: 9)));
+    });
+
+    test('solids do not enter the rolling average', () {
+      final feeds = [
+        _feed(base),
+        _feed(base.add(const Duration(hours: 3))),
+        solids(base.add(const Duration(hours: 4))),
+        _feed(base.add(const Duration(hours: 6))),
+      ];
+      final p = predictNextFeed(feeds);
+      expect(p.averageIntervalMinutes, 180);
+      expect(p.intervalSamples, 2);
+    });
+
+    test('solids do not reset the fixed-interval clock', () {
+      final feeds = [
+        _feed(base),
+        _feed(base.add(const Duration(hours: 4))),
+        solids(base.add(const Duration(hours: 5))),
+      ];
+      expect(
+        fixedIntervalDue(feeds, 240),
+        base.add(const Duration(hours: 8)),
+      );
+    });
+
+    test('a weaned baby on solids alone still gets a reminder', () {
+      final feeds = [
+        solids(base, id: 's1'),
+        solids(base.add(const Duration(hours: 4)), id: 's2'),
+      ];
+      expect(predictNextFeed(feeds).hasPrediction, isTrue);
+      expect(fixedIntervalDue(feeds, 240), isNotNull);
+    });
+
+    test('drivesFeedClock covers both exclusions', () {
+      expect(drivesFeedClock(_feed(base)), isTrue);
+      expect(drivesFeedClock(solids(base)), isFalse);
+      expect(
+        drivesFeedClock(
+          FeedingEvent(
+            id: 's',
+            type: FeedingType.bottle,
+            startTime: base,
+            isSnack: true,
+          ),
+        ),
+        isFalse,
+      );
+    });
+  });
 }
