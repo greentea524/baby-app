@@ -89,7 +89,9 @@ class TimelineScreen extends ConsumerWidget {
                                 const Divider(height: 1),
                             itemBuilder: (context, i) => ActivityTile(
                               entry: visible[i],
-                              clockTime: true,
+                              // The day is already in the nav bar above, so
+                              // the bare clock time is enough here.
+                              timeDisplay: ActivityTimeDisplay.clock,
                             ),
                           ),
                   ),

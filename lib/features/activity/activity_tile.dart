@@ -12,6 +12,20 @@ import '../feeding/feeding_quick_log.dart';
 import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
 
+/// How an [ActivityTile] labels when something happened.
+enum ActivityTimeDisplay {
+  /// "2 hr ago", with the absolute stamp underneath.
+  relative,
+
+  /// Just the clock time. For views already scoped to one day, where
+  /// repeating the date on every row would be noise.
+  clock,
+
+  /// Clock time, prefixed with a short date when it isn't today. For lists
+  /// that span days, where a bare "9:30 PM" is ambiguous.
+  stamp,
+}
+
 /// Renders one [ActivityEntry] (feed or diaper) as a swipe/tap [EventTile],
 /// wiring edit and delete to the right repository. Shared by the home
 /// recent list and the daily timeline.
@@ -20,30 +34,40 @@ class ActivityTile extends ConsumerWidget {
     super.key,
     required this.entry,
     this.now,
-    this.clockTime = false,
+    this.timeDisplay = ActivityTimeDisplay.relative,
   });
 
   final ActivityEntry entry;
 
-  /// Injectable clock for deterministic "time ago" in tests.
+  /// Injectable clock for deterministic times in tests.
   final DateTime? now;
 
-  /// Show an absolute clock time (timeline) instead of relative "x ago".
-  final bool clockTime;
+  final ActivityTimeDisplay timeDisplay;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Relative mode also carries the absolute stamp underneath: "2 hr ago" is
-    // easy to scan, but you often want to know it was actually 9:30 AM.
-    // The timeline already leads with the clock time, so it needs no second
-    // line.
     final units = ref.watch(unitSystemProvider);
-    final trailing = clockTime
-        ? TimeOfDay.fromDateTime(entry.time).format(context)
-        : FeedingFormat.timeAgo(entry.time, now: now);
-    final trailingDetail = clockTime
-        ? null
-        : FeedingFormat.clockStamp(context, entry.time, now: now);
+
+    final trailing = switch (timeDisplay) {
+      ActivityTimeDisplay.relative => FeedingFormat.timeAgo(
+        entry.time,
+        now: now,
+      ),
+      ActivityTimeDisplay.clock => TimeOfDay.fromDateTime(
+        entry.time,
+      ).format(context),
+      ActivityTimeDisplay.stamp => FeedingFormat.clockStamp(
+        context,
+        entry.time,
+        now: now,
+      ),
+    };
+    // Only the relative label needs a second line: "2 hr ago" is easy to scan
+    // but you often want to know it was actually 9:30 AM. The absolute modes
+    // already lead with that.
+    final trailingDetail = timeDisplay == ActivityTimeDisplay.relative
+        ? FeedingFormat.clockStamp(context, entry.time, now: now)
+        : null;
 
     return switch (entry) {
       FeedingEntry(:final event) => EventTile(

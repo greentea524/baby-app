@@ -58,7 +58,14 @@ class RecentActivityList extends ConsumerWidget {
     return ListView.separated(
       itemCount: visible.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, i) => ActivityTile(entry: visible[i], now: now),
+      itemBuilder: (context, i) => ActivityTile(
+        entry: visible[i],
+        now: now,
+        // A timestamp rather than "2 hr ago". This list spans days, so the
+        // stamp carries a short date once a row is older than today —
+        // a bare "9:30 PM" could otherwise be any night.
+        timeDisplay: ActivityTimeDisplay.stamp,
+      ),
     );
   }
 }
