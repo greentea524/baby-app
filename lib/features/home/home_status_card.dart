@@ -2,19 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
-import '../../data/models/appointment.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
-import '../appointments/appointment_format.dart';
 import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
-import '../timeline/timeline_format.dart';
 import 'home_prefs.dart';
 
-/// The Home status card (KAN-179): where feeding, diapers, and the next
-/// visit stand, in one place.
+/// The Home status card (KAN-179): where feeding and diapers stand.
+///
+/// The next appointment used to sit here too, but it is the one thing on Home
+/// you cannot act on today — it now lives in the app bar corner
+/// (`NextAppointmentButton`), leaving these rows to what you can.
 ///
 /// Feeding keeps its history and its prediction on a single row. They are the
 /// same question asked twice — when did they last eat, and when is the next
@@ -33,7 +33,6 @@ class HomeStatusCard extends ConsumerWidget {
       _feedingRow(context, ref),
       ?_solidsRow(context, ref),
       _diaperRow(context, ref),
-      ?_appointmentSection(context, ref),
     ];
 
     if (ref.watch(homeLayoutProvider) == HomeLayout.separate) {
@@ -156,192 +155,8 @@ class HomeStatusCard extends ConsumerWidget {
     );
   }
 
-  /// The next few appointments, as one section.
-  ///
-  /// Null when nothing is scheduled — a permanent "no appointments" row would
-  /// be clutter for anyone not using them.
-  Widget? _appointmentSection(BuildContext context, WidgetRef ref) {
-    final all = ref.watch(appointmentsProvider).value ?? const [];
-    final upcoming = splitAppointments(all, now).upcoming;
-    if (upcoming.isEmpty) return null;
-
-    final wanted = ref.watch(homeAppointmentCountProvider);
-    return AppointmentsSection(
-      appointments: upcoming.take(wanted).toList(),
-      now: now,
-    );
-  }
-
   static String _join(String label, String details) =>
       details.isEmpty ? label : '$label · $details';
-}
-
-/// The upcoming appointments, side by side under one icon.
-///
-/// Every appointment gets the same block — label, countdown, date, what it is
-/// — so none of them reads as a different kind of thing. Splitting them across
-/// columns is what keeps the section short enough to stay one card, which
-/// stacking full-height rows would not.
-///
-/// Falls back to stacking when the columns would be too narrow to hold a date
-/// without truncating it, which is the common case on a phone.
-class AppointmentsSection extends StatelessWidget {
-  const AppointmentsSection({
-    super.key,
-    required this.appointments,
-    required this.now,
-  });
-
-  final List<Appointment> appointments;
-  final DateTime now;
-
-  /// Roughly what "Thu, Aug 6 · 2:00 PM" needs at bodyMedium. Below this a
-  /// column ellipsizes the date itself, at which point stacking reads better
-  /// than truncating.
-  static const minColumnWidth = 150.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final first = appointments.first;
-    final imminent = AppointmentFormat.daysUntil(first.at, now: now) <= 1;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // One icon for the section, not one per appointment: it marks the
-          // row as "appointments" the way the feeding and diaper rows do, and
-          // repeating it per column would eat the width the split needs.
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: theme.colorScheme.primaryContainer,
-            child: Icon(
-              AppointmentFormat.kindIcon(first.kind),
-              color: imminent
-                  ? theme.colorScheme.tertiary
-                  : theme.colorScheme.onPrimaryContainer,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final fits =
-                    appointments.length > 1 &&
-                    constraints.maxWidth / appointments.length >=
-                        minColumnWidth;
-                return fits ? _split(context) : _stacked(context);
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _split(BuildContext context) {
-    final theme = Theme.of(context);
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final (i, appt) in appointments.indexed) ...[
-            if (i > 0) ...[
-              const SizedBox(width: 12),
-              VerticalDivider(
-                width: 1,
-                thickness: 1,
-                color: theme.colorScheme.outlineVariant,
-              ),
-              const SizedBox(width: 12),
-            ],
-            Expanded(
-              child: AppointmentBlock(appt: appt, now: now, isNext: i == 0),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _stacked(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final (i, appt) in appointments.indexed) ...[
-          if (i > 0) const SizedBox(height: 12),
-          AppointmentBlock(appt: appt, now: now, isNext: i == 0),
-        ],
-      ],
-    );
-  }
-}
-
-/// One appointment: when it is, which day, and what it is.
-///
-/// Identical for every appointment in the section — only the label and the
-/// imminent accent tell the next one apart, so nothing reads as a different
-/// class of item.
-class AppointmentBlock extends StatelessWidget {
-  const AppointmentBlock({
-    super.key,
-    required this.appt,
-    required this.now,
-    required this.isNext,
-  });
-
-  final Appointment appt;
-  final DateTime now;
-  final bool isNext;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final imminent = AppointmentFormat.daysUntil(appt.at, now: now) <= 1;
-    final details = AppointmentFormat.details(appt);
-    final title = AppointmentFormat.title(appt);
-    final muted = theme.colorScheme.onSurfaceVariant;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          isNext ? 'Next appointment' : 'Then',
-          style: theme.textTheme.labelMedium,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        Text(
-          AppointmentFormat.countdown(appt.at, now: now),
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            // Only a visit within a day earns the accent, and only when it is
-            // the next one — a later appointment tinted the same way would
-            // compete with what needs attention today.
-            color: imminent && isNext ? theme.colorScheme.tertiary : null,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        Text(
-          '${TimelineFormat.weekdayDate(appt.at)} · '
-          '${TimeOfDay.fromDateTime(appt.at).format(context)}',
-          style: theme.textTheme.bodyMedium?.copyWith(color: muted),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        Text(
-          details.isEmpty ? title : '$title · $details',
-          style: theme.textTheme.bodySmall?.copyWith(color: muted),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
 }
 
 /// The next-feed countdown, as a tinted pill.

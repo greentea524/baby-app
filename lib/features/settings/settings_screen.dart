@@ -55,7 +55,6 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const _AccentPicker(),
           const _HomeLayoutPicker(),
-          const _AppointmentCountPicker(),
           const _UnitsPicker(),
           const _PumpingActionToggle(),
           const Divider(),
@@ -170,40 +169,6 @@ class _HomeLayoutPicker extends ConsumerWidget {
             selected: {selected},
             onSelectionChanged: (s) =>
                 ref.read(homeLayoutProvider.notifier).setLayout(s.first),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// How many upcoming appointments Home lists.
-class _AppointmentCountPicker extends ConsumerWidget {
-  const _AppointmentCountPicker();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(homeAppointmentCountProvider);
-    return ListTile(
-      leading: const Icon(Icons.event_outlined),
-      title: const Text('Appointments on Home'),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            selected == 1
-                ? 'Just the next one'
-                : 'The next $selected, soonest first',
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<int>(
-            segments: [
-              for (final n in appointmentCountOptions)
-                ButtonSegment(value: n, label: Text('$n')),
-            ],
-            selected: {selected},
-            onSelectionChanged: (s) =>
-                ref.read(homeAppointmentCountProvider.notifier).set(s.first),
           ),
         ],
       ),

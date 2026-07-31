@@ -8,6 +8,7 @@ import '../../core/launch_action.dart';
 import '../../core/router/app_router.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_filter.dart';
+import '../appointments/next_appointment_button.dart';
 import '../caregivers/incoming_invites.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_quick_log.dart';
@@ -77,6 +78,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: baby == null ? const Text('Home') : const BabySwitcher(),
+        // The next visit lives in the corner rather than in the status card:
+        // it is the one thing on Home you cannot act on today, so it wants to
+        // be visible without taking a row from the things you can.
+        actions: [if (baby != null) NextAppointmentButton(now: _now)],
       ),
       body: babiesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
