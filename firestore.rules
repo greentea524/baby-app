@@ -38,6 +38,12 @@ service cloud.firestore {
       return signedIn() && request.auth.uid in babyData(babyId).memberUids;
     }
 
+    // Ownership of a *parent* baby, for the invite rules below. The roster is
+    // the owner's to manage, so growing it is theirs too.
+    function isOwnerOfBaby(babyId) {
+      return signedIn() && babyData(babyId).ownerUid == request.auth.uid;
+    }
+
     // Notification preferences (KAN-167): quiet hours and the server-side
     // reminder switch. Strictly per-user — the doc id is the uid — and read
     // by the reminder Cloud Function via the Admin SDK.
@@ -117,23 +123,34 @@ service cloud.firestore {
           && exists(/databases/$(database)/documents/babies/$(babyId)/invites/$(request.auth.token.email));
       }
 
-      // Invites: readable by members and by the invited email; only members
-      // create/delete them.
+      // Invites: readable by members and by the invited email; only the owner
+      // issues or revokes them.
       match /invites/{email} {
         // Members see all invites; an invitee sees their own. Matching on the
         // stored email field (not the doc id) keeps the collection-group
         // "invites where email == me" query provable.
         allow read: if isMember(babyId)
           || (signedIn() && resource.data.email == request.auth.token.email);
-        allow create: if isMember(babyId);
-        // Members revoke; the invitee deletes their own on accept/decline.
-        allow delete: if isMember(babyId)
+
+        // Owner-only, matching the UI, which offers "Add caregiver" and
+        // revoke to the owner alone. These were member-wide while the UI was
+        // the only thing enforcing it — so any caregiver could have grown the
+        // roster straight through the API, which is the same authority the
+        // update rules deliberately withhold from them.
+        allow create: if isOwnerOfBaby(babyId);
+        // The owner revokes; the invitee deletes their own on accept/decline.
+        allow delete: if isOwnerOfBaby(babyId)
           || (signedIn() && resource.data.email == request.auth.token.email);
       }
 
       // Event subcollections: full access to members.
+      //
+      // `invites` is excluded because this wildcard also matches it, and
+      // Firestore grants an operation if *any* rule allows it — so a blanket
+      // member-write here silently overrode the narrower invite rules above,
+      // whatever they said.
       match /{sub}/{docId} {
-        allow read, write: if isMember(babyId);
+        allow read, write: if isMember(babyId) && sub != 'invites';
       }
     }
   }

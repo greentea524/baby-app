@@ -247,6 +247,79 @@ describe("invite acceptance", () => {
   });
 });
 
+describe("who may issue and revoke invites", () => {
+  const CAROL_EMAIL = "carol@example.com";
+
+  /** Adds bob as an ordinary (non-owner) member, bypassing rules. */
+  async function addBobAsMember() {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(babyDoc(ctx.firestore()), {
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+      });
+    });
+  }
+
+  const inviteRef = (db, email) => doc(db, "babies", BABY, "invites", email);
+
+  const newInvite = (email) => ({
+    email,
+    role: "editor",
+    invitedByUid: "alice",
+  });
+
+  it("lets the owner invite someone", async () => {
+    await assertSucceeds(
+      setDoc(inviteRef(asAlice(), CAROL_EMAIL), newInvite(CAROL_EMAIL)),
+    );
+  });
+
+  it("blocks a caregiver from inviting anyone", async () => {
+    // Growing the roster is the same authority the update rules withhold from
+    // a caregiver; letting them do it via an invite would route around that.
+    await addBobAsMember();
+    await assertFails(
+      setDoc(inviteRef(asBob(), CAROL_EMAIL), newInvite(CAROL_EMAIL)),
+    );
+  });
+
+  it("blocks a stranger from inviting anyone", async () => {
+    await assertFails(
+      setDoc(inviteRef(asMallory(), CAROL_EMAIL), newInvite(CAROL_EMAIL)),
+    );
+  });
+
+  it("lets the owner revoke an invite", async () => {
+    await assertSucceeds(deleteDoc(inviteRef(asAlice(), BOB_EMAIL)));
+  });
+
+  it("blocks a caregiver from revoking someone else's invite", async () => {
+    await addBobAsMember();
+    // Bob is a member here, but carol's invite is not his to revoke — so the
+    // invitee escape hatch does not cover him either.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        inviteRef(ctx.firestore(), CAROL_EMAIL),
+        newInvite(CAROL_EMAIL),
+      );
+    });
+    await assertFails(deleteDoc(inviteRef(asBob(), CAROL_EMAIL)));
+  });
+
+  it("still lets the invitee delete their own on accept or decline", async () => {
+    // acceptInvite and declineInvite both delete the invite as the invitee,
+    // so tightening the member path must not close this one.
+    await assertSucceeds(deleteDoc(inviteRef(asBob(), BOB_EMAIL)));
+  });
+
+  it("still lets a caregiver see pending invites", async () => {
+    // The Caregivers screen lists them for every member; only the actions are
+    // owner-only.
+    await addBobAsMember();
+    await assertSucceeds(getDoc(inviteRef(asBob(), BOB_EMAIL)));
+  });
+});
+
 describe("membership changes", () => {
   /** Promotes bob to a full member, bypassing rules. */
   async function makeBobAMember() {
