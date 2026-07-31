@@ -41,6 +41,17 @@ class FeedPrediction {
 /// prediction forward by ten minutes.
 const int sameSessionMinutes = 20;
 
+/// Drops snacks, which shouldn't reset or reshape the feeding clock.
+///
+/// Falls back to the full list when snacks are all there is to go on: a
+/// caregiver who has only logged top-ups still deserves a reminder, and going
+/// silent is the more dangerous failure. Needs two survivors to be useful,
+/// since a single feed yields no interval.
+List<FeedingEvent> _clockFeeds(List<FeedingEvent> feedings) {
+  final fullFeeds = feedings.where((f) => !f.isSnack).toList();
+  return fullFeeds.length >= 2 ? fullFeeds : feedings;
+}
+
 /// Predicts the next feed from a rolling average of recent intervals.
 ///
 /// Uses at most the last [window] gaps so the estimate tracks the baby's
@@ -52,16 +63,20 @@ FeedPrediction predictNextFeed(
   int window = 8,
   int minGapMinutes = sameSessionMinutes,
 }) {
-  if (feedings.length < 2) {
+  // Snacks are dropped up front so they neither contribute intervals nor
+  // become the anchor the next feed is projected from.
+  final clockFeeds = _clockFeeds(feedings);
+
+  if (clockFeeds.length < 2) {
     return FeedPrediction(
       nextDue: null,
       averageIntervalMinutes: null,
       intervalSamples: 0,
-      lastFeedAt: feedings.isEmpty ? null : feedings.first.startTime,
+      lastFeedAt: clockFeeds.isEmpty ? null : clockFeeds.first.startTime,
     );
   }
 
-  final sorted = [...feedings]
+  final sorted = [...clockFeeds]
     ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
   final allGaps = <int>[];
@@ -94,10 +109,17 @@ FeedPrediction predictNextFeed(
 }
 
 /// The next feed time for a fixed-interval reminder (KAN-155): simply the
-/// last feed plus the configured gap.
+/// last full feed plus the configured gap.
+///
+/// Snacks are skipped. A fixed interval is usually set as a safety floor
+/// ("don't go more than 4 hours"), so letting a 10 ml top-up push it out by a
+/// whole interval would fail in the dangerous direction.
 DateTime? fixedIntervalDue(List<FeedingEvent> feedings, int intervalMinutes) {
   if (feedings.isEmpty) return null;
-  final latest = feedings
+  final fullFeeds = feedings.where((f) => !f.isSnack);
+  // Only top-ups logged so far — still better to remind than to stay silent.
+  final anchors = fullFeeds.isEmpty ? feedings : fullFeeds;
+  final latest = anchors
       .map((f) => f.startTime)
       .reduce((a, b) => a.isAfter(b) ? a : b);
   return latest.add(Duration(minutes: intervalMinutes));

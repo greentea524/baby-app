@@ -161,6 +161,7 @@ class _BreastFormState extends State<_BreastForm> {
   BreastSide _side = BreastSide.left;
   DateTime _startTime = DateTime.now();
   Duration _elapsed = Duration.zero;
+  bool _isSnack = false;
 
   Timer? _ticker;
   DateTime? _runningSince;
@@ -173,6 +174,7 @@ class _BreastFormState extends State<_BreastForm> {
       _side = e.side ?? BreastSide.left;
       _startTime = e.startTime;
       _elapsed = Duration(minutes: e.durationMinutes ?? 0);
+      _isSnack = e.isSnack;
     }
   }
 
@@ -215,6 +217,7 @@ class _BreastFormState extends State<_BreastForm> {
       startTime: _startTime,
       durationMinutes: minutes,
       side: _side,
+      isSnack: _isSnack,
     );
   }
 
@@ -250,6 +253,10 @@ class _BreastFormState extends State<_BreastForm> {
           selected: {_side},
           onSelectionChanged: (s) => setState(() => _side = s.first),
         ),
+        _SnackToggle(
+          value: _isSnack,
+          onChanged: (v) => setState(() => _isSnack = v),
+        ),
         const SizedBox(height: 16),
         _SaveBar(isEdit: widget.existing != null, build: _build),
       ],
@@ -258,6 +265,28 @@ class _BreastFormState extends State<_BreastForm> {
 }
 
 // --- Bottle (KAN-144) -------------------------------------------------------
+
+/// Marks a feed as a small top-up rather than a full feed.
+///
+/// Offered on breast and bottle only — those are the feeds that drive the
+/// next-feed reminder. Solids don't currently affect the clock either way.
+class _SnackToggle extends StatelessWidget {
+  const _SnackToggle({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      value: value,
+      onChanged: onChanged,
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Snack / top-up'),
+      subtitle: const Text("Won't reset the next-feed reminder"),
+    );
+  }
+}
 
 class _BottleForm extends StatefulWidget {
   const _BottleForm({this.existing});
@@ -273,12 +302,14 @@ class _BottleFormState extends State<_BottleForm> {
   final _notesController = TextEditingController();
   late DateTime _time;
   String? _amountError;
+  bool _isSnack = false;
 
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
     _time = e?.startTime ?? DateTime.now();
+    _isSnack = e?.isSnack ?? false;
     if (e?.amountMl != null) {
       final amt = e!.amountMl!;
       _amountController.text = amt.toStringAsFixed(
@@ -309,6 +340,7 @@ class _BottleFormState extends State<_BottleForm> {
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
+      isSnack: _isSnack,
     );
   }
 
@@ -343,6 +375,10 @@ class _BottleFormState extends State<_BottleForm> {
             labelText: 'Notes (optional)',
             border: OutlineInputBorder(),
           ),
+        ),
+        _SnackToggle(
+          value: _isSnack,
+          onChanged: (v) => setState(() => _isSnack = v),
         ),
         const SizedBox(height: 16),
         _SaveBar(isEdit: widget.existing != null, build: _build),

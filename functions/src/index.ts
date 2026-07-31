@@ -10,9 +10,9 @@ const WINDOW = 8;
 
 /**
  * Fetch more feeds than the window needs, so that discarding same-session
- * entries still leaves WINDOW real intervals to average.
+ * entries and snacks still leaves WINDOW real intervals to average.
  */
-const FETCH = WINDOW * 2;
+const FETCH = WINDOW * 3;
 
 
 /** Firestore `in` queries cap out at 10 values. */
@@ -127,8 +127,16 @@ export const feedReminder = onSchedule("every 15 minutes", async () => {
         .get();
       if (feedsSnap.size < 2) continue;
 
+      // Snacks don't reset or reshape the clock. Mirrors `_clockFeeds` in
+      // lib/features/reminders/feed_prediction.dart — including the fallback
+      // to every feed when top-ups are all that has been logged, so a
+      // reminder still fires rather than going silent.
+      // A missing `isSnack` means an event logged before the field existed.
+      const fullFeeds = feedsSnap.docs.filter((d) => d.get("isSnack") !== true);
+      const clockDocs = fullFeeds.length >= 2 ? fullFeeds : feedsSnap.docs;
+
       // startTimes ascending (oldest -> newest).
-      const times = feedsSnap.docs
+      const times = clockDocs
         .map((d) => (d.get("startTime") as admin.firestore.Timestamp).toMillis())
         .reverse();
 
@@ -147,8 +155,11 @@ export const feedReminder = onSchedule("every 15 minutes", async () => {
       const due = times[times.length - 1] + avg;
       if (now < due) continue;
 
-      // Don't re-notify for a feed we've already reminded about.
-      const latestFeedId = feedsSnap.docs[0].id;
+      // Don't re-notify for a feed we've already reminded about. Keyed on the
+      // newest clock feed, not the newest event: a snack logged after a
+      // reminder fired doesn't change the due time, so keying on it would
+      // send a duplicate for the same overdue feed.
+      const latestFeedId = clockDocs[0].id;
       if (baby.lastNotifiedFeedId === latestFeedId) continue;
 
       const memberUids: string[] = baby.memberUids ?? [];

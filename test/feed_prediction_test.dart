@@ -190,4 +190,85 @@ void main() {
       );
     });
   });
+
+  group('snacks', () {
+    FeedingEvent snack(DateTime at, {String id = 'snack'}) => FeedingEvent(
+      id: id,
+      type: FeedingType.bottle,
+      startTime: at,
+      amountMl: 10,
+      isSnack: true,
+    );
+
+    test('a snack does not push the prediction out', () {
+      // 06:00, 09:00, 12:00 on a 3h rhythm, then a 10 ml top-up at 13:00.
+      final feeds = [
+        _feed(base),
+        _feed(base.add(const Duration(hours: 3))),
+        _feed(base.add(const Duration(hours: 6))),
+      ];
+      final withSnack = [...feeds, snack(base.add(const Duration(hours: 7)))];
+
+      final p = predictNextFeed(withSnack);
+      // Still anchored to the 12:00 feed, not dragged to 13:00 + 3h = 16:00.
+      expect(p.lastFeedAt, base.add(const Duration(hours: 6)));
+      expect(p.nextDue, base.add(const Duration(hours: 9)));
+      expect(p.averageIntervalMinutes, 180);
+    });
+
+    test('a snack does not enter the rolling average', () {
+      final feeds = [
+        _feed(base),
+        _feed(base.add(const Duration(hours: 3))),
+        _feed(base.add(const Duration(hours: 6))),
+        snack(base.add(const Duration(hours: 7))),
+        _feed(base.add(const Duration(hours: 9))),
+      ];
+      final p = predictNextFeed(feeds);
+      // Gaps are 180/180/180, not 180/180/60/120.
+      expect(p.averageIntervalMinutes, 180);
+      expect(p.intervalSamples, 3);
+    });
+
+    test('a snack does not reset the fixed-interval clock', () {
+      // The dangerous case: a 4h safety floor silently becoming 5h.
+      final feeds = [
+        _feed(base),
+        _feed(base.add(const Duration(hours: 4))),
+        snack(base.add(const Duration(hours: 5))),
+      ];
+      expect(
+        fixedIntervalDue(feeds, 240),
+        base.add(const Duration(hours: 8)),
+      );
+    });
+
+    test('snack-only history still yields a reminder', () {
+      // Going silent is worse than reminding from imperfect data.
+      final feeds = [
+        snack(base, id: 's1'),
+        snack(base.add(const Duration(hours: 2)), id: 's2'),
+      ];
+      expect(predictNextFeed(feeds).hasPrediction, isTrue);
+      expect(
+        fixedIntervalDue(feeds, 180),
+        base.add(const Duration(hours: 5)),
+      );
+    });
+
+    test('a lone full feed among snacks falls back rather than giving up', () {
+      final feeds = [
+        snack(base, id: 's1'),
+        _feed(base.add(const Duration(hours: 2))),
+        snack(base.add(const Duration(hours: 3)), id: 's2'),
+      ];
+      // Only one non-snack, so there is no full-feed interval to average;
+      // predicting from everything beats showing nothing.
+      expect(predictNextFeed(feeds).hasPrediction, isTrue);
+    });
+
+    test('feeds default to full so existing history is unaffected', () {
+      expect(_feed(base).isSnack, isFalse);
+    });
+  });
 }

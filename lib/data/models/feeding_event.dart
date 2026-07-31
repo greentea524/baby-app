@@ -16,6 +16,7 @@ class FeedingEvent {
     this.amountMl,
     this.side,
     this.notes,
+    this.isSnack = false,
   });
 
   final String id;
@@ -25,6 +26,18 @@ class FeedingEvent {
   final double? amountMl;
   final BreastSide? side;
   final String? notes;
+
+  /// A small top-up rather than a full feed, as marked by the caregiver.
+  ///
+  /// Snacks don't reset the feeding clock: a 10 ml comfort top-up shouldn't
+  /// push the next reminder out by a full interval. Both the predicted and
+  /// fixed-interval reminders skip these when working out when the next feed
+  /// is due (see `feed_prediction.dart`).
+  ///
+  /// Deliberately a caregiver's call rather than inferred from volume —
+  /// breast feeds carry no volume at all, and a guessed threshold makes the
+  /// reminder unpredictable in exactly the case it matters most.
+  final bool isSnack;
 
   factory FeedingEvent.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
@@ -38,6 +51,9 @@ class FeedingEvent {
           ? null
           : BreastSide.values.byName(data['side'] as String),
       notes: data['notes'] as String?,
+      // Absent on every event logged before snacks existed — those were all
+      // full feeds as far as the clock was concerned, so default to false.
+      isSnack: data['isSnack'] as bool? ?? false,
     );
   }
 
@@ -48,5 +64,6 @@ class FeedingEvent {
     'amountMl': amountMl,
     'side': side?.name,
     'notes': notes,
+    'isSnack': isSnack,
   };
 }
