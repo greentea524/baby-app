@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../activity/activity_filter.dart';
 import '../activity/activity_tile.dart';
-import 'activity_filter.dart';
 
 /// Unified recent activity: feeds and diaper changes merged by time. This is
 /// the home dashboard's "what happened recently" view; the full daily

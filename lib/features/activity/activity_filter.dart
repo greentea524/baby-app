@@ -3,11 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/activity_entry.dart';
 
-/// Which kinds of activity the home "Recent" list is showing.
+/// Which kinds of activity the merged lists are showing.
 ///
-/// The merged list answers "what happened recently", but the two questions
-/// caregivers actually ask it — when did they last eat, when were they last
-/// changed — get tangled together once a busy day has filled it.
+/// Those lists answer "what happened", but the two questions caregivers
+/// actually ask — when did they last eat, when were they last changed — get
+/// tangled together once a busy day has filled them.
+///
+/// Shared by Home's "Recent" list and the full Timeline. Home presents the
+/// timeline as "see all" of the same data rather than a separate destination,
+/// so a filter chosen in one carries into the other.
 enum ActivityFilter {
   all('All', Icons.list),
   feeds('Feeds', Icons.local_drink),

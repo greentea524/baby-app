@@ -5,6 +5,7 @@ import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../activity/activity_filter.dart';
 import '../activity/activity_tile.dart';
 import 'day_stats.dart';
 import 'timeline_format.dart';
@@ -36,6 +37,11 @@ class TimelineScreen extends ConsumerWidget {
       pumps: pumps,
       descending: false,
     );
+    final filter = ref.watch(activityFilterProvider);
+    final visible = applyActivityFilter(entries, filter);
+    // Stats stay on the whole day on purpose: the card summarises what
+    // happened, while the filter is about what you are reading through. A
+    // filtered summary would quietly under-report the day.
     final stats = DayStats.from(feeds, diapers, pumps: pumps);
 
     return Scaffold(
@@ -57,6 +63,7 @@ class TimelineScreen extends ConsumerWidget {
                 else ...[
                   _StatsCard(stats: stats),
                   const Divider(height: 1),
+                  const ActivityFilterBar(),
                   Expanded(
                     child: entries.isEmpty
                         ? const Center(
@@ -65,12 +72,23 @@ class TimelineScreen extends ConsumerWidget {
                               child: Text('No events on this day.'),
                             ),
                           )
+                        // Distinct from an empty day: there *is* activity, just
+                        // none of this kind, and saying so points at the filter.
+                        : visible.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                'No ${filter.label.toLowerCase()} on this day.',
+                              ),
+                            ),
+                          )
                         : ListView.separated(
-                            itemCount: entries.length,
+                            itemCount: visible.length,
                             separatorBuilder: (_, _) =>
                                 const Divider(height: 1),
                             itemBuilder: (context, i) => ActivityTile(
-                              entry: entries[i],
+                              entry: visible[i],
                               clockTime: true,
                             ),
                           ),
