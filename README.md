@@ -166,22 +166,20 @@ still the ones enforced in production. Deploy them yourself:
 firebase deploy --only firestore:rules
 ```
 
-If that fails with *"No currently active project"*, the CLI does not know which
-project to target — `.firebaserc` is not in the repo. Either pass the project
-once:
+`.firebaserc` in the repo root points the CLI at the project, so no `--project`
+flag is needed. It only maps an alias to a project ID — nothing secret — which
+is why it is committed rather than left for each machine to recreate.
+
+If you ever see *"No currently active project"*, that file is missing or you
+are running from outside the repo root. Pass the project for one command:
 
 ```bash
 firebase deploy --only firestore:rules --project baby-6f5b0
 ```
 
-or set it permanently, which writes `.firebaserc`:
-
-```bash
-firebase use --add        # pick the project, alias it "default"
-```
-
-`.firebaserc` only maps an alias to a project ID — nothing secret — so it is
-worth committing once created.
+or recreate the file with `firebase use --add`, picking the project and
+aliasing it `default`. Note that `--project` is a one-off flag and writes
+nothing — only `firebase use --add` creates `.firebaserc`.
 
 Afterwards, confirm the change is live in the Firebase console under
 **Firestore → Rules**, which shows the ruleset actually in force. The same
