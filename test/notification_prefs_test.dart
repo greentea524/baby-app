@@ -1,4 +1,5 @@
 import 'package:baby_app/data/models/notification_prefs.dart';
+import 'package:baby_app/features/reminders/reminder_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -100,6 +101,43 @@ void main() {
         quietEndMinutes: 7 * 60,
       );
       expect(prefs.quietWindowLabel, '10:00 PM – 7:00 AM');
+    });
+  });
+
+  group('reminder interval (published for the server)', () {
+    test('round-trips through the map', () {
+      const prefs = NotificationPrefs(
+        reminderIntervalMinutes: 240,
+        remindersOff: true,
+      );
+      final restored = NotificationPrefs.fromMap(prefs.toMap());
+      expect(restored.reminderIntervalMinutes, 240);
+      expect(restored.remindersOff, isTrue);
+    });
+
+    test('is published so the Cloud Function can read it', () {
+      // The server has no other source for the caregiver's chosen gap.
+      const prefs = NotificationPrefs(reminderIntervalMinutes: 150);
+      expect(prefs.toMap()['reminderIntervalMinutes'], 150);
+      expect(prefs.toMap()['remindersOff'], isFalse);
+    });
+
+    test('defaults for anyone who saved before the field existed', () {
+      final prefs = NotificationPrefs.fromMap({'enabled': true});
+      expect(
+        prefs.reminderIntervalMinutes,
+        NotificationPrefs.defaultReminderInterval,
+      );
+      expect(prefs.remindersOff, isFalse);
+    });
+
+    test('the default matches what the app defaults to', () {
+      // A mismatch would mean push reminders on a different cadence to the
+      // in-app card until the caregiver next touched the setting.
+      expect(
+        NotificationPrefs.defaultReminderInterval,
+        defaultReminderIntervalMinutes,
+      );
     });
   });
 }

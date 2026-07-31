@@ -73,10 +73,7 @@ class HomeStatusCard extends ConsumerWidget {
   Widget _feedingRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastMilkFeedProvider);
     final units = ref.watch(unitSystemProvider);
-    final settings = ref.watch(reminderSettingsProvider);
-    final due = settings.mode == ReminderMode.off
-        ? null
-        : ref.watch(feedPredictionProvider).nextDue;
+    final due = ref.watch(nextFeedDueProvider);
 
     Widget? next;
     if (due != null) {

@@ -22,4 +22,18 @@ class NotificationPrefsRepository {
 
   Future<void> save(NotificationPrefs prefs) =>
       _doc.set(prefs.toMap(), SetOptions(merge: true));
+
+  /// Publishes just the reminder cadence, for the Cloud Function to read.
+  ///
+  /// Deliberately narrower than [save]: the reminder setting lives in local
+  /// preferences and can be changed before the prefs stream has produced a
+  /// value, so writing a whole [NotificationPrefs] here would push default
+  /// quiet hours over whatever the caregiver had actually chosen.
+  Future<void> saveReminderCadence({
+    required int intervalMinutes,
+    required bool remindersOff,
+  }) => _doc.set({
+    'reminderIntervalMinutes': intervalMinutes,
+    'remindersOff': remindersOff,
+  }, SetOptions(merge: true));
 }

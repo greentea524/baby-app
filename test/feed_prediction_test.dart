@@ -8,26 +8,38 @@ FeedingEvent _feed(DateTime at) => FeedingEvent(
   startTime: at,
 );
 
+/// A steady rhythm of [gapMinutes], oldest first.
+List<FeedingEvent> _steady(int count, int gapMinutes) {
+  var t = DateTime(2026, 7, 28, 8, 0);
+  return [
+    for (var i = 0; i < count; i++)
+      () {
+        final e = FeedingEvent(id: 'f$i', type: FeedingType.bottle, startTime: t);
+        t = t.add(Duration(minutes: gapMinutes));
+        return e;
+      }(),
+  ];
+}
+
 void main() {
   final base = DateTime(2026, 7, 23, 6);
 
-  group('predictNextFeed', () {
+  group('feedRhythm', () {
     test('needs at least two feeds', () {
-      expect(predictNextFeed(const []).hasPrediction, isFalse);
-      expect(predictNextFeed([_feed(base)]).hasPrediction, isFalse);
+      expect(feedRhythm(const []).hasRhythm, isFalse);
+      expect(feedRhythm([_feed(base)]).hasRhythm, isFalse);
     });
 
-    test('averages the gaps and projects from the last feed', () {
+    test('reports the typical gap', () {
       // 06:00, 09:00, 12:00 -> gaps of 180 and 180.
       final feeds = [
         _feed(base),
         _feed(base.add(const Duration(hours: 3))),
         _feed(base.add(const Duration(hours: 6))),
       ];
-      final p = predictNextFeed(feeds);
-      expect(p.averageIntervalMinutes, 180);
-      expect(p.intervalSamples, 2);
-      expect(p.nextDue, base.add(const Duration(hours: 9)));
+      final r = feedRhythm(feeds);
+      expect(r.typicalGapMinutes, 180);
+      expect(r.samples, 2);
     });
 
     test('handles unsorted input', () {
@@ -36,14 +48,12 @@ void main() {
         _feed(base),
         _feed(base.add(const Duration(hours: 3))),
       ];
-      final p = predictNextFeed(feeds);
-      expect(p.averageIntervalMinutes, 180);
-      expect(p.lastFeedAt, base.add(const Duration(hours: 6)));
+      expect(feedRhythm(feeds).typicalGapMinutes, 180);
     });
 
     test('rolling window ignores older gaps', () {
-      // One long early gap (10h) then three 2h gaps; window of 3 should
-      // average only the recent 2h gaps.
+      // One long early gap (10h) then three 2h gaps; a window of 3 should see
+      // only the recent 2h gaps.
       final feeds = [
         _feed(base),
         _feed(base.add(const Duration(hours: 10))),
@@ -51,9 +61,35 @@ void main() {
         _feed(base.add(const Duration(hours: 14))),
         _feed(base.add(const Duration(hours: 16))),
       ];
-      final p = predictNextFeed(feeds, window: 3);
-      expect(p.averageIntervalMinutes, 120);
-      expect(p.intervalSamples, 3);
+      final r = feedRhythm(feeds, window: 3);
+      expect(r.typicalGapMinutes, 120);
+      expect(r.samples, 3);
+    });
+
+    test('an even number of gaps averages the middle pair', () {
+      // Gaps of 120 and 180 -> median 150.
+      final feeds = [
+        _feed(base),
+        _feed(base.add(const Duration(hours: 2))),
+        _feed(base.add(const Duration(hours: 5))),
+      ];
+      expect(feedRhythm(feeds).typicalGapMinutes, 150);
+    });
+
+    test('a night stretch does not distort the daytime figure', () {
+      // The case that retired the predictive reminder: 3-hourly from 07:00
+      // with one 6h overnight gap. The mean lands at 206 minutes, describing
+      // neither half of the day; the median reports the 180 the day runs at.
+      final day = DateTime(2026, 7, 30);
+      final feeds = [
+        for (final h in [7, 10, 13, 16, 19, 22, 28, 31])
+          _feed(day.add(Duration(hours: h))),
+      ];
+      final gaps = recentFeedGaps(feeds);
+      final mean = gaps.reduce((a, b) => a + b) / gaps.length;
+
+      expect(mean.round(), 206, reason: 'the old averaging behaviour');
+      expect(feedRhythm(feeds).typicalGapMinutes, 180);
     });
   });
 
@@ -92,27 +128,9 @@ void main() {
   });
 
   group('same-session entries (KAN-184)', () {
-    /// A steady rhythm of [gapMinutes], oldest first.
-    List<FeedingEvent> steady(int count, int gapMinutes) {
-      var t = DateTime(2026, 7, 28, 8, 0);
-      return [
-        for (var i = 0; i < count; i++)
-          () {
-            final e = FeedingEvent(
-              id: 'f$i',
-              type: FeedingType.bottle,
-              startTime: t,
-            );
-            t = t.add(Duration(minutes: gapMinutes));
-            return e;
-          }(),
-      ];
-    }
-
-    test('a topped-up bottle does not drag the average down', () {
-      final feeds = steady(8, 78);
-      final baseline = predictNextFeed(feeds);
-      expect(baseline.averageIntervalMinutes, 78);
+    test('a topped-up bottle does not drag the figure down', () {
+      final feeds = _steady(8, 78);
+      expect(feedRhythm(feeds).typicalGapMinutes, 78);
 
       // A second bottle a minute after the last: one feed logged twice.
       final withSplit = [
@@ -123,13 +141,11 @@ void main() {
           startTime: feeds.last.startTime.add(const Duration(minutes: 1)),
         ),
       ];
-      // Before the fix this averaged to 68, pulling every later reminder ten
-      // minutes early.
-      expect(predictNextFeed(withSplit).averageIntervalMinutes, 78);
+      expect(feedRhythm(withSplit).typicalGapMinutes, 78);
     });
 
     test('several splits still leave the rhythm intact', () {
-      final feeds = [...steady(8, 78)];
+      final feeds = [..._steady(8, 78)];
       for (var i = 0; i < 3; i++) {
         feeds.add(
           FeedingEvent(
@@ -139,13 +155,13 @@ void main() {
           ),
         );
       }
-      expect(predictNextFeed(feeds).averageIntervalMinutes, 78);
+      expect(feedRhythm(feeds).typicalGapMinutes, 78);
     });
 
     test('discarded gaps do not consume window slots', () {
-      // Filtering happens before windowing, so the average still draws on
+      // Filtering happens before windowing, so the figure still draws on
       // eight real intervals rather than however many survived.
-      final feeds = [...steady(9, 78)];
+      final feeds = [..._steady(9, 78)];
       feeds.insert(
         4,
         FeedingEvent(
@@ -154,30 +170,28 @@ void main() {
           startTime: feeds[3].startTime.add(const Duration(minutes: 1)),
         ),
       );
-      final p = predictNextFeed(feeds);
-      expect(p.averageIntervalMinutes, 78);
-      expect(p.intervalSamples, 8);
+      final r = feedRhythm(feeds);
+      expect(r.typicalGapMinutes, 78);
+      expect(r.samples, 8);
     });
 
-    test('genuine cluster feeding is still predicted from', () {
+    test('genuine cluster feeding is still reported', () {
       // Every gap under the threshold is a real pattern, not logging noise —
-      // refusing to predict would be worse than predicting short.
-      final feeds = steady(5, 12);
-      final p = predictNextFeed(feeds);
-      expect(p.averageIntervalMinutes, 12);
-      expect(p.nextDue, isNotNull);
+      // reporting nothing would be worse than reporting a short rhythm.
+      final r = feedRhythm(_steady(5, 12));
+      expect(r.typicalGapMinutes, 12);
+      expect(r.hasRhythm, isTrue);
     });
 
     test('the threshold is adjustable', () {
-      final feeds = steady(4, 30);
       expect(
-        predictNextFeed(feeds, minGapMinutes: 45).averageIntervalMinutes,
+        feedRhythm(_steady(4, 30), minGapMinutes: 45).typicalGapMinutes,
         30,
       );
     });
 
-    test('the prediction still counts from the most recent feed', () {
-      final feeds = steady(8, 78);
+    test('the fixed interval counts from the most recent feed', () {
+      final feeds = _steady(8, 78);
       final topUp = feeds.last.startTime.add(const Duration(minutes: 1));
       final withSplit = [
         ...feeds,
@@ -185,7 +199,7 @@ void main() {
       ];
       // The baby ate at the top-up time, so that is what the gap runs from.
       expect(
-        predictNextFeed(withSplit).nextDue,
+        fixedIntervalDue(withSplit, 78),
         topUp.add(const Duration(minutes: 78)),
       );
     });
@@ -200,23 +214,7 @@ void main() {
       isSnack: true,
     );
 
-    test('a snack does not push the prediction out', () {
-      // 06:00, 09:00, 12:00 on a 3h rhythm, then a 10 ml top-up at 13:00.
-      final feeds = [
-        _feed(base),
-        _feed(base.add(const Duration(hours: 3))),
-        _feed(base.add(const Duration(hours: 6))),
-      ];
-      final withSnack = [...feeds, snack(base.add(const Duration(hours: 7)))];
-
-      final p = predictNextFeed(withSnack);
-      // Still anchored to the 12:00 feed, not dragged to 13:00 + 3h = 16:00.
-      expect(p.lastFeedAt, base.add(const Duration(hours: 6)));
-      expect(p.nextDue, base.add(const Duration(hours: 9)));
-      expect(p.averageIntervalMinutes, 180);
-    });
-
-    test('a snack does not enter the rolling average', () {
+    test('a snack does not enter the rhythm', () {
       final feeds = [
         _feed(base),
         _feed(base.add(const Duration(hours: 3))),
@@ -224,10 +222,10 @@ void main() {
         snack(base.add(const Duration(hours: 7))),
         _feed(base.add(const Duration(hours: 9))),
       ];
-      final p = predictNextFeed(feeds);
+      final r = feedRhythm(feeds);
       // Gaps are 180/180/180, not 180/180/60/120.
-      expect(p.averageIntervalMinutes, 180);
-      expect(p.intervalSamples, 3);
+      expect(r.typicalGapMinutes, 180);
+      expect(r.samples, 3);
     });
 
     test('a snack does not reset the fixed-interval clock', () {
@@ -237,10 +235,7 @@ void main() {
         _feed(base.add(const Duration(hours: 4))),
         snack(base.add(const Duration(hours: 5))),
       ];
-      expect(
-        fixedIntervalDue(feeds, 240),
-        base.add(const Duration(hours: 8)),
-      );
+      expect(fixedIntervalDue(feeds, 240), base.add(const Duration(hours: 8)));
     });
 
     test('snack-only history still yields a reminder', () {
@@ -249,11 +244,8 @@ void main() {
         snack(base, id: 's1'),
         snack(base.add(const Duration(hours: 2)), id: 's2'),
       ];
-      expect(predictNextFeed(feeds).hasPrediction, isTrue);
-      expect(
-        fixedIntervalDue(feeds, 180),
-        base.add(const Duration(hours: 5)),
-      );
+      expect(feedRhythm(feeds).hasRhythm, isTrue);
+      expect(fixedIntervalDue(feeds, 180), base.add(const Duration(hours: 5)));
     });
 
     test('a lone full feed among snacks falls back rather than giving up', () {
@@ -262,9 +254,12 @@ void main() {
         _feed(base.add(const Duration(hours: 2))),
         snack(base.add(const Duration(hours: 3)), id: 's2'),
       ];
-      // Only one non-snack, so there is no full-feed interval to average;
-      // predicting from everything beats showing nothing.
-      expect(predictNextFeed(feeds).hasPrediction, isTrue);
+      expect(feedRhythm(feeds).hasRhythm, isTrue);
+      // One non-snack is still a usable anchor for a fixed interval.
+      expect(
+        fixedIntervalDue(feeds, 180),
+        base.add(const Duration(hours: 5)),
+      );
     });
 
     test('feeds default to full so existing history is unaffected', () {
@@ -276,29 +271,16 @@ void main() {
     FeedingEvent solids(DateTime at, {String id = 'solids'}) =>
         FeedingEvent(id: id, type: FeedingType.solids, startTime: at);
 
-    test('solids do not push the prediction out', () {
-      final feeds = [
-        _feed(base),
-        _feed(base.add(const Duration(hours: 3))),
-        _feed(base.add(const Duration(hours: 6))),
-        solids(base.add(const Duration(hours: 7))),
-      ];
-      final p = predictNextFeed(feeds);
-      // Anchored to the 12:00 milk feed, not the 13:00 purée.
-      expect(p.lastFeedAt, base.add(const Duration(hours: 6)));
-      expect(p.nextDue, base.add(const Duration(hours: 9)));
-    });
-
-    test('solids do not enter the rolling average', () {
+    test('solids do not enter the rhythm', () {
       final feeds = [
         _feed(base),
         _feed(base.add(const Duration(hours: 3))),
         solids(base.add(const Duration(hours: 4))),
         _feed(base.add(const Duration(hours: 6))),
       ];
-      final p = predictNextFeed(feeds);
-      expect(p.averageIntervalMinutes, 180);
-      expect(p.intervalSamples, 2);
+      final r = feedRhythm(feeds);
+      expect(r.typicalGapMinutes, 180);
+      expect(r.samples, 2);
     });
 
     test('solids do not reset the fixed-interval clock', () {
@@ -307,10 +289,7 @@ void main() {
         _feed(base.add(const Duration(hours: 4))),
         solids(base.add(const Duration(hours: 5))),
       ];
-      expect(
-        fixedIntervalDue(feeds, 240),
-        base.add(const Duration(hours: 8)),
-      );
+      expect(fixedIntervalDue(feeds, 240), base.add(const Duration(hours: 8)));
     });
 
     test('a weaned baby on solids alone still gets a reminder', () {
@@ -318,7 +297,7 @@ void main() {
         solids(base, id: 's1'),
         solids(base.add(const Duration(hours: 4)), id: 's2'),
       ];
-      expect(predictNextFeed(feeds).hasPrediction, isTrue);
+      expect(feedRhythm(feeds).hasRhythm, isTrue);
       expect(fixedIntervalDue(feeds, 240), isNotNull);
     });
 

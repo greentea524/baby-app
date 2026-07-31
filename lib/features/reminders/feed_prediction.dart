@@ -1,34 +1,25 @@
 import '../../data/models/feeding_event.dart';
 
-/// A prediction of when the next feed is due (KAN-154).
-class FeedPrediction {
-  const FeedPrediction({
-    required this.nextDue,
-    required this.averageIntervalMinutes,
-    required this.intervalSamples,
-    required this.lastFeedAt,
-  });
+/// How often the baby has been feeding lately. Informational only.
+///
+/// This used to drive the reminder itself (KAN-154), and doing so made the
+/// alarm unpredictable: a single rolling statistic can't describe a rhythm
+/// that is 3-hourly by day and 6-hourly at night, so daytime reminders ran
+/// late and the first night reminder fired hours early. The reminder is now a
+/// fixed interval the caregiver sets; this number exists to tell them what to
+/// set it to.
+class FeedRhythm {
+  const FeedRhythm({required this.typicalGapMinutes, required this.samples});
 
-  /// When the next feed is expected, or null if there isn't enough history.
-  final DateTime? nextDue;
+  /// The median gap between recent feeds, or null without enough history.
+  final int? typicalGapMinutes;
 
-  /// The rolling-average gap between feeds, in minutes.
-  final int? averageIntervalMinutes;
+  /// How many gaps that median was taken over — 0 means nothing to show.
+  final int samples;
 
-  /// How many gaps the average was computed from — 0 means no prediction.
-  final int intervalSamples;
+  bool get hasRhythm => typicalGapMinutes != null;
 
-  final DateTime? lastFeedAt;
-
-  bool get hasPrediction => nextDue != null;
-
-  /// Empty prediction, used when there's no history or reminders are off.
-  static const none = FeedPrediction(
-    nextDue: null,
-    averageIntervalMinutes: null,
-    intervalSamples: 0,
-    lastFeedAt: null,
-  );
+  static const none = FeedRhythm(typicalGapMinutes: null, samples: 0);
 }
 
 /// Gaps shorter than this are treated as the same feeding session rather than
@@ -61,29 +52,18 @@ List<FeedingEvent> _clockFeeds(List<FeedingEvent> feedings) {
   return milkFeeds.length >= 2 ? milkFeeds : feedings;
 }
 
-/// Predicts the next feed from a rolling average of recent intervals.
+/// The gaps between recent clock feeds, in minutes, oldest first.
 ///
-/// Uses at most the last [window] gaps so the estimate tracks the baby's
-/// current rhythm rather than being dragged by older newborn patterns, and
-/// ignores gaps under [minGapMinutes] as same-session entries.
-/// Needs at least two feeds (one gap) to predict anything.
-FeedPrediction predictNextFeed(
+/// Uses at most the last [window] gaps so the figure tracks the baby's current
+/// rhythm rather than being dragged by older newborn patterns, and ignores
+/// gaps under [minGapMinutes] as same-session entries.
+List<int> recentFeedGaps(
   List<FeedingEvent> feedings, {
   int window = 8,
   int minGapMinutes = sameSessionMinutes,
 }) {
-  // Snacks are dropped up front so they neither contribute intervals nor
-  // become the anchor the next feed is projected from.
   final clockFeeds = _clockFeeds(feedings);
-
-  if (clockFeeds.length < 2) {
-    return FeedPrediction(
-      nextDue: null,
-      averageIntervalMinutes: null,
-      intervalSamples: 0,
-      lastFeedAt: clockFeeds.isEmpty ? null : clockFeeds.first.startTime,
-    );
-  }
+  if (clockFeeds.length < 2) return const [];
 
   final sorted = [...clockFeeds]
     ..sort((a, b) => a.startTime.compareTo(b.startTime));
@@ -99,22 +79,37 @@ FeedPrediction predictNextFeed(
   // real intervals should occupy.
   var gaps = allGaps.where((g) => g >= minGapMinutes).toList();
   // Every gap being short is a genuine cluster-feeding stretch, not logging
-  // noise — better to predict from it than to refuse to predict at all.
+  // noise — better to report it than to report nothing.
   if (gaps.isEmpty) gaps = allGaps;
 
-  final recent = gaps.length <= window
-      ? gaps
-      : gaps.sublist(gaps.length - window);
+  return gaps.length <= window ? gaps : gaps.sublist(gaps.length - window);
+}
 
-  final average = (recent.reduce((a, b) => a + b) / recent.length).round();
-  final lastAt = sorted.last.startTime;
-
-  return FeedPrediction(
-    nextDue: lastAt.add(Duration(minutes: average)),
-    averageIntervalMinutes: average,
-    intervalSamples: recent.length,
-    lastFeedAt: lastAt,
+/// How often the baby has been feeding lately, as a median gap.
+///
+/// Median rather than mean, because feeding is not one rhythm but two. On a
+/// 3-hourly day with a single 6-hour night, the mean lands at 206 minutes —
+/// describing neither half — while the median reports the 180 the day
+/// actually runs at, treating the night stretch as the outlier it is.
+FeedRhythm feedRhythm(
+  List<FeedingEvent> feedings, {
+  int window = 8,
+  int minGapMinutes = sameSessionMinutes,
+}) {
+  final gaps = recentFeedGaps(
+    feedings,
+    window: window,
+    minGapMinutes: minGapMinutes,
   );
+  if (gaps.isEmpty) return FeedRhythm.none;
+
+  final sorted = [...gaps]..sort();
+  final mid = sorted.length ~/ 2;
+  final median = sorted.length.isOdd
+      ? sorted[mid]
+      : ((sorted[mid - 1] + sorted[mid]) / 2).round();
+
+  return FeedRhythm(typicalGapMinutes: median, samples: sorted.length);
 }
 
 /// The next feed time for a fixed-interval reminder (KAN-155): simply the

@@ -5,14 +5,12 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 const db = admin.firestore();
 
-/** How many recent gaps to average when predicting the next feed. */
-const WINDOW = 8;
-
 /**
- * Fetch more feeds than the window needs, so that discarding same-session
- * entries and snacks still leaves WINDOW real intervals to average.
+ * How many recent feeds to scan when looking for the last one that resets the
+ * clock. Only the most recent full milk feed matters, but a run of snacks or
+ * solids can sit on top of it.
  */
-const FETCH = WINDOW * 3;
+const FETCH = 20;
 
 
 /** Firestore `in` queries cap out at 10 values. */
@@ -20,15 +18,6 @@ const IN_QUERY_LIMIT = 10;
 
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_DAY = 24 * 60;
-/**
- * Gaps shorter than this are the same feeding session, not a new one
- * (KAN-184) — a topped-up bottle or a corrected entry. Counting them as
- * intervals drags the average down and fires every later reminder early.
- *
- * Mirrors `sameSessionMinutes` in lib/features/reminders/feed_prediction.dart
- * — keep the two in step.
- */
-const SAME_SESSION_MS = 20 * MS_PER_MINUTE;
 
 /**
  * A caregiver's notification preferences (KAN-167), stored at
@@ -42,6 +31,8 @@ interface NotificationPrefs {
   quietEndMinutes: number;
   timezoneOffsetMinutes: number;
   overdueThresholdMinutes: number;
+  reminderIntervalMinutes: number;
+  remindersOff: boolean;
 }
 
 const DEFAULT_PREFS: NotificationPrefs = {
@@ -51,6 +42,8 @@ const DEFAULT_PREFS: NotificationPrefs = {
   quietEndMinutes: 7 * 60,
   timezoneOffsetMinutes: 0,
   overdueThresholdMinutes: 0,
+  reminderIntervalMinutes: 180,
+  remindersOff: false,
 };
 
 function readPrefs(data: FirebaseFirestore.DocumentData | undefined): NotificationPrefs {
@@ -66,6 +59,9 @@ function readPrefs(data: FirebaseFirestore.DocumentData | undefined): Notificati
       data.timezoneOffsetMinutes ?? DEFAULT_PREFS.timezoneOffsetMinutes,
     overdueThresholdMinutes:
       data.overdueThresholdMinutes ?? DEFAULT_PREFS.overdueThresholdMinutes,
+    reminderIntervalMinutes:
+      data.reminderIntervalMinutes ?? DEFAULT_PREFS.reminderIntervalMinutes,
+    remindersOff: data.remindersOff ?? DEFAULT_PREFS.remindersOff,
   };
 }
 
@@ -102,10 +98,15 @@ export function isQuietAt(
 
 /**
  * Scheduled feed reminder (KAN-156, preferences in KAN-167). Every 15 minutes,
- * for each baby, this predicts the next feed from a rolling average of recent
- * intervals — the same logic as the in-app card (`predictNextFeed`) — and, if
- * a feed is now overdue and we haven't already notified for the latest feed,
- * pushes the caregivers who want to hear about it right now.
+ * for each baby, this takes the last feed that resets the clock and adds each
+ * caregiver's own reminder interval — the same rule as the in-app card
+ * (`fixedIntervalDue`) — then pushes anyone now overdue who hasn't already
+ * been told about that feed.
+ *
+ * It used to derive its own due time from a rolling average of recent gaps,
+ * duplicating the app's prediction engine. That engine is gone: one statistic
+ * can't describe a rhythm that is 3-hourly by day and 6-hourly at night, and
+ * keeping two implementations of it in step by hand was a standing hazard.
  *
  * A caregiver is skipped when they have turned reminders off, when their local
  * time falls inside their quiet hours, or when their personal grace period has
@@ -125,57 +126,45 @@ export const feedReminder = onSchedule("every 15 minutes", async () => {
         .orderBy("startTime", "desc")
         .limit(FETCH)
         .get();
-      if (feedsSnap.size < 2) continue;
+      if (feedsSnap.empty) continue;
 
-      // Snacks and solids don't reset or reshape the clock — a top-up isn't a
-      // feed's worth of fuel, and solids supplement milk rather than replace
-      // it. Mirrors `drivesFeedClock` / `_clockFeeds` in
+      // Snacks and solids don't reset the clock — a top-up isn't a feed's
+      // worth of fuel, and solids supplement milk rather than replace it.
+      // Mirrors `drivesFeedClock` in
       // lib/features/reminders/feed_prediction.dart, including the fallback to
-      // every feed when those are all that has been logged, so a reminder
-      // still fires rather than going silent.
+      // the newest event when those are all that has been logged, so a
+      // reminder still fires rather than going silent.
       // A missing `isSnack` means an event logged before the field existed.
       const milkFeeds = feedsSnap.docs.filter(
         (d) => d.get("isSnack") !== true && d.get("type") !== "solids",
       );
-      const clockDocs = milkFeeds.length >= 2 ? milkFeeds : feedsSnap.docs;
-
-      // startTimes ascending (oldest -> newest).
-      const times = clockDocs
-        .map((d) => (d.get("startTime") as admin.firestore.Timestamp).toMillis())
-        .reverse();
-
-      const allGaps: number[] = [];
-      for (let i = 1; i < times.length; i++) {
-        allGaps.push(times[i] - times[i - 1]);
-      }
-      // Filter before windowing, so same-session entries don't consume slots
-      // that real intervals should occupy.
-      const realGaps = allGaps.filter((g) => g >= SAME_SESSION_MS);
-      // All gaps being short is genuine cluster feeding, not logging noise.
-      const usable = realGaps.length > 0 ? realGaps : allGaps;
-      const gaps = usable.slice(-WINDOW);
-
-      const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-      const due = times[times.length - 1] + avg;
-      if (now < due) continue;
-
-      // Don't re-notify for a feed we've already reminded about. Keyed on the
-      // newest clock feed, not the newest event: a snack logged after a
-      // reminder fired doesn't change the due time, so keying on it would
-      // send a duplicate for the same overdue feed.
-      const latestFeedId = clockDocs[0].id;
-      if (baby.lastNotifiedFeedId === latestFeedId) continue;
+      const anchorDoc = milkFeeds[0] ?? feedsSnap.docs[0];
+      const lastFedAt = (
+        anchorDoc.get("startTime") as admin.firestore.Timestamp
+      ).toMillis();
 
       const memberUids: string[] = baby.memberUids ?? [];
       if (memberUids.length === 0) continue;
+
+      // Per-caregiver, because the interval is a per-caregiver setting: two
+      // caregivers on the same baby can be due at different times.
+      const notifiedByUid: Record<string, string> =
+        baby.lastNotifiedByUid ?? {};
+      // Pre-dates per-caregiver tracking; treat it as everyone's last, so a
+      // deploy doesn't re-notify for a feed already covered.
+      const legacyNotified: string | undefined = baby.lastNotifiedFeedId;
 
       // Keep only caregivers who want this notification now.
       const prefsDocs = await db.getAll(
         ...memberUids.map((uid) => db.collection("notificationPrefs").doc(uid)),
       );
-      const wanted = memberUids.filter((_, i) => {
+      const wanted = memberUids.filter((uid, i) => {
         const prefs = readPrefs(prefsDocs[i]?.data());
-        if (!prefs.enabled) return false;
+        if (!prefs.enabled || prefs.remindersOff) return false;
+        if ((notifiedByUid[uid] ?? legacyNotified) === anchorDoc.id) {
+          return false;
+        }
+        const due = lastFedAt + prefs.reminderIntervalMinutes * MS_PER_MINUTE;
         if (now < due + prefs.overdueThresholdMinutes * MS_PER_MINUTE) {
           return false;
         }
@@ -194,7 +183,7 @@ export const feedReminder = onSchedule("every 15 minutes", async () => {
         tokens,
         notification: {
           title: `${baby.name ?? "Baby"} may be due for a feed`,
-          body: "It's been longer than usual since the last feed.",
+          body: "It's been a while since the last full feed.",
         },
       });
       // Prune tokens FCM reports as no longer valid.
@@ -211,8 +200,18 @@ export const feedReminder = onSchedule("every 15 minutes", async () => {
 
       // Only mark the feed as notified once something actually went out —
       // otherwise a caregiver silenced by quiet hours would never be told
-      // about this feed after their quiet window ends.
-      await babyDoc.ref.update({ lastNotifiedFeedId: latestFeedId });
+      // about this feed after their quiet window ends. Marked per caregiver,
+      // so one whose longer interval isn't up yet still gets told later.
+      const reached = new Set(
+        tokensSnap.docs.map((d) => d.get("uid") as string),
+      );
+      if (reached.size > 0) {
+        const marks: Record<string, string> = {};
+        for (const uid of reached) {
+          marks[`lastNotifiedByUid.${uid}`] = anchorDoc.id;
+        }
+        await babyDoc.ref.update(marks);
+      }
     } catch (err) {
       logger.error(`feedReminder failed for baby ${babyDoc.id}`, err);
     }

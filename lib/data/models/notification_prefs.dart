@@ -14,10 +14,13 @@ class NotificationPrefs {
     this.quietEndMinutes = defaultQuietEnd,
     this.timezoneOffsetMinutes = 0,
     this.overdueThresholdMinutes = 0,
+    this.reminderIntervalMinutes = defaultReminderInterval,
+    this.remindersOff = false,
   });
 
   static const defaultQuietStart = 22 * 60; // 10:00 PM
   static const defaultQuietEnd = 7 * 60; // 7:00 AM
+  static const defaultReminderInterval = 180; // 3 hours
 
   /// Master switch for background reminders on the server side. Distinct from
   /// the per-device push opt-in, which only controls token registration.
@@ -34,9 +37,20 @@ class NotificationPrefs {
   /// server resolve their local wall-clock time.
   final int timezoneOffsetMinutes;
 
-  /// Extra grace past the predicted due time before notifying. 0 keeps the
-  /// original behaviour of alerting as soon as a feed is overdue.
+  /// Extra grace past the due time before notifying. 0 keeps the original
+  /// behaviour of alerting as soon as a feed is overdue.
   final int overdueThresholdMinutes;
+
+  /// The caregiver's chosen gap between feeds, mirrored from the local
+  /// setting so the server can work out when a feed is overdue.
+  ///
+  /// The reminder used to be derived server-side from a rolling average, which
+  /// needed nothing published; a caregiver-set interval has to be.
+  final int reminderIntervalMinutes;
+
+  /// The caregiver turned the reminder off in the app. Distinct from
+  /// [enabled], which is the master switch for background push.
+  final bool remindersOff;
 
   NotificationPrefs copyWith({
     bool? enabled,
@@ -45,6 +59,8 @@ class NotificationPrefs {
     int? quietEndMinutes,
     int? timezoneOffsetMinutes,
     int? overdueThresholdMinutes,
+    int? reminderIntervalMinutes,
+    bool? remindersOff,
   }) => NotificationPrefs(
     enabled: enabled ?? this.enabled,
     quietHoursEnabled: quietHoursEnabled ?? this.quietHoursEnabled,
@@ -53,6 +69,9 @@ class NotificationPrefs {
     timezoneOffsetMinutes: timezoneOffsetMinutes ?? this.timezoneOffsetMinutes,
     overdueThresholdMinutes:
         overdueThresholdMinutes ?? this.overdueThresholdMinutes,
+    reminderIntervalMinutes:
+        reminderIntervalMinutes ?? this.reminderIntervalMinutes,
+    remindersOff: remindersOff ?? this.remindersOff,
   );
 
   factory NotificationPrefs.fromMap(Map<String, dynamic>? data) {
@@ -68,6 +87,12 @@ class NotificationPrefs {
           (data['timezoneOffsetMinutes'] as num?)?.toInt() ?? 0,
       overdueThresholdMinutes:
           (data['overdueThresholdMinutes'] as num?)?.toInt() ?? 0,
+      // Absent for anyone who last saved before the interval was published;
+      // the 3-hour default matches what the app defaults to.
+      reminderIntervalMinutes:
+          (data['reminderIntervalMinutes'] as num?)?.toInt() ??
+          defaultReminderInterval,
+      remindersOff: data['remindersOff'] as bool? ?? false,
     );
   }
 
@@ -82,6 +107,8 @@ class NotificationPrefs {
     'quietEndMinutes': quietEndMinutes,
     'timezoneOffsetMinutes': timezoneOffsetMinutes,
     'overdueThresholdMinutes': overdueThresholdMinutes,
+    'reminderIntervalMinutes': reminderIntervalMinutes,
+    'remindersOff': remindersOff,
   };
 
   /// Whether [localMinutes] (minutes from local midnight) falls inside the
