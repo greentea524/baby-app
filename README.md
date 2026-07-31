@@ -223,11 +223,27 @@ Messaging + a scheduled Cloud Function. This needs a few one-time steps that
    ```bash
    cd functions && npm install && npm run deploy
    ```
-   It runs every 15 minutes: for each baby it predicts the next feed from a
-   rolling average of recent intervals and pushes caregivers whose device
-   token is registered (`fcmTokens/{token}`).
+   It runs every 15 minutes: for each baby it takes the last feed that resets
+   the clock — skipping snacks and solids — adds each caregiver's own reminder
+   interval, and pushes anyone now overdue whose device token is registered
+   (`fcmTokens/{token}`), respecting their quiet hours and grace period.
 4. In the app, open **Settings → Background reminders** and toggle it on to
    grant notification permission and register this device.
 
-The in-app "next feed" reminder card works with none of this; the above only
-adds notifications when the app isn't open.
+### Why the reminder switches may not be there
+
+**Settings → Background reminders** and **Quiet hours** are hidden unless the
+build carries a `VAPID_KEY`. Both only govern pushes sent by the function
+above, so without that setup they are switches with nothing behind them — and
+quiet hours would read "no reminders 10 PM – 7 AM" when no reminder can arrive
+at any hour. Supplying the key at build time (step 2) brings both back;
+`backgroundRemindersAvailable` in `lib/features/notifications/push_service.dart`
+is the single check.
+
+The key stands in for the whole setup because it is the part the app can see.
+It does **not** prove the function is deployed — if the switches appear but no
+notification ever arrives, check step 3.
+
+The in-app "next feed" chip works with none of this: it is computed on the
+device from the last feed plus your chosen interval. The above only adds
+notifications when the app isn't open.

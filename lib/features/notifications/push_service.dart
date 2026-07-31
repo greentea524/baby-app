@@ -11,6 +11,20 @@ import '../../data/repositories/repository_providers.dart';
 /// tokens. Supply at build time: `--dart-define=VAPID_KEY=...`.
 const kWebPushVapidKey = String.fromEnvironment('VAPID_KEY');
 
+/// Whether this build can actually deliver a background reminder.
+///
+/// Two things have to be true, and neither is the app's to arrange: the build
+/// carries a VAPID key, and the scheduled Cloud Function in `functions/` has
+/// been deployed. Without them a caregiver can switch "Background reminders"
+/// on, grant notification permission, register a token — and never receive
+/// anything, with no error to explain why.
+///
+/// The key stands in for both because it is the one the app can see, and
+/// building with it is part of the same setup as the deploy (see the README).
+/// Settings hides the reminder switches while this is false rather than
+/// offering controls that quietly do nothing.
+bool get backgroundRemindersAvailable => kWebPushVapidKey.isNotEmpty;
+
 /// Registers this device for push and records its FCM token so the reminder
 /// Cloud Function (KAN-156) can target the caregiver. Tokens live at
 /// `fcmTokens/{token}` keyed by uid.

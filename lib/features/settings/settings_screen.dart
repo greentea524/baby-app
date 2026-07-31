@@ -310,8 +310,15 @@ class _ReminderSection extends ConsumerWidget {
             ),
           ),
         if (settings.mode == ReminderMode.fixedInterval) const _RhythmInsight(),
-        const _PushToggle(),
-        const _QuietHoursSection(),
+        // Both of these only govern pushes sent by the reminder Cloud
+        // Function. Until that is deployed and the build carries a VAPID key,
+        // they are switches with nothing behind them — quiet hours especially,
+        // which would promise "no reminders 10 PM – 7 AM" when no reminder can
+        // arrive at any hour.
+        if (backgroundRemindersAvailable) ...[
+          const _PushToggle(),
+          const _QuietHoursSection(),
+        ],
       ],
     );
   }
