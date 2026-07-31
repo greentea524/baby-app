@@ -4,8 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baby_app/data/models/appointment.dart';
 import 'package:baby_app/features/appointments/next_appointment_button.dart';
 
-/// The next visit sits in the app bar's top-right corner, carrying the day and
-/// what the appointment is, and opens the Appointments screen when tapped.
+/// The next visit sits in the app bar's top-right corner as a two-line pill —
+/// when it is above what it is — and opens the Appointments screen when
+/// tapped.
 void main() {
   final now = DateTime(2026, 7, 30, 9);
 
@@ -17,8 +18,6 @@ void main() {
         title: title,
       );
 
-  /// [viewportWidth] drives the compact/full decision, which the button reads
-  /// from MediaQuery.
   Future<void> pumpButton(
     WidgetTester tester,
     Appointment appt, {
@@ -32,11 +31,7 @@ void main() {
           appBar: AppBar(
             title: const Text('Home'),
             actions: [
-              NextAppointmentLabel(
-                appt: appt,
-                now: now,
-                onTap: onTap ?? () {},
-              ),
+              NextAppointmentLabel(appt: appt, now: now, onTap: onTap ?? () {}),
             ],
           ),
         ),
@@ -44,11 +39,13 @@ void main() {
     ),
   );
 
-  String labelText(WidgetTester tester) => tester
+  /// The pill's lines, in order, ignoring the app bar title.
+  List<String> lines(WidgetTester tester) => tester
       .widgetList<Text>(find.byType(Text))
       .map((t) => t.data)
       .whereType<String>()
-      .firstWhere((s) => s != 'Home');
+      .where((s) => s != 'Home')
+      .toList();
 
   group('dayLabel', () {
     test('collapses today and tomorrow, dates the rest', () {
@@ -67,27 +64,23 @@ void main() {
     });
 
     test('stays shorter than the full weekday form', () {
-      // The corner cannot afford "Mon, Aug 6"; the appointment's name is a
-      // better use of those characters.
-      final short = NextAppointmentLabel.dayLabel(
-        DateTime(2026, 8, 6),
-        now: now,
+      // The corner cannot afford "Mon, Aug 6".
+      expect(
+        NextAppointmentLabel.dayLabel(DateTime(2026, 8, 6), now: now),
+        isNot(contains(',')),
       );
-      expect(short, isNot(contains(',')));
     });
   });
 
-  testWidgets('shows the day, the time, and what the appointment is', (
-    tester,
-  ) async {
+  testWidgets('when it is on top, what it is underneath', (tester) async {
     await pumpButton(
       tester,
       at(DateTime(2026, 8, 6, 14), title: '4-month jabs'),
     );
-    final text = labelText(tester);
-    expect(text, contains('Aug 6'));
-    expect(text, contains('2:00'), reason: 'the time you have to be there');
-    expect(text, contains('4-month jabs'));
+    final text = lines(tester);
+    expect(text, hasLength(2));
+    expect(text.first, 'Aug 6, 2:00 PM');
+    expect(text.last, '4-month jabs');
   });
 
   testWidgets('reads as tappable, not as a heading', (tester) async {
@@ -97,7 +90,9 @@ void main() {
     expect(find.byType(InkWell), findsOneWidget);
     expect(find.byIcon(Icons.chevron_right), findsOneWidget);
     final material = tester.widget<Material>(
-      find.ancestor(of: find.byType(InkWell), matching: find.byType(Material)).first,
+      find
+          .ancestor(of: find.byType(InkWell), matching: find.byType(Material))
+          .first,
     );
     expect(material.color, isNotNull, reason: 'filled, not transparent');
   });
@@ -107,7 +102,7 @@ void main() {
       tester,
       at(DateTime(2026, 8, 6, 14), kind: AppointmentKind.dental),
     );
-    expect(labelText(tester), contains('Dental'));
+    expect(lines(tester).last, 'Dental');
   });
 
   testWidgets('carries the kind icon', (tester) async {
@@ -131,39 +126,35 @@ void main() {
 
   testWidgets('a visit today reads as Today, not a date', (tester) async {
     await pumpButton(tester, at(DateTime(2026, 7, 30, 16), title: 'Checkup'));
-    expect(labelText(tester), startsWith('Today'));
+    expect(lines(tester).first, startsWith('Today'));
   });
 
-  testWidgets('drops the name on a phone so the baby switcher survives', (
-    tester,
-  ) async {
-    // Below the breakpoint the app bar cannot hold day, time, name and the
-    // switcher. When it is due is the part you cannot infer.
+  testWidgets('keeps both lines on a phone', (tester) async {
+    // Stacking is what buys this: on one line, day + time + name crowded the
+    // baby switcher out of the bar.
     await pumpButton(
       tester,
       at(DateTime(2026, 8, 6, 14), title: '4-month jabs'),
-      viewportWidth: 400,
+      viewportWidth: 360,
     );
-    final text = labelText(tester);
-    expect(text, contains('Aug 6'));
-    expect(text, contains('2:00'));
-    expect(text, isNot(contains('4-month jabs')));
+    expect(tester.takeException(), isNull);
+    expect(lines(tester), ['Aug 6, 2:00 PM', '4-month jabs']);
   });
 
-  testWidgets('truncates rather than pushing the title out of the bar', (
+  testWidgets('a long name truncates rather than widening the pill', (
     tester,
   ) async {
-    // Wide enough to show the name, but not one this long.
     await pumpButton(
       tester,
       at(
         DateTime(2026, 8, 6, 14),
-        title: 'An extremely long appointment name that cannot possibly fit',
+        title: 'Paediatric cardiology follow-up appointment',
       ),
+      viewportWidth: 360,
     );
     expect(tester.takeException(), isNull);
-    final text = tester.widget<Text>(find.textContaining('extremely long'));
-    expect(text.maxLines, 1);
-    expect(text.overflow, TextOverflow.ellipsis);
+    final name = tester.widget<Text>(find.textContaining('Paediatric'));
+    expect(name.maxLines, 1);
+    expect(name.overflow, TextOverflow.ellipsis);
   });
 }

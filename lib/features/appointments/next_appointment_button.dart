@@ -54,15 +54,9 @@ class NextAppointmentLabel extends StatelessWidget {
   /// Keeps the button from crowding out the baby switcher in the title. The
   /// label ellipsizes inside this rather than the app bar overflowing.
   ///
-  /// Wide enough for "Tomorrow, 2:00 PM · 4-month jabs" — at 240 the visit's
-  /// name was being cut off even on a desktop window.
-  static const maxWidth = 300.0;
-
-  /// Below this the app bar cannot hold the day, the time, the visit's name
-  /// *and* the baby switcher, so the name is dropped rather than letting the
-  /// pill squeeze the switcher down to "Wilhelm…". When it is due is the part
-  /// you cannot infer; what it is can be read on the screen this opens.
-  static const compactBelowWidth = 480.0;
+  /// Stacking day/time over the name keeps this narrow enough to sit beside
+  /// the baby switcher on a phone, which a single line could not.
+  static const maxWidth = 220.0;
 
   /// "Today" / "Tomorrow" / "Aug 6".
   ///
@@ -84,16 +78,12 @@ class NextAppointmentLabel extends StatelessWidget {
     final scheme = theme.colorScheme;
     final imminent = AppointmentFormat.daysUntil(appt.at, now: now) <= 1;
 
-    // Day and time read as one fact, so they sit together; what the visit is
-    // follows after the separator, and is the first thing dropped when the
-    // bar is too narrow to hold everything.
+    // Day and time lead: that is what you cannot infer. The visit's name sits
+    // under them rather than beside them, which halves the width the pill
+    // needs — on one line the two together crowded out the baby switcher.
     final when =
         '${dayLabel(appt.at, now: now)}, '
         '${TimeOfDay.fromDateTime(appt.at).format(context)}';
-    final compact = MediaQuery.sizeOf(context).width < compactBelowWidth;
-    final label = compact
-        ? when
-        : '$when · ${AppointmentFormat.title(appt)}';
 
     // A visit today or tomorrow is the one worth catching your eye; anything
     // further out sits in the quieter container. Mirrors the next-feed chip on
@@ -106,7 +96,7 @@ class NextAppointmentLabel extends StatelessWidget {
         : scheme.onSecondaryContainer;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: maxWidth),
         // A filled pill with a chevron, rather than bare text: in an app bar a
@@ -118,7 +108,7 @@ class NextAppointmentLabel extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+              padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -127,17 +117,37 @@ class NextAppointmentLabel extends StatelessWidget {
                     size: 16,
                     color: foreground,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   Flexible(
-                    child: Text(
-                      label,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: foreground,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          when,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: foreground,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          AppointmentFormat.title(appt),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            // Softened against the container so the line you
+                            // scan for stays on top.
+                            color: foreground.withValues(alpha: 0.8),
+                            height: 1.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(width: 2),
                   Icon(Icons.chevron_right, size: 16, color: foreground),
                 ],
               ),
