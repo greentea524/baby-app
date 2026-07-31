@@ -33,7 +33,7 @@ class HomeStatusCard extends ConsumerWidget {
       _feedingRow(context, ref),
       ?_solidsRow(context, ref),
       _diaperRow(context, ref),
-      ..._appointmentRows(context, ref),
+      ?_appointmentSection(context, ref),
     ];
 
     if (ref.watch(homeLayoutProvider) == HomeLayout.separate) {
@@ -156,31 +156,36 @@ class HomeStatusCard extends ConsumerWidget {
     );
   }
 
-  /// The next few appointments, however many the caregiver asked for.
+  /// The next few appointments, as one section.
   ///
-  /// Empty when nothing is scheduled — a permanent "no appointments" row would
-  /// be clutter for anyone not using them. Only the first is labelled "Next
-  /// appointment"; the rest say "Then", so a stack of identical labels doesn't
-  /// read as one row repeated.
-  List<Widget> _appointmentRows(BuildContext context, WidgetRef ref) {
+  /// Null when nothing is scheduled — a permanent "no appointments" row would
+  /// be clutter for anyone not using them.
+  ///
+  /// One section rather than one row each, so the whole thing stays a single
+  /// card: under the Separate layout every row becomes its own card, and three
+  /// appointments would otherwise take over the screen. The next visit keeps
+  /// the full row; the ones after it are compact lines underneath, which is
+  /// also the right emphasis — you act on the next one and merely want to know
+  /// the others exist.
+  Widget? _appointmentSection(BuildContext context, WidgetRef ref) {
     final all = ref.watch(appointmentsProvider).value ?? const [];
     final upcoming = splitAppointments(all, now).upcoming;
-    if (upcoming.isEmpty) return const [];
+    if (upcoming.isEmpty) return null;
 
     final wanted = ref.watch(homeAppointmentCountProvider);
-    final shown = upcoming.take(wanted);
+    final shown = upcoming.take(wanted).toList();
 
-    return [
-      for (final (i, appt) in shown.indexed)
-        _appointmentRow(context, appt, isNext: i == 0),
-    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _nextAppointmentRow(context, shown.first),
+        for (final appt in shown.skip(1))
+          LaterAppointmentLine(appt: appt, now: now),
+      ],
+    );
   }
 
-  Widget _appointmentRow(
-    BuildContext context,
-    Appointment appt, {
-    required bool isNext,
-  }) {
+  Widget _nextAppointmentRow(BuildContext context, Appointment appt) {
     final theme = Theme.of(context);
     final imminent = AppointmentFormat.daysUntil(appt.at, now: now) <= 1;
     final details = AppointmentFormat.details(appt);
@@ -188,7 +193,7 @@ class HomeStatusCard extends ConsumerWidget {
 
     return _StatusRow(
       icon: AppointmentFormat.kindIcon(appt.kind),
-      label: isNext ? 'Next appointment' : 'Then',
+      label: 'Next appointment',
       // Countdown leads because it's what you scan for, but on its own "in 3
       // days" doesn't tell you which day to keep free — so the concrete date
       // sits right under it.
@@ -204,15 +209,63 @@ class HomeStatusCard extends ConsumerWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      // Only the imminent one earns the accent. Tinting a later appointment
-      // the same way would compete with the thing that actually needs
-      // attention today.
-      accent: imminent && isNext ? theme.colorScheme.tertiary : null,
+      accent: imminent ? theme.colorScheme.tertiary : null,
     );
   }
 
   static String _join(String label, String details) =>
       details.isEmpty ? label : '$label · $details';
+}
+
+/// An appointment after the next one, on a single line.
+///
+/// Deliberately lighter than the headline row — no avatar, no countdown chip,
+/// one line each — so two or three of them still read as "and then these"
+/// rather than competing with the visit you actually have to prepare for.
+///
+/// Indented to line up with the headline row's text column rather than its
+/// icon, so the section reads as one block.
+class LaterAppointmentLine extends StatelessWidget {
+  const LaterAppointmentLine({
+    super.key,
+    required this.appt,
+    required this.now,
+  });
+
+  final Appointment appt;
+  final DateTime now;
+
+  /// 16 padding + 44 avatar + 16 gap, matching [_StatusRow]'s text column.
+  static const _textColumnInset = 76.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final details = AppointmentFormat.details(appt);
+    final title = AppointmentFormat.title(appt);
+
+    // Ordered by what gets scanned: when, then which day, then what it is.
+    // The title ellipsizes first on a narrow screen, which is the right thing
+    // to lose — the date is what you are checking.
+    final line = [
+      AppointmentFormat.countdown(appt.at, now: now),
+      TimelineFormat.weekdayDate(appt.at),
+      TimeOfDay.fromDateTime(appt.at).format(context),
+      if (title.isNotEmpty) details.isEmpty ? title : '$title · $details',
+    ].join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_textColumnInset, 0, 16, 12),
+      child: Text(
+        line,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
 }
 
 /// The next-feed countdown, as a tinted pill.
