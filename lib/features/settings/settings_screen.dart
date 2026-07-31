@@ -61,7 +61,7 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.group_outlined),
             title: const Text('Caregivers'),
-            subtitle: const Text('Invite and manage who can log'),
+            subtitle: const Text('Add and manage who can log'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const CaregiversScreen()),

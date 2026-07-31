@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/baby.dart';
+import '../../data/models/caregiver_invite.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../../core/auth/auth_providers.dart';
+import 'invite_message.dart';
 
 /// Manage who can log for the current baby (KAN-134): view caregivers,
-/// invite by email, revoke invites, and remove members.
+/// add them by email, revoke pending invites, and remove members.
+///
+/// Adding a caregiver only writes an invite document — nothing is delivered to
+/// them (#10). The wording here says so, and the copy action gives the sender a
+/// ready-made message to pass on themselves.
 class CaregiversScreen extends ConsumerWidget {
   const CaregiversScreen({super.key});
 
@@ -62,22 +69,20 @@ class CaregiversScreen extends ConsumerWidget {
                       : Column(
                           children: [
                             for (final invite in invites)
-                              ListTile(
-                                leading: const Icon(Icons.mail_outline),
-                                title: Text(invite.email),
-                                subtitle: Text('${invite.role.name} · invited'),
-                                trailing: baby.isOwner(myUid)
-                                    ? IconButton(
-                                        icon: const Icon(Icons.close),
-                                        tooltip: 'Revoke',
-                                        onPressed: () => ref
-                                            .read(babiesRepositoryProvider)
-                                            ?.revokeInvite(
-                                              baby.id,
-                                              invite.email,
-                                            ),
-                                      )
-                                    : null,
+                              PendingInviteTile(
+                                invite: invite,
+                                // Revoking is a roster change, so it stays with
+                                // the owner. Copying only repeats the address
+                                // already on this row, so any member may.
+                                canRevoke: baby.isOwner(myUid),
+                                onCopy: () => _copyInviteMessage(
+                                  context,
+                                  babyName: baby.name,
+                                  email: invite.email,
+                                ),
+                                onRevoke: () => ref
+                                    .read(babiesRepositoryProvider)
+                                    ?.revokeInvite(baby.id, invite.email),
                               ),
                           ],
                         ),
@@ -89,7 +94,7 @@ class CaregiversScreen extends ConsumerWidget {
                     child: FilledButton.icon(
                       onPressed: () => _showInvite(context, ref, baby),
                       icon: const Icon(Icons.person_add),
-                      label: const Text('Invite caregiver'),
+                      label: const Text('Add caregiver'),
                     ),
                   )
                 else
@@ -160,6 +165,77 @@ Future<void> _showInvite(BuildContext context, WidgetRef ref, Baby baby) {
   );
 }
 
+/// Puts the hand-off message on the clipboard and says so.
+Future<void> _copyInviteMessage(
+  BuildContext context, {
+  required String babyName,
+  required String email,
+}) async {
+  await Clipboard.setData(
+    ClipboardData(
+      text: inviteShareMessage(
+        babyName: babyName,
+        email: email,
+        appUrl: currentAppUrl(),
+      ),
+    ),
+  );
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Message copied — send it to them')),
+  );
+}
+
+/// One pending invite: who it is for, that it is still waiting, and the two
+/// things you can do about it.
+///
+/// Split out of [CaregiversScreen] so it can be widget-tested — the screen
+/// itself needs a signed-in Firebase session and a selected baby.
+class PendingInviteTile extends StatelessWidget {
+  const PendingInviteTile({
+    super.key,
+    required this.invite,
+    required this.canRevoke,
+    required this.onCopy,
+    required this.onRevoke,
+  });
+
+  final CaregiverInvite invite;
+
+  /// Revoking removes someone from the roster, so it is the owner's to do.
+  final bool canRevoke;
+
+  final VoidCallback onCopy;
+  final VoidCallback onRevoke;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      // Not a mail icon: nothing was posted, and this is waiting rather than
+      // in flight.
+      leading: const Icon(Icons.hourglass_empty),
+      title: Text(invite.email),
+      subtitle: Text('${invite.role.name} · waiting for them to sign in'),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.copy),
+            tooltip: 'Copy message to send',
+            onPressed: onCopy,
+          ),
+          if (canRevoke)
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Revoke',
+              onPressed: onRevoke,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _InviteDialog extends ConsumerStatefulWidget {
   const _InviteDialog({required this.baby});
 
@@ -183,7 +259,7 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
 
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
-  Future<void> _send() async {
+  Future<void> _add() async {
     final email = _controller.text.trim();
     if (!_emailRe.hasMatch(email)) {
       setState(() => _error = 'Enter a valid email');
@@ -199,9 +275,26 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
             email: email,
             role: _role,
           );
-      if (mounted) Navigator.of(context).pop();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      // The moment the sender is about to message them is right now, so offer
+      // the text here rather than leaving it to be found on the row later.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$email added. They will not be notified — tell them.'),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: 'Copy message',
+            onPressed: () => _copyInviteMessage(
+              context,
+              babyName: widget.baby.name,
+              email: email,
+            ),
+          ),
+        ),
+      );
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not invite: $e');
+      if (mounted) setState(() => _error = 'Could not add: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -210,7 +303,7 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Invite caregiver'),
+      title: const Text('Add caregiver'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -221,7 +314,10 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
             decoration: InputDecoration(
               labelText: 'Email',
               errorText: _error,
-              helperText: 'They accept after signing in with this email.',
+              helperText:
+                  'No email is sent — you tell them. They must sign in with '
+                  'this exact address.',
+              helperMaxLines: 3,
             ),
             onChanged: (_) {
               if (_error != null) setState(() => _error = null);
@@ -243,14 +339,14 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: _busy ? null : _send,
+          onPressed: _busy ? null : _add,
           child: _busy
               ? const SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Send invite'),
+              : const Text('Add'),
         ),
       ],
     );
