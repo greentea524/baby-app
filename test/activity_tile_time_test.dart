@@ -16,14 +16,21 @@ void main() {
   final today = DateTime(2026, 7, 30, 14, 30);
   final yesterday = DateTime(2026, 7, 29, 21, 15);
 
-  FeedingEntry entryAt(DateTime at) => FeedingEntry(
-    FeedingEvent(id: 'f1', type: FeedingType.bottle, startTime: at),
+  FeedingEntry entryAt(DateTime at, {bool isSnack = false}) => FeedingEntry(
+    FeedingEvent(
+      id: 'f1',
+      type: FeedingType.bottle,
+      startTime: at,
+      amountMl: isSnack ? 10 : 120,
+      isSnack: isSnack,
+    ),
   );
 
   Future<void> pumpTile(
     WidgetTester tester, {
     required DateTime at,
     required ActivityTimeDisplay display,
+    bool isSnack = false,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -33,7 +40,7 @@ void main() {
         child: MaterialApp(
           home: Scaffold(
             body: ActivityTile(
-              entry: entryAt(at),
+              entry: entryAt(at, isSnack: isSnack),
               now: now,
               timeDisplay: display,
             ),
@@ -70,5 +77,24 @@ void main() {
     await pumpTile(tester, at: today, display: ActivityTimeDisplay.relative);
     expect(find.textContaining('2 hr ago'), findsOneWidget);
     expect(find.textContaining('2:30'), findsOneWidget);
+  });
+
+  testWidgets('a snack row says so', (tester) async {
+    // A top-up is stored as an ordinary bottle feed, so without the label it
+    // is indistinguishable from a full one — while the next-feed clock
+    // deliberately ignores it.
+    await pumpTile(
+      tester,
+      at: today,
+      display: ActivityTimeDisplay.stamp,
+      isSnack: true,
+    );
+    expect(find.text('Bottle · Snack'), findsOneWidget);
+  });
+
+  testWidgets('an ordinary feed is not labelled a snack', (tester) async {
+    await pumpTile(tester, at: today, display: ActivityTimeDisplay.stamp);
+    expect(find.text('Bottle'), findsOneWidget);
+    expect(find.textContaining('Snack'), findsNothing);
   });
 }

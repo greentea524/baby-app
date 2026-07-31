@@ -100,7 +100,7 @@ class HomeStatusCard extends ConsumerWidget {
           : _join(
               FeedingFormat.clockStamp(context, last.startTime, now: now),
               _join(
-                FeedingFormat.typeLabel(last.type),
+                FeedingFormat.eventLabel(last),
                 FeedingFormat.details(last, units),
               ),
             ),

@@ -103,6 +103,41 @@ void main() {
     });
   });
 
+  group('FeedingFormat.eventLabel', () {
+    FeedingEvent feed({required bool isSnack, FeedingType? type}) =>
+        FeedingEvent(
+          id: 'f1',
+          type: type ?? FeedingType.bottle,
+          startTime: DateTime(2026, 7, 30, 9),
+          isSnack: isSnack,
+        );
+
+    test('a full feed reads as its type', () {
+      expect(FeedingFormat.eventLabel(feed(isSnack: false)), 'Bottle');
+      expect(
+        FeedingFormat.eventLabel(feed(isSnack: false, type: FeedingType.breast)),
+        'Breastfeeding',
+      );
+    });
+
+    test('a snack says so', () {
+      // Otherwise it is indistinguishable from a full feed in the activity
+      // list, while the next-feed clock quietly ignores it.
+      expect(FeedingFormat.eventLabel(feed(isSnack: true)), 'Bottle · Snack');
+      expect(
+        FeedingFormat.eventLabel(feed(isSnack: true, type: FeedingType.breast)),
+        'Breastfeeding · Snack',
+      );
+    });
+
+    test('keeps the type, rather than replacing it', () {
+      // "Snack" alone would lose whether it was a bottle or the breast.
+      final label = FeedingFormat.eventLabel(feed(isSnack: true));
+      expect(label, contains('Bottle'));
+      expect(label, contains('Snack'));
+    });
+  });
+
   group('FeedingFormat.clockStamp', () {
     final now = DateTime(2026, 7, 23, 15, 0);
 

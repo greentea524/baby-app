@@ -14,6 +14,17 @@ abstract final class FeedingFormat {
     FeedingType.solids => 'Solids',
   };
 
+  /// What a logged feed is, marking a top-up as such.
+  ///
+  /// A snack is stored as an ordinary bottle or breast feed with `isSnack`
+  /// set, so on [typeLabel] alone it reads exactly like a full one. That
+  /// matters beyond tidiness: snacks are the feeds the next-feed clock
+  /// deliberately ignores, so without the label a caregiver sees a feed
+  /// logged ten minutes ago sitting under a countdown measured from an
+  /// earlier one, with nothing to explain the difference.
+  static String eventLabel(FeedingEvent e) =>
+      e.isSnack ? '${typeLabel(e.type)} · Snack' : typeLabel(e.type);
+
   static IconData typeIcon(FeedingType type) => switch (type) {
     FeedingType.breast => Icons.child_friendly,
     FeedingType.bottle => Icons.local_drink,

@@ -73,7 +73,7 @@ class ActivityTile extends ConsumerWidget {
       FeedingEntry(:final event) => EventTile(
         key: ValueKey('feed_${event.id}'),
         icon: FeedingFormat.typeIcon(event.type),
-        title: FeedingFormat.typeLabel(event.type),
+        title: FeedingFormat.eventLabel(event),
         subtitle: FeedingFormat.details(event, units),
         trailing: trailing,
         trailingDetail: trailingDetail,
