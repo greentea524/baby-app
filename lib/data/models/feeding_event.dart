@@ -39,6 +39,15 @@ class FeedingEvent {
   /// reminder unpredictable in exactly the case it matters most.
   final bool isSnack;
 
+  /// Whether this event marks a boundary in the feeding rhythm.
+  ///
+  /// A snack is a top-up rather than a feed's worth of fuel, and solids
+  /// supplement milk rather than replace it — neither ends one feeding cycle
+  /// and starts the next. The reminders use this to decide when the next feed
+  /// is due; the daily stats use it so a 10 ml top-up doesn't halve the
+  /// reported average interval.
+  bool get drivesFeedClock => !isSnack && type != FeedingType.solids;
+
   factory FeedingEvent.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
     return FeedingEvent(

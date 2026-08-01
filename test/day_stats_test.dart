@@ -61,4 +61,49 @@ void main() {
     expect(stats.dirtyCount, 1);
     expect(stats.bothCount, 1);
   });
+
+  group('snacks', () {
+    FeedingEvent feed(int hour, {bool isSnack = false}) => FeedingEvent(
+      id: 'f$hour',
+      type: FeedingType.bottle,
+      startTime: DateTime(2026, 7, 30, hour),
+      amountMl: isSnack ? 10 : 120,
+      isSnack: isSnack,
+    );
+
+    test('are counted apart from feeds', () {
+      final stats = DayStats.from([
+        feed(7),
+        feed(8, isSnack: true),
+        feed(10),
+      ], const []);
+      expect(stats.feedCount, 2);
+      expect(stats.snackCount, 1);
+    });
+
+    test('do not drag the average interval down', () {
+      // 7:00 and 10:00 is a 3-hour rhythm. Counting the 8:00 top-up as a
+      // boundary would report 90 minutes instead — the error the reminders
+      // used to make.
+      final stats = DayStats.from([
+        feed(7),
+        feed(8, isSnack: true),
+        feed(10),
+      ], const []);
+      expect(stats.avgFeedIntervalMinutes, 180);
+    });
+
+    test('still count toward the volume drunk', () {
+      // The baby did drink it; total intake includes it even though it is
+      // not a feed in its own right.
+      final stats = DayStats.from([feed(7), feed(8, isSnack: true)], const []);
+      expect(stats.bottleMl, 130);
+    });
+
+    test('a day without snacks reports none', () {
+      final stats = DayStats.from([feed(7), feed(10)], const []);
+      expect(stats.snackCount, 0);
+      expect(stats.feedCount, 2);
+    });
+  });
 }

@@ -7,6 +7,7 @@ import '../../data/models/pumping_event.dart';
 class DayStats {
   const DayStats({
     required this.feedCount,
+    required this.snackCount,
     required this.avgFeedIntervalMinutes,
     required this.breastMinutes,
     required this.bottleMl,
@@ -18,7 +19,14 @@ class DayStats {
     this.pumpedMl = 0,
   });
 
+  /// Full feeds — top-ups are counted separately in [snackCount], so a day
+  /// with four feeds and three small top-ups does not read as seven feeds.
   final int feedCount;
+
+  /// Top-ups the caregiver marked as snacks. Their volume still counts toward
+  /// [bottleMl] and [breastMinutes]: the baby did drink it, so total intake
+  /// includes it — it just is not a feed in its own right.
+  final int snackCount;
 
   /// Mean minutes between consecutive feeds; null when fewer than 2 feeds.
   final int? avgFeedIntervalMinutes;
@@ -42,15 +50,20 @@ class DayStats {
     final feeds = [...feedings]
       ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
+    // Only feeds that end one feeding cycle and start the next mark an
+    // interval. Counting a top-up as a boundary halves the reported average —
+    // the same error the reminders used to make.
+    final rhythm = feeds.where((f) => f.drivesFeedClock).toList();
+
     int? avgInterval;
-    if (feeds.length >= 2) {
+    if (rhythm.length >= 2) {
       var totalMinutes = 0;
-      for (var i = 1; i < feeds.length; i++) {
-        totalMinutes += feeds[i].startTime
-            .difference(feeds[i - 1].startTime)
+      for (var i = 1; i < rhythm.length; i++) {
+        totalMinutes += rhythm[i].startTime
+            .difference(rhythm[i - 1].startTime)
             .inMinutes;
       }
-      avgInterval = (totalMinutes / (feeds.length - 1)).round();
+      avgInterval = (totalMinutes / (rhythm.length - 1)).round();
     }
 
     var breastMinutes = 0;
@@ -81,7 +94,8 @@ class DayStats {
     }
 
     return DayStats(
-      feedCount: feeds.length,
+      feedCount: feeds.where((f) => !f.isSnack).length,
+      snackCount: feeds.where((f) => f.isSnack).length,
       avgFeedIntervalMinutes: avgInterval,
       breastMinutes: breastMinutes,
       bottleMl: bottleMl,

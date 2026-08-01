@@ -97,7 +97,7 @@ class _FeedClockChartState extends State<FeedClockChart> {
   String _describe(BuildContext context, FeedDot dot) {
     final at = TimeOfDay.fromDateTime(dot.event.startTime).format(context);
     final details = FeedingFormat.details(dot.event, widget.units);
-    final label = FeedingFormat.typeLabel(dot.event.type);
+    final label = FeedingFormat.eventLabel(dot.event);
     final head =
         '${dot.event.startTime.month}/${dot.event.startTime.day} · $at';
     return details.isEmpty ? '$head · $label' : '$head · $label · $details';

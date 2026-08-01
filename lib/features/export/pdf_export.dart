@@ -87,6 +87,11 @@ pw.Widget _overview(ReportSummary s, UnitSystem units) {
           : '${_num(s.totalBottleMl)} ml (${formatFlOz(s.totalBottleMl)} fl oz)',
     ],
     ['Breastfeeding total', '${s.totalBreastMinutes} min'],
+    // Listed apart from the feed count, and only when there were any: a
+    // pediatrician reading "feeds per day" should not have top-ups folded in,
+    // but the volume above does include them.
+    if (s.totalSnacks > 0)
+      ['Snacks / top-ups', '${s.totalSnacks} (not counted as feeds)'],
     ['Total diaper changes', '${s.totalDiapers}'],
     ['Days with activity', '${s.daily.length}'],
   ];

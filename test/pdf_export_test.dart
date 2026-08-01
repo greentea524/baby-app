@@ -67,6 +67,36 @@ void main() {
       expect(s.avgFeedIntervalMinutes, 180);
     });
 
+    test('counts top-ups apart from feeds', () {
+      // A pediatrician reading "feeds per day" should not have 10 ml top-ups
+      // folded into it — but the volume should still include them.
+      final base = _sample();
+      final withSnack = ExportData(
+        units: base.units,
+        baby: base.baby,
+        start: base.start,
+        end: base.end,
+        feedings: [
+          ...base.feedings,
+          FeedingEvent(
+            id: 'snack',
+            type: FeedingType.bottle,
+            startTime: DateTime(2026, 7, 1, 9),
+            amountMl: 10,
+            isSnack: true,
+          ),
+        ],
+        diapers: base.diapers,
+        growth: base.growth,
+      );
+
+      final s = ReportSummary.from(withSnack);
+      expect(s.totalFeeds, 3, reason: 'unchanged by the top-up');
+      expect(s.totalSnacks, 1);
+      expect(s.totalBottleMl, 230, reason: 'the baby still drank it');
+      expect(s.feedsPerDay, closeTo(1.5, 0.001));
+    });
+
     test('handles an empty window', () {
       final empty = ExportData(
         baby: Baby(

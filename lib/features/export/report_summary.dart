@@ -12,6 +12,7 @@ class ReportSummary {
   const ReportSummary({
     required this.daily,
     required this.totalFeeds,
+    required this.totalSnacks,
     required this.totalDiapers,
     required this.totalBottleMl,
     required this.totalBreastMinutes,
@@ -20,7 +21,13 @@ class ReportSummary {
   });
 
   final List<DailyRow> daily;
+  /// Full feeds. Top-ups are counted in [totalSnacks] instead, so a figure
+  /// handed to a pediatrician does not read a 10 ml snack as a feed.
   final int totalFeeds;
+
+  /// Top-ups marked as snacks. Their volume still counts toward
+  /// [totalBottleMl] and [totalBreastMinutes] — the baby drank it.
+  final int totalSnacks;
   final int totalDiapers;
   final double totalBottleMl;
   final int totalBreastMinutes;
@@ -69,14 +76,17 @@ class ReportSummary {
         ? null
         : (intervals.reduce((a, b) => a + b) / intervals.length).round();
 
+    final fullFeeds = data.feedings.where((f) => !f.isSnack).length;
+
     return ReportSummary(
       daily: daily,
-      totalFeeds: data.feedings.length,
+      totalFeeds: fullFeeds,
+      totalSnacks: data.feedings.length - fullFeeds,
       totalDiapers: data.diapers.length,
       totalBottleMl: bottleMl,
       totalBreastMinutes: breastMinutes,
       avgFeedIntervalMinutes: avgInterval,
-      feedsPerDay: daily.isEmpty ? 0 : data.feedings.length / daily.length,
+      feedsPerDay: daily.isEmpty ? 0 : fullFeeds / daily.length,
     );
   }
 }

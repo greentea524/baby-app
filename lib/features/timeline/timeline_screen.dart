@@ -188,6 +188,15 @@ class _StatsCard extends ConsumerWidget {
             label: 'Avg interval',
             value: TimelineFormat.interval(stats.avgFeedIntervalMinutes),
           ),
+          // Only when there were any: a permanent "Snacks 0" would be noise
+          // for the many days that have none.
+          if (stats.snackCount > 0)
+            _StatChip(
+              icon: Icons.cookie_outlined,
+              label: 'Snacks',
+              value: '${stats.snackCount}',
+              detail: 'not counted as feeds',
+            ),
           if (stats.breastMinutes > 0)
             _StatChip(
               icon: Icons.child_friendly,

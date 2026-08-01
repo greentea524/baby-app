@@ -193,4 +193,59 @@ void main() {
       }
     });
   });
+
+  group('snacks', () {
+    FeedingEvent feed({required bool isSnack}) => FeedingEvent(
+      id: isSnack ? 's1' : 'f1',
+      type: FeedingType.bottle,
+      startTime: DateTime(2026, 7, 30, 9),
+      amountMl: isSnack ? 10 : 120,
+      isSnack: isSnack,
+    );
+
+    test('the sheet has a Snack column', () {
+      final csv = buildCsv(_data(feedings: [feed(isSnack: false)]));
+      expect(csv.split('\n').first, contains('Snack'));
+    });
+
+    test('a top-up is marked, a full feed is not', () {
+      // Blank rather than "no": filtering on "yes" is one click, and the
+      // column stays quiet on every row it does not apply to.
+      final rows = buildCsv(
+        _data(feedings: [feed(isSnack: true), feed(isSnack: false)]),
+      ).trim().split('\n');
+      final header = rows.first.split(',');
+      final column = header.indexOf('Snack');
+      expect(column, greaterThan(-1));
+
+      final values = rows.skip(1).map((r) => r.split(',')[column]).toList();
+      expect(values, containsAll(<String>['yes', '']));
+    });
+
+    test('every row has the same number of columns', () {
+      // The Snack column has to be padded into the diaper and growth rows too,
+      // or the sheet shears sideways from the first non-feed entry.
+      final csv = buildCsv(
+        _data(
+          feedings: [feed(isSnack: true)],
+          diapers: [
+            DiaperEvent(
+              id: 'd1',
+              type: DiaperType.wet,
+              time: DateTime(2026, 7, 30, 10),
+            ),
+          ],
+          growth: [
+            GrowthMeasurement(
+              id: 'g1',
+              date: DateTime(2026, 7, 30),
+              weightKg: 7.5,
+            ),
+          ],
+        ),
+      );
+      final rows = csv.trim().split('\n').map((r) => r.split(',').length);
+      expect(rows.toSet(), hasLength(1), reason: 'ragged rows: $rows');
+    });
+  });
 }

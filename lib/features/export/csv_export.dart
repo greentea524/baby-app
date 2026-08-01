@@ -14,6 +14,7 @@ String buildCsv(ExportData data) {
     'Date',
     'Time',
     'Subtype',
+    'Snack',
     'Duration (min)',
     'Amount (ml)',
     if (!metric) 'Amount (fl oz)',
@@ -33,6 +34,9 @@ String buildCsv(ExportData data) {
           _date(f.startTime),
           _time(f.startTime),
           f.type.name,
+          // Blank rather than "no", so filtering on "yes" is one click and the
+          // column stays quiet on the many rows it does not apply to.
+          f.isSnack ? 'yes' : '',
           f.durationMinutes?.toString() ?? '',
           _num(f.amountMl),
           if (!metric) f.amountMl == null ? '' : formatFlOz(f.amountMl!),
@@ -53,6 +57,7 @@ String buildCsv(ExportData data) {
           d.type.name,
           '',
           '',
+          '',
           if (!metric) '',
           '',
           '',
@@ -67,6 +72,7 @@ String buildCsv(ExportData data) {
         cells: [
           'Growth',
           _date(g.date),
+          '',
           '',
           '',
           '',

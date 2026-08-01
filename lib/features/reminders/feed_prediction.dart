@@ -32,14 +32,10 @@ class FeedRhythm {
 /// prediction forward by ten minutes.
 const int sameSessionMinutes = 20;
 
-/// Whether an event drives the milk clock.
-///
-/// Snacks are excluded because a top-up isn't a feed's worth of fuel, and
-/// solids because they supplement milk rather than replace it — a spoon of
-/// purée doesn't change when the next bottle or nursing session is due, and
-/// there is no "next solids" to predict.
-bool drivesFeedClock(FeedingEvent f) =>
-    !f.isSnack && f.type != FeedingType.solids;
+/// Whether an event drives the milk clock. Lives on the model, since the daily
+/// stats need the same rule; kept here as a function so the reminder code
+/// reads the way it always has.
+bool drivesFeedClock(FeedingEvent f) => f.drivesFeedClock;
 
 /// Drops the events that shouldn't reset or reshape the feeding clock.
 ///
