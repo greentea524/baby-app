@@ -47,6 +47,28 @@ String buildCsv(ExportData data) {
           f.notes ?? '',
         ],
       ),
+    // Pumping fits the existing columns exactly — duration, amount, side —
+    // so it needs no schema of its own. The Type column tells it apart from a
+    // breast feed, which matters: milk pumped is not milk the baby drank.
+    for (final p in data.pumps)
+      (
+        at: p.time,
+        cells: [
+          'Pumping',
+          _date(p.time),
+          _time(p.time),
+          '',
+          '',
+          p.durationMinutes?.toString() ?? '',
+          _num(p.amountMl),
+          if (!metric) p.amountMl == null ? '' : formatFlOz(p.amountMl!),
+          p.side?.name ?? '',
+          '',
+          '',
+          '',
+          p.notes ?? '',
+        ],
+      ),
     for (final d in data.diapers)
       (
         at: d.time,

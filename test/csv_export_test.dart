@@ -3,6 +3,7 @@ import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/growth_measurement.dart';
+import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/features/export/csv_export.dart';
 import 'package:baby_app/features/export/export_data.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +12,7 @@ ExportData _data({
   List<FeedingEvent> feedings = const [],
   List<DiaperEvent> diapers = const [],
   List<GrowthMeasurement> growth = const [],
+  List<PumpingEvent> pumps = const [],
   UnitSystem units = UnitSystem.us,
 }) => ExportData(
   units: units,
@@ -26,6 +28,7 @@ ExportData _data({
   feedings: feedings,
   diapers: diapers,
   growth: growth,
+  pumps: pumps,
 );
 
 void main() {
@@ -246,6 +249,115 @@ void main() {
       );
       final rows = csv.trim().split('\n').map((r) => r.split(',').length);
       expect(rows.toSet(), hasLength(1), reason: 'ragged rows: $rows');
+    });
+  });
+
+  group('pumping', () {
+    final session = PumpingEvent(
+      id: 'p1',
+      time: DateTime(2026, 7, 30, 11, 30),
+      durationMinutes: 20,
+      amountMl: 90,
+      side: BreastSide.both,
+      notes: 'after the morning feed',
+    );
+
+    test('a pump session gets a row', () {
+      final csv = buildCsv(_data(pumps: [session]));
+      expect(csv, contains('Pumping'));
+      expect(csv, contains('11:30'));
+      expect(csv, contains('90'));
+      expect(csv, contains('both'));
+      expect(csv, contains('after the morning feed'));
+    });
+
+    test('is typed apart from a breast feed', () {
+      // Milk pumped is not milk the baby drank; a reader totting up intake
+      // must be able to tell them apart.
+      final csv = buildCsv(
+        _data(
+          feedings: [
+            FeedingEvent(
+              id: 'f1',
+              type: FeedingType.breast,
+              startTime: DateTime(2026, 7, 30, 9),
+              durationMinutes: 18,
+            ),
+          ],
+          pumps: [session],
+        ),
+      );
+      final types = csv
+          .trim()
+          .split('\n')
+          .skip(1)
+          .map((r) => r.split(',').first)
+          .toList();
+      expect(types, containsAll(<String>['Feeding', 'Pumping']));
+    });
+
+    test('sorts into the day alongside everything else', () {
+      final csv = buildCsv(
+        _data(
+          feedings: [
+            FeedingEvent(
+              id: 'f1',
+              type: FeedingType.bottle,
+              startTime: DateTime(2026, 7, 30, 14),
+            ),
+          ],
+          pumps: [session],
+        ),
+      );
+      final types = csv
+          .trim()
+          .split('\n')
+          .skip(1)
+          .map((r) => r.split(',').first)
+          .toList();
+      // 11:30 pump precedes the 14:00 bottle.
+      expect(types, ['Pumping', 'Feeding']);
+    });
+
+    test('keeps every row the same width', () {
+      final csv = buildCsv(
+        _data(
+          feedings: [
+            FeedingEvent(
+              id: 'f1',
+              type: FeedingType.bottle,
+              startTime: DateTime(2026, 7, 30, 14),
+              amountMl: 120,
+            ),
+          ],
+          diapers: [
+            DiaperEvent(
+              id: 'd1',
+              type: DiaperType.wet,
+              time: DateTime(2026, 7, 30, 10),
+            ),
+          ],
+          growth: [
+            GrowthMeasurement(
+              id: 'g1',
+              date: DateTime(2026, 7, 30),
+              weightKg: 7.5,
+            ),
+          ],
+          pumps: [session],
+        ),
+      );
+      final widths = csv.trim().split('\n').map((r) => r.split(',').length);
+      expect(widths.toSet(), hasLength(1), reason: 'ragged rows: $widths');
+    });
+
+    test('metric drops the fl oz cell from the pump row too', () {
+      final csv = buildCsv(
+        _data(pumps: [session], units: UnitSystem.metric),
+      );
+      final widths = csv.trim().split('\n').map((r) => r.split(',').length);
+      expect(widths.toSet(), hasLength(1));
+      expect(csv, isNot(contains('fl oz')));
     });
   });
 }

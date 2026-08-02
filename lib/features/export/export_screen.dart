@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
+import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import 'csv_export.dart';
 import 'export_data.dart';
@@ -41,6 +42,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     final feedingRepo = ref.read(feedingRepositoryProvider);
     final diaperRepo = ref.read(diaperRepositoryProvider);
     final growthRepo = ref.read(growthRepositoryProvider);
+    // Not required: pumping is opt-in, so a null repo means "none", not a
+    // reason to refuse the export.
+    final pumpingRepo = ref.read(pumpingRepositoryProvider);
     if (baby == null ||
         feedingRepo == null ||
         diaperRepo == null ||
@@ -64,6 +68,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
     final feedings = await feedingRepo.fetchRange(start, end);
     final diapers = await diaperRepo.fetchRange(start, end);
+    final pumps = pumpingRepo == null
+        ? const <PumpingEvent>[]
+        : await pumpingRepo.fetchRange(start, end);
     final allGrowth = await growthRepo.fetchAll();
     final growth = allGrowth
         .where((m) => !m.date.isBefore(start) && m.date.isBefore(end))
@@ -76,6 +83,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       feedings: feedings,
       diapers: diapers,
       growth: growth,
+      pumps: pumps,
       units: ref.read(unitSystemProvider),
     );
   }
