@@ -33,6 +33,24 @@ final rangeStatsProvider = FutureProvider.family<InsightsData?, InsightsRange>((
   ref,
   range,
 ) async {
+  // Refetch whenever something is logged.
+  //
+  // The range fetch below is one-shot, and every tab lives in an IndexedStack
+  // (see app_router.dart), so this screen is never rebuilt from scratch on
+  // navigation — without a signal the charts stayed on whatever was true when
+  // the app started, and only a browser reload fixed them.
+  //
+  // These recent-activity streams are already subscribed by Home, so watching
+  // them costs no extra reads. They are used purely as a "something changed"
+  // trigger; the aggregates still come from the range query.
+  //
+  // They carry only the most recent entries, so editing an event older than
+  // that window will not trigger a refetch — pull-to-refresh and the app bar
+  // button cover that.
+  ref.watch(recentFeedingsProvider);
+  ref.watch(recentDiapersProvider);
+  ref.watch(recentPumpingProvider);
+
   final feedingRepo = ref.watch(feedingRepositoryProvider);
   final diaperRepo = ref.watch(diaperRepositoryProvider);
   final pumpingRepo = ref.watch(pumpingRepositoryProvider);

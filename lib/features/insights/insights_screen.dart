@@ -31,7 +31,20 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
     final statsAsync = ref.watch(rangeStatsProvider(_range));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Insights')),
+      appBar: AppBar(
+        title: const Text('Insights'),
+        actions: [
+          // Pull-to-refresh below needs a touch drag, which a mouse cannot
+          // do — and this app is web-first.
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: baby == null
+                ? null
+                : () => ref.invalidate(rangeStatsProvider(_range)),
+          ),
+        ],
+      ),
       body: baby == null
           ? const Center(
               child: Padding(
