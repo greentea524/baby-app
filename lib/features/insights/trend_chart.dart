@@ -4,7 +4,13 @@ import 'package:flutter/material.dart';
 ///
 /// Hand-painted for the same reason as the growth chart: it keeps the app
 /// dependency-free and the bars are simple enough not to warrant a library.
-class TrendChart extends StatelessWidget {
+///
+/// Tap a bar to read its day and value. The bars are only a few pixels wide on
+/// a month range and carry no labels of their own, so without this the chart
+/// showed a shape you could not interrogate — the numbers behind it were only
+/// available by exporting. Follows the same tap-then-caption pattern as
+/// `FeedClockChart`.
+class TrendChart extends StatefulWidget {
   const TrendChart({
     super.key,
     required this.values,
@@ -30,12 +36,47 @@ class TrendChart extends StatelessWidget {
   /// used to read the same bars in a second unit without a second chart.
   final String Function(double)? secondaryFormat;
 
+  static String trim(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  @override
+  State<TrendChart> createState() => _TrendChartState();
+}
+
+class _TrendChartState extends State<TrendChart> {
+  int? _selected;
+
+  @override
+  void didUpdateWidget(TrendChart old) {
+    super.didUpdateWidget(old);
+    // The selection indexes into the old range; keeping it would caption a day
+    // that is no longer plotted.
+    if (old.values != widget.values) _selected = null;
+  }
+
+  void _handleTap(Offset at, Size size) {
+    final geometry = TrendGeometry(
+      count: widget.values.length,
+      hasSecondary: widget.secondaryFormat != null,
+    );
+    setState(() => _selected = geometry.indexAt(at, size));
+  }
+
+  /// "Jul 4 · 240 ml (8.1 fl oz)" — what the tapped bar is worth.
+  String _describe(int i) {
+    final format = widget.valueFormat ?? TrendChart.trim;
+    final value = format(widget.values[i]);
+    final second = widget.secondaryFormat;
+    final suffix = second == null ? '' : ' (${second(widget.values[i])})';
+    return '${widget.labels[i]} · $value$suffix';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (values.isEmpty || values.every((v) => v == 0)) {
+    if (widget.values.isEmpty || widget.values.every((v) => v == 0)) {
       return SizedBox(
-        height: height,
+        height: widget.height,
         child: Center(
           child: Text(
             'Nothing logged in this range.',
@@ -44,32 +85,101 @@ class TrendChart extends StatelessWidget {
         ),
       );
     }
-    return SizedBox(
-      height: height,
-      child: CustomPaint(
-        painter: _TrendChartPainter(
-          values: values,
-          labels: labels,
-          bar: theme.colorScheme.primary,
-          grid: theme.colorScheme.outlineVariant,
-          text: theme.colorScheme.onSurfaceVariant,
-          format: valueFormat ?? _trim,
-          secondary: secondaryFormat,
+
+    final selected = _selected;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: widget.height,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final size = Size(constraints.maxWidth, widget.height);
+              return GestureDetector(
+                onTapUp: (d) => _handleTap(d.localPosition, size),
+                child: CustomPaint(
+                  painter: _TrendChartPainter(
+                    values: widget.values,
+                    labels: widget.labels,
+                    selected: selected,
+                    bar: theme.colorScheme.primary,
+                    highlight: theme.colorScheme.tertiary,
+                    grid: theme.colorScheme.outlineVariant,
+                    text: theme.colorScheme.onSurfaceVariant,
+                    format: widget.valueFormat ?? TrendChart.trim,
+                    secondary: widget.secondaryFormat,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              );
+            },
+          ),
         ),
-        child: const SizedBox.expand(),
-      ),
+        const SizedBox(height: 4),
+        // The caption doubles as the tooltip: the bars are too narrow to label
+        // individually, and a tap target that reveals nothing is worse than
+        // none.
+        Text(
+          selected == null ? 'Tap a bar for details' : _describe(selected),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: selected == null
+                ? theme.colorScheme.onSurfaceVariant
+                : theme.colorScheme.onSurface,
+            fontWeight: selected == null ? null : FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
+}
 
-  static String _trim(double v) =>
-      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+/// Where the plot sits inside the chart, shared by the painter and the hit
+/// test so a tap lands on the bar it looks like it landed on.
+class TrendGeometry {
+  const TrendGeometry({required this.count, required this.hasSecondary});
+
+  final int count;
+  final bool hasSecondary;
+
+  static const leftPad = 36.0;
+  static const bottomPad = 20.0;
+  static const topPad = 10.0;
+
+  /// Room for the second unit's labels when there is one.
+  double get rightPad => hasSecondary ? 34.0 : 8.0;
+
+  Rect plot(Size size) => Rect.fromLTRB(
+    leftPad,
+    topPad,
+    size.width - rightPad,
+    size.height - bottomPad,
+  );
+
+  /// The day at [at], or null outside the plot.
+  ///
+  /// Matches on the whole column rather than the drawn bar: bars are as narrow
+  /// as a pixel on a month range, and a target you have to hit exactly is not
+  /// one you can hit at all on a phone. Height is ignored for the same reason,
+  /// so tapping the empty space above a short bar still selects its day.
+  int? indexAt(Offset at, Size size) {
+    if (count == 0) return null;
+    final rect = plot(size);
+    if (rect.width <= 0) return null;
+    if (at.dx < rect.left || at.dx > rect.right) return null;
+
+    final slot = rect.width / count;
+    final index = ((at.dx - rect.left) / slot).floor();
+    return index < 0 || index >= count ? null : index;
+  }
 }
 
 class _TrendChartPainter extends CustomPainter {
   _TrendChartPainter({
     required this.values,
     required this.labels,
+    required this.selected,
     required this.bar,
+    required this.highlight,
     required this.grid,
     required this.text,
     required this.format,
@@ -78,27 +188,21 @@ class _TrendChartPainter extends CustomPainter {
 
   final List<double> values;
   final List<String> labels;
+  final int? selected;
   final Color bar;
+  final Color highlight;
   final Color grid;
   final Color text;
   final String Function(double) format;
   final String Function(double)? secondary;
 
-  static const _leftPad = 36.0;
-  static const _bottomPad = 20.0;
-  static const _topPad = 10.0;
-
-  /// Room for the second unit's labels when there is one.
-  double get _rightPad => secondary == null ? 8.0 : 34.0;
-
   @override
   void paint(Canvas canvas, Size size) {
-    final plot = Rect.fromLTRB(
-      _leftPad,
-      _topPad,
-      size.width - _rightPad,
-      size.height - _bottomPad,
+    final geometry = TrendGeometry(
+      count: values.length,
+      hasSecondary: secondary != null,
     );
+    final plot = geometry.plot(size);
 
     final maxValue = values.reduce((a, b) => a > b ? a : b);
     // Round the top of the scale up so gridlines land on tidy numbers.
@@ -126,7 +230,16 @@ class _TrendChartPainter extends CustomPainter {
     // Bars: one slot per day, with a small gap between them.
     final slot = plot.width / values.length;
     final barWidth = (slot * 0.7).clamp(1.0, 18.0);
-    final barPaint = Paint()..color = bar;
+
+    // The selected column is banded before the bars are drawn, so a day with
+    // nothing logged still shows what was tapped.
+    if (selected case final i?) {
+      canvas.drawRect(
+        Rect.fromLTWH(plot.left + slot * i, plot.top, slot, plot.height),
+        Paint()..color = highlight.withValues(alpha: 0.14),
+      );
+    }
+
     for (var i = 0; i < values.length; i++) {
       if (values[i] <= 0) continue;
       final h = plot.height * (values[i] / top);
@@ -143,7 +256,7 @@ class _TrendChartPainter extends CustomPainter {
           topLeft: const Radius.circular(2),
           topRight: const Radius.circular(2),
         ),
-        barPaint,
+        Paint()..color = i == selected ? highlight : bar,
       );
     }
 
@@ -162,6 +275,10 @@ class _TrendChartPainter extends CustomPainter {
     for (var i = labels.length - 1; i >= 0; i -= step) {
       marks.add(i);
     }
+    // The tapped day is labelled whether or not it made the cut, so the axis
+    // agrees with the caption.
+    if (selected case final i? when i < labels.length) marks.add(i);
+
     for (final i in marks) {
       if (i >= labels.length) continue;
       _label(
@@ -169,6 +286,7 @@ class _TrendChartPainter extends CustomPainter {
         labels[i],
         Offset(plot.left + slot * (i + 0.5), plot.bottom + 4),
         centerX: true,
+        emphasis: i == selected,
       );
     }
   }
@@ -188,11 +306,16 @@ class _TrendChartPainter extends CustomPainter {
     Offset at, {
     bool anchorRight = false,
     bool centerX = false,
+    bool emphasis = false,
   }) {
     final tp = TextPainter(
       text: TextSpan(
         text: value,
-        style: TextStyle(color: text, fontSize: 9),
+        style: TextStyle(
+          color: emphasis ? highlight : text,
+          fontSize: 9,
+          fontWeight: emphasis ? FontWeight.w700 : null,
+        ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -204,5 +327,8 @@ class _TrendChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TrendChartPainter old) =>
-      old.values != values || old.bar != bar || old.secondary != secondary;
+      old.values != values ||
+      old.selected != selected ||
+      old.bar != bar ||
+      old.secondary != secondary;
 }
