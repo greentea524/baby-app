@@ -8,19 +8,25 @@ class EventTimeRow extends StatelessWidget {
   final DateTime time;
   final ValueChanged<DateTime> onChanged;
 
+  /// Time first, then date.
+  ///
+  /// Almost everything is logged on the day it happens, so opening the
+  /// calendar first meant dismissing a picker you did not need before
+  /// reaching the one you did. The date still follows, defaulting to whatever
+  /// is already set, so changing it costs nothing extra.
   Future<void> _pick(BuildContext context) async {
+    final t = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(time),
+    );
+    if (t == null || !context.mounted) return;
     final date = await showDatePicker(
       context: context,
       initialDate: time,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 1)),
     );
-    if (date == null || !context.mounted) return;
-    final t = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(time),
-    );
-    if (t == null) return;
+    if (date == null) return;
     onChanged(DateTime(date.year, date.month, date.day, t.hour, t.minute));
   }
 
