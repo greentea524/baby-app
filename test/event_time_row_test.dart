@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:baby_app/features/common/event_time_row.dart';
 
-/// Almost everything is logged on the day it happens, so the time picker
-/// comes first and the date follows.
+/// Time and date are separate buttons, so changing one never makes you answer
+/// for the other.
 void main() {
   Future<void> pumpRow(
     WidgetTester tester,
@@ -18,78 +18,38 @@ void main() {
     ),
   );
 
-  testWidgets('Change opens the time picker first', (tester) async {
+  testWidgets('offers both buttons', (tester) async {
     await pumpRow(tester, DateTime(2026, 7, 30, 14, 30));
-    await tester.tap(find.text('Change'));
+    expect(find.text('Time'), findsOneWidget);
+    expect(find.text('Date'), findsOneWidget);
+  });
+
+  testWidgets('Time opens only the time picker', (tester) async {
+    await pumpRow(tester, DateTime(2026, 7, 30, 14, 30));
+    await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
 
     expect(find.byType(TimePickerDialog), findsOneWidget);
-    expect(
-      find.byType(DatePickerDialog),
-      findsNothing,
-      reason: 'no calendar to dismiss before reaching the time',
-    );
+    expect(find.byType(DatePickerDialog), findsNothing);
   });
 
-  testWidgets('the date picker follows once a time is chosen', (tester) async {
+  testWidgets('Date opens only the date picker', (tester) async {
     await pumpRow(tester, DateTime(2026, 7, 30, 14, 30));
-    await tester.tap(find.text('Change'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
+    await tester.tap(find.text('Date'));
     await tester.pumpAndSettle();
 
     expect(find.byType(DatePickerDialog), findsOneWidget);
+    expect(find.byType(TimePickerDialog), findsNothing);
   });
 
-  testWidgets('cancelling the time picker never reaches the date', (
-    tester,
-  ) async {
-    var calls = 0;
-    await pumpRow(
-      tester,
-      DateTime(2026, 7, 30, 14, 30),
-      onChanged: (_) => calls++,
-    );
-    await tester.tap(find.text('Change'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(DatePickerDialog), findsNothing);
-    expect(calls, 0);
-  });
-
-  testWidgets('cancelling the date picker leaves the value alone', (
-    tester,
-  ) async {
-    // The time was already chosen by this point, but a half-applied change is
-    // worse than none — the caller hears nothing.
-    var calls = 0;
-    await pumpRow(
-      tester,
-      DateTime(2026, 7, 30, 14, 30),
-      onChanged: (_) => calls++,
-    );
-    await tester.tap(find.text('Change'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-
-    expect(calls, 0);
-  });
-
-  testWidgets('both pickers accepted keeps the existing day', (tester) async {
+  testWidgets('accepting the time leaves the day alone', (tester) async {
     DateTime? saved;
     await pumpRow(
       tester,
       DateTime(2026, 7, 30, 14, 30),
       onChanged: (t) => saved = t,
     );
-    await tester.tap(find.text('Change'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('OK'));
+    await tester.tap(find.text('Time'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
@@ -97,6 +57,47 @@ void main() {
     expect(saved, isNotNull);
     expect(saved!.year, 2026);
     expect(saved!.month, 7);
-    expect(saved!.day, 30, reason: 'the date defaults to what was already set');
+    expect(saved!.day, 30);
+  });
+
+  testWidgets('picking a date keeps the time already set', (tester) async {
+    DateTime? saved;
+    await pumpRow(
+      tester,
+      DateTime(2026, 7, 30, 14, 30),
+      onChanged: (t) => saved = t,
+    );
+    await tester.tap(find.text('Date'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('29'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(saved, isNotNull);
+    expect(saved!.day, 29);
+    expect(saved!.hour, 14, reason: 'the clock survives a date change');
+    expect(saved!.minute, 30);
+  });
+
+  testWidgets('cancelling either picker changes nothing', (tester) async {
+    var calls = 0;
+    await pumpRow(
+      tester,
+      DateTime(2026, 7, 30, 14, 30),
+      onChanged: (_) => calls++,
+    );
+
+    await tester.tap(find.text('Time'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Date'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(calls, 0);
   });
 }
