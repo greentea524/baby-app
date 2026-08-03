@@ -6,8 +6,7 @@ import '../../core/format/volume_format.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../timeline/timeline_format.dart';
-import 'feed_clock_chart.dart';
-import 'feed_clock_data.dart';
+import 'feed_pattern_data.dart';
 import 'insights_providers.dart';
 import 'range_stats.dart';
 import 'trend_chart.dart';
@@ -100,12 +99,6 @@ class _Trends extends ConsumerWidget {
   final List<FeedingEvent> feedings;
   final InsightsRange range;
 
-  List<FeedClockRow> _clockRows() => feedClockRows(
-    start: stats.days.first.day,
-    end: stats.days.last.day.add(const Duration(days: 1)),
-    feedings: feedings,
-  );
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final units = ref.watch(unitSystemProvider);
@@ -127,13 +120,41 @@ class _Trends extends ConsumerWidget {
     }
 
     final labels = [for (final d in stats.days) '${d.day.month}/${d.day.day}'];
+    final nights = nightStretchMinutes(
+      days: [for (final d in stats.days) d.day],
+      feedings: feedings,
+    );
+    final byHour = feedsByHour(feedings);
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
-        _SummaryGrid(stats: stats),
-        if (stats.totalFeeds > 0) _FeedClockSection(rows: _clockRows()),
+        _SummaryGrid(
+          stats: stats,
+          bestNightMinutes: nights.isEmpty
+              ? null
+              : nights.reduce((a, b) => a > b ? a : b),
+        ),
         const SizedBox(height: 8),
+        if (stats.totalFeeds > 0) ...[
+          _ChartSection(
+            title: 'Longest night stretch',
+            subtitle: 'Between milk feeds, '
+                '${hourLabel(nightStartHour)}–${hourLabel(nightEndHour)}',
+            values: [for (final m in nights) m.toDouble()],
+            labels: labels,
+            valueFormat: (v) => TimelineFormat.interval(v.round()),
+            // "13h 12m" does not fit the axis gutter; the caption still
+            // spells the tapped night out in full.
+            axisFormat: (v) => '${(v / 60).toStringAsFixed(1)}h',
+          ),
+          _ChartSection(
+            title: 'Feeds by hour of day',
+            subtitle: 'All ${range.days} days stacked together',
+            values: [for (final c in byHour) c.toDouble()],
+            labels: [for (var h = 0; h < 24; h++) hourLabel(h)],
+          ),
+        ],
         _ChartSection(
           title: 'Feeds per day',
           values: [for (final d in stats.days) d.stats.feedCount.toDouble()],
@@ -177,9 +198,13 @@ class _Trends extends ConsumerWidget {
 
 /// The headline figures for the whole range.
 class _SummaryGrid extends ConsumerWidget {
-  const _SummaryGrid({required this.stats});
+  const _SummaryGrid({required this.stats, this.bestNightMinutes});
 
   final RangeStats stats;
+
+  /// The best night in the range, kept as a tile because it is the one figure
+  /// people want without reading a chart.
+  final int? bestNightMinutes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -195,6 +220,12 @@ class _SummaryGrid extends ConsumerWidget {
         value: TimelineFormat.interval(stats.avgFeedIntervalMinutes),
         detail: null,
       ),
+      if (bestNightMinutes != null && bestNightMinutes! > 0)
+        (
+          label: 'Best night',
+          value: TimelineFormat.interval(bestNightMinutes),
+          detail: null,
+        ),
       (
         label: 'Diapers / day',
         value: stats.diapersPerDay.toStringAsFixed(1),
@@ -256,64 +287,51 @@ class _SummaryGrid extends ConsumerWidget {
   }
 }
 
-/// The feed-times chart with its title and the gap it reveals.
-class _FeedClockSection extends ConsumerWidget {
-  const _FeedClockSection({required this.rows});
-
-  final List<FeedClockRow> rows;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final longest = longestGapMinutes(rows);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Feed times by day',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          if (longest != null)
-            Text(
-              'Longest gap ${TimelineFormat.interval(longest)}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          const SizedBox(height: 8),
-          FeedClockChart(rows: rows, units: ref.watch(unitSystemProvider)),
-        ],
-      ),
-    );
-  }
-}
-
 class _ChartSection extends StatelessWidget {
   const _ChartSection({
     required this.title,
     required this.values,
     required this.labels,
+    this.subtitle,
+    this.valueFormat,
+    this.axisFormat,
     this.secondaryFormat,
   });
 
   final String title;
   final List<double> values;
   final List<String> labels;
+
+  /// Says what the bars are measured over when the title can't carry it —
+  /// the night window, or that the range is stacked rather than daily.
+  final String? subtitle;
+
+  final String Function(double)? valueFormat;
+  final String Function(double)? axisFormat;
   final String Function(double)? secondaryFormat;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          Text(title, style: theme.textTheme.titleSmall),
+          if (subtitle != null)
+            Text(
+              subtitle!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           const SizedBox(height: 4),
           TrendChart(
             values: values,
             labels: labels,
+            valueFormat: valueFormat,
+            axisFormat: axisFormat,
             secondaryFormat: secondaryFormat,
           ),
         ],

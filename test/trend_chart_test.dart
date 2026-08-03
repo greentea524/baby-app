@@ -14,6 +14,7 @@ void main() {
     required List<double> values,
     required List<String> labels,
     String Function(double)? valueFormat,
+    String Function(double)? axisFormat,
     String Function(double)? secondaryFormat,
   }) => tester.pumpWidget(
     MaterialApp(
@@ -26,6 +27,7 @@ void main() {
               labels: labels,
               height: height,
               valueFormat: valueFormat,
+              axisFormat: axisFormat,
               secondaryFormat: secondaryFormat,
             ),
           ),
@@ -110,6 +112,21 @@ void main() {
     );
     await tapBar(tester, 0, 1, hasSecondary: true);
     expect(find.text('Jul 1 · 240 ml (8.1 fl oz)'), findsOneWidget);
+  });
+
+  testWidgets('a narrow axis format never reaches the caption', (tester) async {
+    // The axis gutter is 36px wide, so a duration is abbreviated there — but
+    // the caption has the room to spell the tapped value out in full, and
+    // that is the number the tap was for.
+    await pumpChart(
+      tester,
+      values: [400],
+      labels: ['Jul 1'],
+      valueFormat: (v) => '${v ~/ 60}h ${(v % 60).toInt()}m',
+      axisFormat: (v) => '${(v / 60).toStringAsFixed(1)}h',
+    );
+    await tapBar(tester, 0, 1);
+    expect(find.text('Jul 1 · 6h 40m'), findsOneWidget);
   });
 
   testWidgets('changing the range clears the selection', (tester) async {

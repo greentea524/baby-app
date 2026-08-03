@@ -8,8 +8,7 @@ import 'package:flutter/material.dart';
 /// Tap a bar to read its day and value. The bars are only a few pixels wide on
 /// a month range and carry no labels of their own, so without this the chart
 /// showed a shape you could not interrogate — the numbers behind it were only
-/// available by exporting. Follows the same tap-then-caption pattern as
-/// `FeedClockChart`.
+/// available by exporting.
 class TrendChart extends StatefulWidget {
   const TrendChart({
     super.key,
@@ -17,6 +16,7 @@ class TrendChart extends StatefulWidget {
     required this.labels,
     this.height = 160,
     this.valueFormat,
+    this.axisFormat,
     this.secondaryFormat,
   });
 
@@ -29,8 +29,14 @@ class TrendChart extends StatefulWidget {
 
   final double height;
 
-  /// Formats the y-axis ticks. Defaults to a trimmed number.
+  /// Formats the value wherever it is shown. Defaults to a trimmed number.
   final String Function(double)? valueFormat;
+
+  /// Formats the y-axis ticks alone, for when [valueFormat] is too wide for
+  /// the 36 px gutter. A duration is the case in point: "13h 12m" overruns the
+  /// axis, but shortening the tapped value to "13.2h" would throw away
+  /// precision the caption has room for. Defaults to [valueFormat].
+  final String Function(double)? axisFormat;
 
   /// When set, draws a second set of tick labels down the right edge —
   /// used to read the same bars in a second unit without a second chart.
@@ -106,7 +112,10 @@ class _TrendChartState extends State<TrendChart> {
                     highlight: theme.colorScheme.tertiary,
                     grid: theme.colorScheme.outlineVariant,
                     text: theme.colorScheme.onSurfaceVariant,
-                    format: widget.valueFormat ?? TrendChart.trim,
+                    format:
+                        widget.axisFormat ??
+                        widget.valueFormat ??
+                        TrendChart.trim,
                     secondary: widget.secondaryFormat,
                   ),
                   child: const SizedBox.expand(),
@@ -330,5 +339,6 @@ class _TrendChartPainter extends CustomPainter {
       old.values != values ||
       old.selected != selected ||
       old.bar != bar ||
+      old.format != format ||
       old.secondary != secondary;
 }
