@@ -18,10 +18,19 @@ void main() {
     ),
   );
 
-  testWidgets('offers both buttons', (tester) async {
+  testWidgets('offers both buttons, date first', (tester) async {
     await pumpRow(tester, DateTime(2026, 7, 30, 14, 30));
-    expect(find.text('Time'), findsOneWidget);
     expect(find.text('Date'), findsOneWidget);
+    expect(find.text('Time'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Date')).dx,
+      lessThan(tester.getTopLeft(find.text('Time')).dx),
+    );
+  });
+
+  testWidgets('reads date then time, matching the buttons', (tester) async {
+    await pumpRow(tester, DateTime(2026, 7, 30, 14, 30));
+    expect(find.text('7/30 · 2:30 PM'), findsOneWidget);
   });
 
   testWidgets('Time opens only the time picker', (tester) async {

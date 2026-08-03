@@ -46,14 +46,14 @@ class EventTimeRow extends StatelessWidget {
       children: [
         const Icon(Icons.schedule, size: 20),
         const SizedBox(width: 8),
-        Expanded(child: Text('$local · ${time.month}/${time.day}')),
-        TextButton(
-          onPressed: () => _pickTime(context),
-          child: const Text('Time'),
-        ),
+        Expanded(child: Text('${time.month}/${time.day} · $local')),
         TextButton(
           onPressed: () => _pickDate(context),
           child: const Text('Date'),
+        ),
+        TextButton(
+          onPressed: () => _pickTime(context),
+          child: const Text('Time'),
         ),
       ],
     );
