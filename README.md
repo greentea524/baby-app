@@ -76,7 +76,27 @@ flutter run -d chrome
 flutter build web
 ```
 
-Output is in `build/web/` (installable — includes manifest + service worker).
+Output is in `build/web/` (installable — includes the manifest and icons).
+
+### The loading screen
+
+Opening the installed PWA is several seconds of work before Flutter can paint:
+`main.dart.js` is ~1.1 MB gzipped and has to be parsed, CanvasKit is a ~2.8 MB
+gzipped wasm module to fetch and compile, and then `main()` awaits Firebase and
+the stored preferences. Stock Flutter shows a blank page for all of it.
+
+`web/index.html` carries a loading screen — the app icon on the manifest's
+`background_color`, so the Android splash hands over without a colour change —
+and `web/flutter_bootstrap.js` takes it down.
+
+The dismissal is triggered from Dart (`lib/core/web/loading_screen.dart`), not
+from the bootstrap's own `runApp()` promise: that promise resolves once `main()`
+is *invoked*, which is still before Firebase has initialised and before anything
+has rendered. The bootstrap also arms a 25-second failsafe, outside the loader's
+awaits, since a boot that fails usually fails by never returning.
+
+Both files are stock Flutter templates with local edits, so re-running
+`flutter create` over this project would discard them.
 
 ## Native mobile builds (Android / iOS)
 

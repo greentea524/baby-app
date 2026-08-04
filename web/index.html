@@ -31,16 +31,100 @@
 
   <title>Baby App</title>
   <link rel="manifest" href="manifest.json">
+  <!--
+    Loading screen. Inline on purpose: an external stylesheet is another round
+    trip, and this markup's whole job is to be on screen before anything else
+    has loaded.
+
+    #7E9BD0 is the manifest's background_color and the app's default seed, so
+    the Android PWA splash hands over to this without a colour change.
+  -->
+  <style>
+    html { background: #7E9BD0; }
+    body { margin: 0; }
+
+    #app-loading {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483647;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      background: #7E9BD0;
+      transition: opacity 250ms ease-out;
+    }
+
+    #app-loading.app-loading--done {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #app-loading .app-loading__icon {
+      width: 88px;
+      height: 88px;
+      border-radius: 22px;
+    }
+
+    /* Held back 600ms: on a warm launch the app arrives before the spinner
+       does, and one that flashes for a fifth of a second reads as jank
+       rather than as progress. */
+    #app-loading .app-loading__spinner {
+      width: 26px;
+      height: 26px;
+      box-sizing: border-box;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      opacity: 0;
+      animation:
+        app-loading-spin 900ms linear infinite,
+        app-loading-appear 200ms ease-out 600ms forwards;
+    }
+
+    /* A launch this slow has gone wrong — bad signal, usually. Saying so
+       beats a spinner that turns forever. */
+    #app-loading .app-loading__slow {
+      margin: 0;
+      max-width: 15rem;
+      text-align: center;
+      font: 400 0.875rem/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: rgba(255, 255, 255, 0.85);
+      opacity: 0;
+      animation: app-loading-appear 400ms ease-out 10s forwards;
+    }
+
+    @keyframes app-loading-spin { to { transform: rotate(360deg); } }
+    @keyframes app-loading-appear { to { opacity: 1; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      #app-loading .app-loading__spinner {
+        animation: app-loading-appear 200ms ease-out 600ms forwards;
+      }
+    }
+  </style>
 </head>
 <body>
   <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
+    web/flutter_bootstrap.js is customised: it dismisses the loading screen
+    above once the app's first frame has painted. See the notes in that file.
 
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <!--
+    Shown from the first paint until Flutter's first frame; removed by
+    flutter_bootstrap.js. The icon is the same file the home-screen icon
+    comes from, rather than an inlined copy, so replacing the app's icon
+    replaces this too.
+  -->
+  <div id="app-loading">
+    <img class="app-loading__icon" src="icons/Icon-192.png" alt="" width="88" height="88">
+    <div class="app-loading__spinner"></div>
+    <p class="app-loading__slow">Still starting up. If this hangs, check your connection.</p>
+  </div>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
