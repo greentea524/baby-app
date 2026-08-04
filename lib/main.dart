@@ -9,6 +9,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_accent.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_provider.dart';
+import 'core/web/loading_screen.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -37,6 +38,11 @@ Future<void> main() async {
       child: const BabyApp(),
     ),
   );
+
+  // Everything above this line happens behind the HTML loading screen: the
+  // engine boot, then Firebase and the stored preferences awaited here. Take
+  // it down only once there is a real frame behind it.
+  WidgetsBinding.instance.addPostFrameCallback((_) => dismissLoadingScreen());
 }
 
 class BabyApp extends ConsumerWidget {
