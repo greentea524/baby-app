@@ -126,6 +126,42 @@ DateTime? fixedIntervalDue(List<FeedingEvent> feedings, int intervalMinutes) {
   return latest.add(Duration(minutes: intervalMinutes));
 }
 
+/// How close the next feed is, for anything that wants to colour it.
+enum FeedDueState {
+  /// Far enough off to be background information.
+  upcoming,
+
+  /// Close enough to start getting ready — within [feedDueSoonWindow].
+  soon,
+
+  /// Due, or past it.
+  overdue,
+}
+
+/// How long before a feed is due that it starts reading as imminent.
+///
+/// Roughly the notice a caregiver needs to act on it: long enough to warm a
+/// bottle or settle into a chair, short enough that the chip is not amber for
+/// most of the gap between feeds.
+const Duration feedDueSoonWindow = Duration(minutes: 15);
+
+/// Where [due] sits relative to [now].
+///
+/// Both boundaries are inclusive: a feed due exactly now reads as overdue
+/// rather than soon, and one exactly [within] away is already soon. The
+/// countdown beside it is rounded to whole minutes, so a state that flipped a
+/// second either side of the label would contradict it.
+FeedDueState feedDueState(
+  DateTime due, {
+  required DateTime now,
+  Duration within = feedDueSoonWindow,
+}) {
+  if (!due.isAfter(now)) return FeedDueState.overdue;
+  return due.difference(now) <= within
+      ? FeedDueState.soon
+      : FeedDueState.upcoming;
+}
+
 /// Human countdown to [due]: "in 1h 20m", "due now", "25m overdue".
 String countdownLabel(DateTime due, {DateTime? now}) {
   final diff = due.difference(now ?? DateTime.now());
