@@ -275,6 +275,36 @@ class _ReminderSection extends ConsumerWidget {
             ),
           ),
         if (settings.mode == ReminderMode.fixedInterval) const _RhythmInsight(),
+        // Only offered while there is a reminder to give notice of: with the
+        // mode off there is no due time and no chip, so this would be a
+        // setting with nothing to change.
+        if (settings.mode != ReminderMode.off)
+          ListTile(
+            title: const Text('Heads-up'),
+            subtitle: Text(
+              settings.headsUpMinutes == 0
+                  ? 'Home stays grey until the feed is due, then turns red'
+                  : 'Home turns amber '
+                        '${_label(settings.headsUpMinutes)} before it is due',
+            ),
+            trailing: DropdownButton<int>(
+              // A stored value outside the list would leave the dropdown with
+              // no matching item, which is an assertion rather than a shrug.
+              value: headsUpOptions.contains(settings.headsUpMinutes)
+                  ? settings.headsUpMinutes
+                  : defaultHeadsUpMinutes,
+              items: [
+                for (final m in headsUpOptions)
+                  DropdownMenuItem(
+                    value: m,
+                    child: Text(m == 0 ? 'Off' : _label(m)),
+                  ),
+              ],
+              onChanged: (m) {
+                if (m != null) notifier.setHeadsUpMinutes(m);
+              },
+            ),
+          ),
         // Both of these only govern pushes sent by the reminder Cloud
         // Function. Until that is deployed and the build carries a VAPID key,
         // they are switches with nothing behind them — quiet hours especially,

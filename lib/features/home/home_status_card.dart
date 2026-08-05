@@ -78,12 +78,16 @@ class HomeStatusCard extends ConsumerWidget {
     Widget? next;
     if (due != null) {
       final at = TimeOfDay.fromDateTime(due).format(context);
-      final overdue = !due.isAfter(now);
-      next = _NextFeedChip(
-        overdue: overdue,
+      final state = feedDueState(
+        due,
+        now: now,
+        within: ref.watch(reminderSettingsProvider).headsUp,
+      );
+      next = NextFeedChip(
+        state: state,
         // "Next feed 2h overdue" reads badly, so the wording flips once it
         // has slipped past.
-        text: overdue
+        text: state == FeedDueState.overdue
             ? 'Feed ${countdownLabel(due, now: now)} · due $at'
             : 'Next feed ${countdownLabel(due, now: now)} · $at',
       );
@@ -163,23 +167,54 @@ class HomeStatusCard extends ConsumerWidget {
 ///
 /// It used to be a small grey line under the last feed, which buried the one
 /// piece of information on the row you can still act on. A filled chip at
-/// [TextTheme.titleSmall] reads as its own thing, and turns to the error
-/// palette once the feed is overdue.
-class _NextFeedChip extends StatelessWidget {
-  const _NextFeedChip({required this.text, required this.overdue});
+/// [TextTheme.titleSmall] reads as its own thing, and warms through amber to
+/// the error palette as the feed comes due.
+class NextFeedChip extends StatelessWidget {
+  const NextFeedChip({super.key, required this.text, required this.state});
 
   final String text;
-  final bool overdue;
+  final FeedDueState state;
+
+  /// Amber is spelled out rather than taken from the scheme because no Material
+  /// role means "warning": the seed decides what `tertiary` looks like, and
+  /// across this app's four accents it lands anywhere from pink to green. A
+  /// caution colour has to mean caution whichever accent is chosen, the same
+  /// way `error` does.
+  static const _soonLight = (
+    background: Color(0xFFFFE7A8),
+    foreground: Color(0xFF5A4200),
+  );
+  // Brighter than a Material dark container usually runs. `errorContainer` is
+  // vivid in this scheme, and a dim amber next to it broke the escalation:
+  // upcoming and soon both read as "not the red one".
+  static const _soonDark = (
+    background: Color(0xFF6B5200),
+    foreground: Color(0xFFFFE7A8),
+  );
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = overdue
-        ? scheme.errorContainer
-        : scheme.secondaryContainer;
-    final foreground = overdue
-        ? scheme.onErrorContainer
-        : scheme.onSecondaryContainer;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final soon = theme.brightness == Brightness.dark ? _soonDark : _soonLight;
+
+    final (background, foreground, icon) = switch (state) {
+      FeedDueState.overdue => (
+        scheme.errorContainer,
+        scheme.onErrorContainer,
+        Icons.notifications_active,
+      ),
+      FeedDueState.soon => (
+        soon.background,
+        soon.foreground,
+        Icons.notifications_none,
+      ),
+      FeedDueState.upcoming => (
+        scheme.secondaryContainer,
+        scheme.onSecondaryContainer,
+        Icons.schedule,
+      ),
+    };
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
@@ -191,11 +226,7 @@ class _NextFeedChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            overdue ? Icons.notifications_active : Icons.schedule,
-            size: 16,
-            color: foreground,
-          ),
+          Icon(icon, size: 16, color: foreground),
           const SizedBox(width: 6),
           Flexible(
             child: Text(

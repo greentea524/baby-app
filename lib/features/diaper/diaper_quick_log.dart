@@ -127,7 +127,9 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
             ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: _busy ? null : _save,
+              // Only reachable by editing a record that was already stamped
+              // ahead; the row above says why the button is dead.
+              onPressed: _busy || isFutureLogTime(_time) ? null : _save,
               child: _busy
                   ? const SizedBox(
                       width: 18,

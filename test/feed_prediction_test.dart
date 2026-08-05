@@ -127,6 +127,43 @@ void main() {
     });
   });
 
+  group('feedDueState', () {
+    final due = base;
+    FeedDueState at(Duration before) =>
+        feedDueState(due, now: due.subtract(before));
+
+    test('amber for the last quarter hour', () {
+      expect(at(const Duration(minutes: 16)), FeedDueState.upcoming);
+      expect(at(const Duration(minutes: 15)), FeedDueState.soon);
+      expect(at(const Duration(minutes: 1)), FeedDueState.soon);
+    });
+
+    test('due now counts as overdue, not as soon', () {
+      // The chip's wording flips to "overdue" here, so the colour has to
+      // flip with it or the two contradict each other.
+      expect(feedDueState(due, now: due), FeedDueState.overdue);
+      expect(
+        feedDueState(due, now: due.add(const Duration(minutes: 30))),
+        FeedDueState.overdue,
+      );
+    });
+
+    test('hours out is just upcoming', () {
+      expect(at(const Duration(hours: 3)), FeedDueState.upcoming);
+    });
+
+    test('the window is adjustable', () {
+      expect(
+        feedDueState(
+          due,
+          now: due.subtract(const Duration(minutes: 25)),
+          within: const Duration(minutes: 30),
+        ),
+        FeedDueState.soon,
+      );
+    });
+  });
+
   group('same-session entries (KAN-184)', () {
     test('a topped-up bottle does not drag the figure down', () {
       final feeds = _steady(8, 78);
