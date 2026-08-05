@@ -89,9 +89,17 @@ class _TypeChooser extends StatelessWidget {
 
 /// Shared save button + error handling for the three forms.
 class _SaveBar extends ConsumerStatefulWidget {
-  const _SaveBar({required this.isEdit, required this.build});
+  const _SaveBar({
+    required this.isEdit,
+    required this.build,
+    this.enabled = true,
+  });
 
   final bool isEdit;
+
+  /// False while the form holds something it must not save — a time ahead of
+  /// the clock. The form shows the reason; this only stops the write.
+  final bool enabled;
 
   /// Returns the event to persist, or null if the input is invalid (the
   /// form is responsible for showing its own validation state first).
@@ -134,7 +142,7 @@ class _SaveBarState extends ConsumerState<_SaveBar> {
   @override
   Widget build(BuildContext context) {
     return FilledButton(
-      onPressed: _busy ? null : _save,
+      onPressed: _busy || !widget.enabled ? null : _save,
       child: _busy
           ? const SizedBox(
               width: 18,
@@ -381,7 +389,11 @@ class _BottleFormState extends State<_BottleForm> {
           onChanged: (v) => setState(() => _isSnack = v),
         ),
         const SizedBox(height: 16),
-        _SaveBar(isEdit: widget.existing != null, build: _build),
+        _SaveBar(
+          isEdit: widget.existing != null,
+          build: _build,
+          enabled: !isFutureLogTime(_time),
+        ),
       ],
     );
   }
@@ -446,7 +458,11 @@ class _SolidsFormState extends State<_SolidsForm> {
         const SizedBox(height: 12),
         EventTimeRow(time: _time, onChanged: (t) => setState(() => _time = t)),
         const SizedBox(height: 16),
-        _SaveBar(isEdit: widget.existing != null, build: _build),
+        _SaveBar(
+          isEdit: widget.existing != null,
+          build: _build,
+          enabled: !isFutureLogTime(_time),
+        ),
       ],
     );
   }
