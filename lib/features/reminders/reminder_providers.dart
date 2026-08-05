@@ -26,19 +26,43 @@ enum ReminderMode {
 
 const _modeKey = 'reminder_mode';
 const _intervalKey = 'reminder_interval_minutes';
+const _headsUpKey = 'reminder_heads_up_minutes';
 const defaultReminderIntervalMinutes = 180; // 3 hours
 
+/// The choices offered for [ReminderSettings.headsUpMinutes]. 0 is off.
+const headsUpOptions = <int>[0, 10, 15, 20, 30, 45, 60];
+
 class ReminderSettings {
-  const ReminderSettings({required this.mode, required this.intervalMinutes});
+  const ReminderSettings({
+    required this.mode,
+    required this.intervalMinutes,
+    this.headsUpMinutes = defaultHeadsUpMinutes,
+  });
 
   final ReminderMode mode;
   final int intervalMinutes;
 
-  ReminderSettings copyWith({ReminderMode? mode, int? intervalMinutes}) =>
-      ReminderSettings(
-        mode: mode ?? this.mode,
-        intervalMinutes: intervalMinutes ?? this.intervalMinutes,
-      );
+  /// How long before a feed is due that the Home chip turns amber. 0 turns
+  /// the warning off, leaving the chip to go straight from neutral to red.
+  ///
+  /// How much notice is useful depends on what it is for — reaching a chair
+  /// is a minute, thawing a bag of milk is closer to an hour — so this is the
+  /// caregiver's to set rather than a number chosen for them.
+  final int headsUpMinutes;
+
+  /// The window [feedDueState] takes. 0 means no amber at all: a due time is
+  /// always strictly after now, so nothing falls inside a zero-length window.
+  Duration get headsUp => Duration(minutes: headsUpMinutes);
+
+  ReminderSettings copyWith({
+    ReminderMode? mode,
+    int? intervalMinutes,
+    int? headsUpMinutes,
+  }) => ReminderSettings(
+    mode: mode ?? this.mode,
+    intervalMinutes: intervalMinutes ?? this.intervalMinutes,
+    headsUpMinutes: headsUpMinutes ?? this.headsUpMinutes,
+  );
 }
 
 final reminderSettingsProvider =
@@ -59,6 +83,7 @@ class ReminderSettingsNotifier extends Notifier<ReminderSettings> {
           ReminderMode.fixedInterval,
       intervalMinutes:
           prefs.getInt(_intervalKey) ?? defaultReminderIntervalMinutes,
+      headsUpMinutes: prefs.getInt(_headsUpKey) ?? defaultHeadsUpMinutes,
     );
   }
 
@@ -72,6 +97,15 @@ class ReminderSettingsNotifier extends Notifier<ReminderSettings> {
     state = state.copyWith(intervalMinutes: minutes);
     await ref.read(sharedPreferencesProvider).setInt(_intervalKey, minutes);
     await _syncToServer();
+  }
+
+  /// Deliberately not synced to Firestore, unlike the mode and interval. The
+  /// heads-up only tints a chip on this device's Home screen — the Cloud
+  /// Function has no chip to tint, and pushing early would turn a visual cue
+  /// into a second notification nobody asked for.
+  Future<void> setHeadsUpMinutes(int minutes) async {
+    state = state.copyWith(headsUpMinutes: minutes);
+    await ref.read(sharedPreferencesProvider).setInt(_headsUpKey, minutes);
   }
 
   /// Mirrors the interval into Firestore so the reminder Cloud Function can

@@ -78,7 +78,11 @@ class HomeStatusCard extends ConsumerWidget {
     Widget? next;
     if (due != null) {
       final at = TimeOfDay.fromDateTime(due).format(context);
-      final state = feedDueState(due, now: now);
+      final state = feedDueState(
+        due,
+        now: now,
+        within: ref.watch(reminderSettingsProvider).headsUp,
+      );
       next = NextFeedChip(
         state: state,
         // "Next feed 2h overdue" reads badly, so the wording flips once it

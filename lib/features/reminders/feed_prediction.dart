@@ -131,19 +131,21 @@ enum FeedDueState {
   /// Far enough off to be background information.
   upcoming,
 
-  /// Close enough to start getting ready — within [feedDueSoonWindow].
+  /// Close enough to start getting ready.
   soon,
 
   /// Due, or past it.
   overdue,
 }
 
-/// How long before a feed is due that it starts reading as imminent.
+/// The default heads-up, in minutes, before a feed reads as imminent.
 ///
-/// Roughly the notice a caregiver needs to act on it: long enough to warm a
-/// bottle or settle into a chair, short enough that the chip is not amber for
-/// most of the gap between feeds.
-const Duration feedDueSoonWindow = Duration(minutes: 15);
+/// Long enough to warm a bottle or settle into a chair, short enough that the
+/// chip is not amber for most of the gap between feeds. Caregivers can change
+/// it — see `ReminderSettings.headsUpMinutes`.
+const int defaultHeadsUpMinutes = 15;
+
+const Duration feedDueSoonWindow = Duration(minutes: defaultHeadsUpMinutes);
 
 /// Where [due] sits relative to [now].
 ///
