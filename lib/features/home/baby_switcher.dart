@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/baby.dart';
 import '../../data/repositories/repository_providers.dart';
 import 'add_baby_dialog.dart';
+import 'baby_age.dart';
 
 /// App-bar title showing the current baby with a tap target to switch
 /// between profiles (KAN-135).
@@ -28,7 +29,31 @@ class BabySwitcher extends ConsumerWidget {
               Text(baby.avatar.emoji, style: const TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
             ],
-            Text(baby?.name ?? 'Home'),
+            // The age goes under the name rather than beside it: the app bar
+            // already shares its width with the companion and the next
+            // appointment, and a second line costs none of it.
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    baby?.name ?? 'Home',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (baby != null)
+                    Text(
+                      babyAgeLabel(baby.birthDate),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
             Icon(
               canSwitch ? Icons.arrow_drop_down : Icons.expand_more,
               size: 20,
@@ -109,7 +134,9 @@ class _BabyPickerSheet extends ConsumerWidget {
               ),
               title: Text(baby.name),
               subtitle: Text(
-                'Born ${baby.birthDate.month}/${baby.birthDate.day}/${baby.birthDate.year}',
+                '${babyAgeLabel(baby.birthDate)} · born '
+                '${baby.birthDate.month}/${baby.birthDate.day}/'
+                '${baby.birthDate.year}',
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
