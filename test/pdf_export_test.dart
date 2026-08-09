@@ -3,6 +3,7 @@ import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/growth_measurement.dart';
+import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/features/export/export_data.dart';
 import 'package:baby_app/features/export/pdf_export.dart';
 import 'package:baby_app/features/export/report_summary.dart';
@@ -95,6 +96,89 @@ void main() {
       expect(s.totalSnacks, 1);
       expect(s.totalBottleMl, 230, reason: 'the baby still drank it');
       expect(s.feedsPerDay, closeTo(1.5, 0.001));
+    });
+
+    group('pumping', () {
+      ExportData withPumps(List<PumpingEvent> pumps) {
+        final base = _sample();
+        return ExportData(
+          units: base.units,
+          baby: base.baby,
+          start: base.start,
+          end: base.end,
+          feedings: base.feedings,
+          diapers: base.diapers,
+          growth: base.growth,
+          pumps: pumps,
+        );
+      }
+
+      PumpingEvent pump(String id, DateTime at, double ml) =>
+          PumpingEvent(id: id, time: at, amountMl: ml);
+
+      test('totals sessions and volume', () {
+        final s = ReportSummary.from(
+          withPumps([
+            pump('p1', DateTime(2026, 7, 1, 7), 90),
+            pump('p2', DateTime(2026, 7, 2, 7), 110),
+          ]),
+        );
+        expect(s.totalPumps, 2);
+        expect(s.totalPumpedMl, 200);
+      });
+
+      test('pumped milk never lands in the bottle total', () {
+        // The same milk usually comes back as a bottle that is already
+        // counted; adding both would report it twice to a pediatrician.
+        final s = ReportSummary.from(
+          withPumps([pump('p1', DateTime(2026, 7, 1, 7), 90)]),
+        );
+        expect(s.totalBottleMl, 220, reason: 'the feeds, and only the feeds');
+        expect(s.totalPumpedMl, 90);
+      });
+
+      test('a day with only pumping still gets a row', () {
+        // Jul 3 has no feed and no diaper. The CSV exports the session, so
+        // dropping it here would make two exports of one window disagree.
+        final s = ReportSummary.from(
+          withPumps([pump('p1', DateTime(2026, 7, 3, 7), 60)]),
+        );
+        expect(s.daily.length, 3);
+        final last = s.daily.last;
+        expect(last.day, DateTime(2026, 7, 3));
+        expect(last.stats.pumpedMl, 60);
+        expect(last.stats.feedCount, 0);
+      });
+
+      test('stays at zero when nobody pumped', () {
+        final s = ReportSummary.from(_sample());
+        expect(s.totalPumps, 0);
+        expect(s.totalPumpedMl, 0);
+      });
+
+      test('a window of nothing but pumping is not empty', () {
+        // The report prints "No entries were logged in this period" off this
+        // flag, which would have flatly contradicted its own table.
+        final base = _sample();
+        final onlyPumps = ExportData(
+          baby: base.baby,
+          start: base.start,
+          end: base.end,
+          feedings: const [],
+          diapers: const [],
+          growth: const [],
+          pumps: [pump('p1', DateTime(2026, 7, 1, 7), 90)],
+        );
+        expect(onlyPumps.isEmpty, isFalse);
+      });
+
+      test('renders a valid report', () async {
+        final bytes = await buildPdfReport(
+          withPumps([pump('p1', DateTime(2026, 7, 1, 7), 90)]),
+        );
+        expect(bytes.lengthInBytes, greaterThan(1000));
+        expect(bytes.sublist(0, 4), [0x25, 0x50, 0x44, 0x46]); // %PDF
+      });
     });
 
     test('handles an empty window', () {
