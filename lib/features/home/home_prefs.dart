@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/theme_mode_provider.dart';
+import 'companion_art.dart';
 
 /// How the Home status rows are grouped (KAN-180).
 ///
@@ -44,25 +45,42 @@ class HomeLayoutNotifier extends Notifier<HomeLayout> {
   }
 }
 
-const _showFeedPlaneKey = 'show_feed_plane';
+const _companionStyleKey = 'home_companion_style';
 
-/// Whether Home flies a little plane in the app bar corner (#14).
+/// The key this setting used while it was a plain on/off switch for the
+/// plane. Read once, to carry an existing choice across (#16).
+const _legacyShowPlaneKey = 'show_feed_plane';
+
+/// Which companion Home flies in the app bar corner (#14, #16).
 ///
-/// On by default. It is a decoration nobody has to interact with, and one
-/// that hides behind a setting before it has ever been seen is one nobody
-/// finds. Off is a single tap away for anyone who finds it fidgety.
-final showFeedPlaneProvider = NotifierProvider<ShowFeedPlaneNotifier, bool>(
-  ShowFeedPlaneNotifier.new,
-);
+/// Defaults to the plane rather than to off: it is a decoration nobody has to
+/// interact with, and one that hides behind a setting before it has ever been
+/// seen is one nobody finds.
+final companionStyleProvider =
+    NotifierProvider<CompanionStyleNotifier, CompanionStyle>(
+      CompanionStyleNotifier.new,
+    );
 
-class ShowFeedPlaneNotifier extends Notifier<bool> {
+class CompanionStyleNotifier extends Notifier<CompanionStyle> {
   @override
-  bool build() =>
-      ref.read(sharedPreferencesProvider).getBool(_showFeedPlaneKey) ?? true;
+  CompanionStyle build() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final stored = prefs.getString(_companionStyleKey);
+    if (stored != null) return CompanionStyle.fromName(stored);
 
-  Future<void> set(bool value) async {
-    state = value;
-    await ref.read(sharedPreferencesProvider).setBool(_showFeedPlaneKey, value);
+    // No style stored yet, so this is either a fresh install or someone
+    // upgrading from the switch. Reading the old key keeps a caregiver who
+    // turned the plane off from having it handed back to them.
+    return prefs.getBool(_legacyShowPlaneKey) == false
+        ? CompanionStyle.off
+        : CompanionStyle.plane;
+  }
+
+  Future<void> setStyle(CompanionStyle style) async {
+    state = style;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setString(_companionStyleKey, style.name);
   }
 }
 

@@ -6,7 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
-import 'package:baby_app/features/home/feed_plane.dart';
+import 'package:baby_app/features/home/companion_art.dart';
+import 'package:baby_app/features/home/feed_companion.dart';
 import 'package:baby_app/features/reminders/feed_prediction.dart';
 import 'package:baby_app/features/reminders/reminder_providers.dart';
 
@@ -30,7 +31,7 @@ void main() {
 
   /// Pumps the plane with [due] as the next feed and [last] as the most
   /// recent clock feed. Returns the container so the test can move them.
-  Future<ProviderContainer> pumpPlane(
+  Future<ProviderContainer> pumpCompanion(
     WidgetTester tester, {
     DateTime? due,
     FeedingEvent? last,
@@ -54,7 +55,7 @@ void main() {
         child: MaterialApp(
           home: MediaQuery(
             data: MediaQueryData(disableAnimations: disableAnimations),
-            child: Scaffold(body: FeedPlane(now: now)),
+            child: Scaffold(body: FeedCompanion(now: now)),
           ),
         ),
       ),
@@ -63,15 +64,15 @@ void main() {
     return container;
   }
 
-  /// The plane's own painter. Scaffold and Material insert CustomPaints of
+  /// The companion's own painter. Scaffold and Material insert CustomPaints of
   /// their own, so byType alone matches Flutter's internals too.
-  final plane = find.descendant(
-    of: find.byType(FeedPlane),
+  final companion = find.descendant(
+    of: find.byType(FeedCompanion),
     matching: find.byType(CustomPaint),
   );
 
   String? label(WidgetTester tester) {
-    final found = find.byType(FeedPlane);
+    final found = find.byType(FeedCompanion);
     if (tester.widgetList(find.byType(SizedBox)).isEmpty) return null;
     final semantics = tester.getSemantics(found);
     return semantics.label.isEmpty ? null : semantics.label;
@@ -79,9 +80,9 @@ void main() {
 
   group('resting state follows the chip', () {
     test('maps every due state to a pose', () {
-      expect(planeStateFor(FeedDueState.upcoming), PlaneState.cruising);
-      expect(planeStateFor(FeedDueState.soon), PlaneState.approach);
-      expect(planeStateFor(FeedDueState.overdue), PlaneState.landed);
+      expect(phaseFor(FeedDueState.upcoming), CompanionPhase.easy);
+      expect(phaseFor(FeedDueState.soon), CompanionPhase.soon);
+      expect(phaseFor(FeedDueState.overdue), CompanionPhase.due);
     });
   });
 
@@ -89,34 +90,34 @@ void main() {
     testWidgets('hidden with reminders off, since there is no due time', (
       tester,
     ) async {
-      await pumpPlane(tester, due: null, last: feed('a'));
-      expect(plane, findsNothing);
+      await pumpCompanion(tester, due: null, last: feed('a'));
+      expect(companion, findsNothing);
     });
 
     testWidgets('hidden when the caregiver turns it off', (tester) async {
-      await pumpPlane(
+      await pumpCompanion(
         tester,
         due: now.add(const Duration(hours: 2)),
         last: feed('a'),
-        prefs: {'show_feed_plane': false},
+        prefs: {'home_companion_style': 'off'},
       );
-      expect(plane, findsNothing);
+      expect(companion, findsNothing);
     });
 
     testWidgets('shown by default', (tester) async {
-      await pumpPlane(
+      await pumpCompanion(
         tester,
         due: now.add(const Duration(hours: 2)),
         last: feed('a'),
       );
-      expect(plane, findsOneWidget);
+      expect(companion, findsOneWidget);
       expect(label(tester), 'Next feed is a while off');
     });
   });
 
   group('the pose reads the clock', () {
     testWidgets('amber window puts it on approach', (tester) async {
-      await pumpPlane(
+      await pumpCompanion(
         tester,
         due: now.add(const Duration(minutes: 10)),
         last: feed('a'),
@@ -125,7 +126,7 @@ void main() {
     });
 
     testWidgets('overdue puts it on the ground', (tester) async {
-      await pumpPlane(
+      await pumpCompanion(
         tester,
         due: now.subtract(const Duration(minutes: 5)),
         last: feed('a'),
@@ -134,7 +135,7 @@ void main() {
     });
 
     testWidgets('a wider heads-up brings it in earlier', (tester) async {
-      await pumpPlane(
+      await pumpCompanion(
         tester,
         due: now.add(const Duration(minutes: 25)),
         last: feed('a'),
@@ -146,7 +147,7 @@ void main() {
 
   group('take-off', () {
     testWidgets('fires when a new feed lands', (tester) async {
-      final container = await pumpPlane(
+      final container = await pumpCompanion(
         tester,
         due: now.subtract(const Duration(minutes: 5)),
         last: feed('first'),
@@ -167,7 +168,7 @@ void main() {
       expect(label(tester), 'Feed logged');
 
       // And it hands back rather than staying airborne.
-      await tester.pump(FeedPlane.takeoffDuration + const Duration(seconds: 1));
+      await tester.pump(FeedCompanion.celebrateDuration + const Duration(seconds: 1));
       await tester.pump();
       expect(label(tester), 'Next feed is a while off');
     });
@@ -175,7 +176,7 @@ void main() {
     testWidgets('does not fire on the first load', (tester) async {
       // The stream arriving is not a feed being logged; otherwise every cold
       // start would launch the plane.
-      final container = await pumpPlane(
+      final container = await pumpCompanion(
         tester,
         due: now.add(const Duration(hours: 2)),
         last: null,
@@ -193,7 +194,7 @@ void main() {
     });
 
     testWidgets('does not fire when the same feed is edited', (tester) async {
-      final container = await pumpPlane(
+      final container = await pumpCompanion(
         tester,
         due: now.add(const Duration(hours: 2)),
         last: feed('same'),
@@ -223,13 +224,13 @@ void main() {
     testWidgets('still poses for the state, just does not move', (
       tester,
     ) async {
-      await pumpPlane(
+      await pumpCompanion(
         tester,
         due: now.subtract(const Duration(minutes: 5)),
         last: feed('a'),
         disableAnimations: true,
       );
-      expect(plane, findsOneWidget);
+      expect(companion, findsOneWidget);
       expect(label(tester), 'Feed is due');
       // No frames scheduled means nothing is looping.
       expect(tester.binding.hasScheduledFrame, isFalse);

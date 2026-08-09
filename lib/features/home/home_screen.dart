@@ -16,7 +16,7 @@ import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
-import 'feed_plane.dart';
+import 'feed_companion.dart';
 import 'home_prefs.dart';
 import 'home_status_card.dart';
 import 'recent_activity_list.dart';
@@ -81,7 +81,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Decorative, so it takes the corner nothing else wanted rather than
         // a row from the things you can act on. Fits the default leading
         // width, which keeps the baby switcher's space unchanged.
-        leading: baby == null ? null : FeedPlane(now: _now),
+        leading: baby == null ? null : FeedCompanion(now: _now),
         title: baby == null ? const Text('Home') : const BabySwitcher(),
         // The next visit lives in the corner rather than in the status card:
         // it is the one thing on Home you cannot act on today, so it wants to

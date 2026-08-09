@@ -9,6 +9,7 @@ import '../../data/models/notification_prefs.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../caregivers/caregivers_screen.dart';
 import '../export/export_screen.dart';
+import '../home/companion_art.dart';
 import '../home/home_prefs.dart';
 import '../notifications/push_service.dart';
 import '../pumping/pumping_format.dart';
@@ -57,7 +58,7 @@ class SettingsScreen extends ConsumerWidget {
           const _HomeLayoutPicker(),
           const _UnitsPicker(),
           const _PumpingActionToggle(),
-          const _FeedPlaneToggle(),
+          const _CompanionPicker(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.group_outlined),
@@ -231,24 +232,33 @@ class _PumpingActionToggle extends ConsumerWidget {
   }
 }
 
-/// The little plane in Home's app bar corner (#14). Purely decorative, so it
-/// gets a switch rather than an explanation of what it is for.
-class _FeedPlaneToggle extends ConsumerWidget {
-  const _FeedPlaneToggle();
+/// The companion in Home's app bar corner (#14, #16). Purely decorative, so
+/// the tile describes what it does rather than arguing for it.
+///
+/// One control rather than a switch and a picker stacked: "none" is a choice
+/// about the same thing as "which one".
+class _CompanionPicker extends ConsumerWidget {
+  const _CompanionPicker();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final enabled = ref.watch(showFeedPlaneProvider);
-    return SwitchListTile(
-      secondary: const Icon(Icons.flight),
-      title: const Text('Feed plane'),
-      subtitle: Text(
-        enabled
-            ? 'Lands when a feed is due, takes off when you log one'
-            : 'Hidden',
+    final selected = ref.watch(companionStyleProvider);
+    return ListTile(
+      leading: Icon(
+        selected.art?.icon(CompanionPhase.easy) ?? Icons.flight_outlined,
       ),
-      value: enabled,
-      onChanged: (v) => ref.read(showFeedPlaneProvider.notifier).set(v),
+      title: const Text('Home companion'),
+      subtitle: Text(selected.description),
+      trailing: DropdownButton<CompanionStyle>(
+        value: selected,
+        items: [
+          for (final s in CompanionStyle.values)
+            DropdownMenuItem(value: s, child: Text(s.label)),
+        ],
+        onChanged: (s) {
+          if (s != null) ref.read(companionStyleProvider.notifier).setStyle(s);
+        },
+      ),
     );
   }
 }
