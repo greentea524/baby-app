@@ -87,6 +87,20 @@ pw.Widget _overview(ReportSummary s, UnitSystem units) {
           : '${_num(s.totalBottleMl)} ml (${formatFlOz(s.totalBottleMl)} fl oz)',
     ],
     ['Breastfeeding total', '${s.totalBreastMinutes} min'],
+    // Its own rows, never folded into the bottle total: pumping is output
+    // from the parent, and the same milk usually comes back as a bottle
+    // already counted above. Only shown when there was any, so reports for
+    // families who do not pump stay as short as they were.
+    if (s.totalPumps > 0) ...[
+      ['Pump sessions', '${s.totalPumps}'],
+      [
+        'Pumped total',
+        units.isMetric
+            ? '${_num(s.totalPumpedMl)} ml'
+            : '${_num(s.totalPumpedMl)} ml '
+                  '(${formatFlOz(s.totalPumpedMl)} fl oz)',
+      ],
+    ],
     // Listed apart from the feed count, and only when there were any: a
     // pediatrician reading "feeds per day" should not have top-ups folded in,
     // but the volume above does include them.
@@ -106,6 +120,9 @@ pw.Widget _overview(ReportSummary s, UnitSystem units) {
 }
 
 pw.Widget _dailyTable(ReportSummary s, UnitSystem units) {
+  // The column is dropped entirely for families who do not pump, rather than
+  // printed as a row of zeros across every day.
+  final pumped = s.totalPumps > 0;
   return pw.Table(
     border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
     children: [
@@ -117,6 +134,7 @@ pw.Widget _dailyTable(ReportSummary s, UnitSystem units) {
           _cell('Bottle (ml)', bold: true),
           if (!units.isMetric) _cell('Bottle (fl oz)', bold: true),
           _cell('Breast (min)', bold: true),
+          if (pumped) _cell('Pumped (ml)', bold: true),
           _cell('Diapers', bold: true),
         ],
       ),
@@ -131,6 +149,7 @@ pw.Widget _dailyTable(ReportSummary s, UnitSystem units) {
                 row.stats.bottleMl == 0 ? '' : formatFlOz(row.stats.bottleMl),
               ),
             _cell('${row.stats.breastMinutes}'),
+            if (pumped) _cell(_num(row.stats.pumpedMl)),
             _cell('${row.stats.diaperCount}'),
           ],
         ),

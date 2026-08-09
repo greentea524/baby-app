@@ -37,5 +37,6 @@ class ExportData {
   /// Units the report is rendered in; storage stays metric.
   final UnitSystem units;
 
-  bool get isEmpty => feedings.isEmpty && diapers.isEmpty && growth.isEmpty;
+  bool get isEmpty =>
+      feedings.isEmpty && diapers.isEmpty && growth.isEmpty && pumps.isEmpty;
 }
