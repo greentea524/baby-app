@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import 'feeding_format.dart';
 
@@ -14,16 +15,9 @@ Future<void> showFeedingQuickLog(
   BuildContext context, {
   FeedingEvent? existing,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: _QuickLogSheet(existing: existing),
-    ),
+  return showAppSheet<void>(
+    context,
+    builder: (_) => _QuickLogSheet(existing: existing),
   );
 }
 
@@ -42,17 +36,12 @@ class _QuickLogSheetState extends State<_QuickLogSheet> {
   @override
   Widget build(BuildContext context) {
     final existing = widget.existing;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: switch (_mode) {
-          null => _TypeChooser(onSelected: (t) => setState(() => _mode = t)),
-          FeedingType.breast => _BreastForm(existing: existing),
-          FeedingType.bottle => _BottleForm(existing: existing),
-          FeedingType.solids => _SolidsForm(existing: existing),
-        },
-      ),
-    );
+    return switch (_mode) {
+      null => _TypeChooser(onSelected: (t) => setState(() => _mode = t)),
+      FeedingType.breast => _BreastForm(existing: existing),
+      FeedingType.bottle => _BottleForm(existing: existing),
+      FeedingType.solids => _SolidsForm(existing: existing),
+    };
   }
 }
 

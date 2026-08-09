@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format/unit_system.dart';
 import '../../data/models/growth_measurement.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/app_sheet.dart';
 import 'growth_units.dart';
 
 /// Opens the growth measurement sheet. Pass [existing] to edit.
@@ -11,16 +12,9 @@ Future<void> showGrowthLog(
   BuildContext context, {
   GrowthMeasurement? existing,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: _GrowthSheet(existing: existing),
-    ),
+  return showAppSheet<void>(
+    context,
+    builder: (_) => _GrowthSheet(existing: existing),
   );
 }
 
@@ -161,68 +155,61 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          isEdit ? 'Edit measurement' : 'Log measurement',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 16),
+        Row(
           children: [
-            Text(
-              isEdit ? 'Edit measurement' : 'Log measurement',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Icon(Icons.event, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('${_date.month}/${_date.day}/${_date.year}'),
-                ),
-                TextButton(onPressed: _pickDate, child: const Text('Change')),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // Metric weighs in a single decimal field; US splits into whole
-            // pounds plus ounces, which is how scales and paediatricians
-            // report it.
-            if (_units.isMetric)
-              _numberField(_weight, 'Weight', 'kg')
-            else
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _numberField(_weight, 'Weight', 'lb')),
-                  const SizedBox(width: 12),
-                  Expanded(child: _numberField(_oz, 'Ounces', 'oz')),
-                ],
-              ),
-            const SizedBox(height: 12),
-            _numberField(_height, 'Height', _lengthUnit),
-            const SizedBox(height: 12),
-            _numberField(_head, 'Head circumference', _lengthUnit),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _busy ? null : _save,
-              child: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(isEdit ? 'Save changes' : 'Save'),
-            ),
+            const Icon(Icons.event, size: 20),
+            const SizedBox(width: 8),
+            Expanded(child: Text('${_date.month}/${_date.day}/${_date.year}')),
+            TextButton(onPressed: _pickDate, child: const Text('Change')),
           ],
         ),
-      ),
+        const SizedBox(height: 8),
+        // Metric weighs in a single decimal field; US splits into whole
+        // pounds plus ounces, which is how scales and paediatricians
+        // report it.
+        if (_units.isMetric)
+          _numberField(_weight, 'Weight', 'kg')
+        else
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _numberField(_weight, 'Weight', 'lb')),
+              const SizedBox(width: 12),
+              Expanded(child: _numberField(_oz, 'Ounces', 'oz')),
+            ],
+          ),
+        const SizedBox(height: 12),
+        _numberField(_height, 'Height', _lengthUnit),
+        const SizedBox(height: 12),
+        _numberField(_head, 'Head circumference', _lengthUnit),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: _busy ? null : _save,
+          child: _busy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(isEdit ? 'Save changes' : 'Save'),
+        ),
+      ],
     );
   }
 

@@ -3,22 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/diaper_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import 'diaper_format.dart';
 
 /// Opens the diaper quick-log sheet. Pass [existing] to edit (KAN-150);
 /// omit it to log a new change (KAN-148).
 Future<void> showDiaperQuickLog(BuildContext context, {DiaperEvent? existing}) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: _DiaperSheet(existing: existing),
-    ),
+  return showAppSheet<void>(
+    context,
+    builder: (_) => _DiaperSheet(existing: existing),
   );
 }
 
@@ -88,59 +82,51 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              isEdit ? 'Edit diaper change' : 'Log a diaper change',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            SegmentedButton<DiaperType>(
-              segments: [
-                for (final t in DiaperType.values)
-                  ButtonSegment(
-                    value: t,
-                    icon: Icon(DiaperFormat.typeIcon(t)),
-                    label: Text(DiaperFormat.typeLabel(t)),
-                  ),
-              ],
-              selected: {_type},
-              onSelectionChanged: (s) => setState(() => _type = s.first),
-            ),
-            const SizedBox(height: 16),
-            EventTimeRow(
-              time: _time,
-              onChanged: (t) => setState(() => _time = t),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _notesController,
-              decoration: const InputDecoration(
-                labelText: 'Notes (color / consistency, optional)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              // Only reachable by editing a record that was already stamped
-              // ahead; the row above says why the button is dead.
-              onPressed: _busy || isFutureLogTime(_time) ? null : _save,
-              child: _busy
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(isEdit ? 'Save changes' : 'Save'),
-            ),
-          ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          isEdit ? 'Edit diaper change' : 'Log a diaper change',
+          style: Theme.of(context).textTheme.titleLarge,
         ),
-      ),
+        const SizedBox(height: 16),
+        SegmentedButton<DiaperType>(
+          segments: [
+            for (final t in DiaperType.values)
+              ButtonSegment(
+                value: t,
+                icon: Icon(DiaperFormat.typeIcon(t)),
+                label: Text(DiaperFormat.typeLabel(t)),
+              ),
+          ],
+          selected: {_type},
+          onSelectionChanged: (s) => setState(() => _type = s.first),
+        ),
+        const SizedBox(height: 16),
+        EventTimeRow(time: _time, onChanged: (t) => setState(() => _time = t)),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _notesController,
+          decoration: const InputDecoration(
+            labelText: 'Notes (color / consistency, optional)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          // Only reachable by editing a record that was already stamped
+          // ahead; the row above says why the button is dead.
+          onPressed: _busy || isFutureLogTime(_time) ? null : _save,
+          child: _busy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(isEdit ? 'Save changes' : 'Save'),
+        ),
+      ],
     );
   }
 }

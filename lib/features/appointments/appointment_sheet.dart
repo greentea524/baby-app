@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/appointment.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/app_sheet.dart';
 import 'appointment_format.dart';
 
 /// Opens the appointment sheet. Pass [existing] to edit.
@@ -10,16 +11,9 @@ Future<void> showAppointmentSheet(
   BuildContext context, {
   Appointment? existing,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: _AppointmentSheet(existing: existing),
-    ),
+  return showAppSheet<void>(
+    context,
+    builder: (_) => _AppointmentSheet(existing: existing),
   );
 }
 
@@ -134,92 +128,85 @@ class _AppointmentSheetState extends ConsumerState<_AppointmentSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _isEdit ? 'Edit appointment' : 'New appointment',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<AppointmentKind>(
-                initialValue: _kind,
-                decoration: const InputDecoration(
-                  labelText: 'Type',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  for (final k in AppointmentKind.values)
-                    DropdownMenuItem(
-                      value: k,
-                      child: Row(
-                        children: [
-                          Icon(AppointmentFormat.kindIcon(k), size: 18),
-                          const SizedBox(width: 8),
-                          Text(AppointmentFormat.kindLabel(k)),
-                        ],
-                      ),
-                    ),
-                ],
-                onChanged: (k) {
-                  if (k != null) setState(() => _kind = k);
-                },
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _pickDate,
-                      icon: const Icon(Icons.event, size: 18),
-                      label: Text('${_at.month}/${_at.day}/${_at.year}'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _pickTime,
-                      icon: const Icon(Icons.schedule, size: 18),
-                      label: Text(TimeOfDay.fromDateTime(_at).format(context)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _field(_title, 'Title', hint: 'e.g. 6-month well visit'),
-              const SizedBox(height: 12),
-              _field(_provider, 'Doctor or clinic'),
-              const SizedBox(height: 12),
-              _field(_location, 'Location'),
-              const SizedBox(height: 12),
-              _field(_notes, 'Notes', maxLines: 2),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ],
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: _busy ? null : _save,
-                child: _busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(_isEdit ? 'Save changes' : 'Save'),
-              ),
-            ],
-          ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          _isEdit ? 'Edit appointment' : 'New appointment',
+          style: Theme.of(context).textTheme.titleLarge,
         ),
-      ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<AppointmentKind>(
+          initialValue: _kind,
+          decoration: const InputDecoration(
+            labelText: 'Type',
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            for (final k in AppointmentKind.values)
+              DropdownMenuItem(
+                value: k,
+                child: Row(
+                  children: [
+                    Icon(AppointmentFormat.kindIcon(k), size: 18),
+                    const SizedBox(width: 8),
+                    Text(AppointmentFormat.kindLabel(k)),
+                  ],
+                ),
+              ),
+          ],
+          onChanged: (k) {
+            if (k != null) setState(() => _kind = k);
+          },
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _pickDate,
+                icon: const Icon(Icons.event, size: 18),
+                label: Text('${_at.month}/${_at.day}/${_at.year}'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _pickTime,
+                icon: const Icon(Icons.schedule, size: 18),
+                label: Text(TimeOfDay.fromDateTime(_at).format(context)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _field(_title, 'Title', hint: 'e.g. 6-month well visit'),
+        const SizedBox(height: 12),
+        _field(_provider, 'Doctor or clinic'),
+        const SizedBox(height: 12),
+        _field(_location, 'Location'),
+        const SizedBox(height: 12),
+        _field(_notes, 'Notes', maxLines: 2),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            _error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: _busy ? null : _save,
+          child: _busy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(_isEdit ? 'Save changes' : 'Save'),
+        ),
+      ],
     );
   }
 
