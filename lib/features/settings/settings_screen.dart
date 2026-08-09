@@ -57,6 +57,7 @@ class SettingsScreen extends ConsumerWidget {
           const _HomeLayoutPicker(),
           const _UnitsPicker(),
           const _PumpingActionToggle(),
+          const _FeedPlaneToggle(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.group_outlined),
@@ -226,6 +227,28 @@ class _PumpingActionToggle extends ConsumerWidget {
       ),
       value: enabled,
       onChanged: (v) => ref.read(showPumpingActionProvider.notifier).set(v),
+    );
+  }
+}
+
+/// The little plane in Home's app bar corner (#14). Purely decorative, so it
+/// gets a switch rather than an explanation of what it is for.
+class _FeedPlaneToggle extends ConsumerWidget {
+  const _FeedPlaneToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(showFeedPlaneProvider);
+    return SwitchListTile(
+      secondary: const Icon(Icons.flight),
+      title: const Text('Feed plane'),
+      subtitle: Text(
+        enabled
+            ? 'Lands when a feed is due, takes off when you log one'
+            : 'Hidden',
+      ),
+      value: enabled,
+      onChanged: (v) => ref.read(showFeedPlaneProvider.notifier).set(v),
     );
   }
 }
