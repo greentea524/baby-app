@@ -44,6 +44,28 @@ class HomeLayoutNotifier extends Notifier<HomeLayout> {
   }
 }
 
+const _showFeedPlaneKey = 'show_feed_plane';
+
+/// Whether Home flies a little plane in the app bar corner (#14).
+///
+/// On by default. It is a decoration nobody has to interact with, and one
+/// that hides behind a setting before it has ever been seen is one nobody
+/// finds. Off is a single tap away for anyone who finds it fidgety.
+final showFeedPlaneProvider = NotifierProvider<ShowFeedPlaneNotifier, bool>(
+  ShowFeedPlaneNotifier.new,
+);
+
+class ShowFeedPlaneNotifier extends Notifier<bool> {
+  @override
+  bool build() =>
+      ref.read(sharedPreferencesProvider).getBool(_showFeedPlaneKey) ?? true;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await ref.read(sharedPreferencesProvider).setBool(_showFeedPlaneKey, value);
+  }
+}
+
 const _showPumpingKey = 'show_pumping_action';
 
 /// Whether Home offers a "Log pumping" button (KAN-181).

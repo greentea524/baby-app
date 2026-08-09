@@ -106,6 +106,20 @@ final lastMilkFeedProvider = Provider<FeedingEvent?>((ref) {
   return null;
 });
 
+/// The most recent feed that resets the milk clock, or null.
+///
+/// Narrower than [lastMilkFeedProvider], which counts snacks. Anything keying
+/// off "a feed just happened" wants this one: a top-up does not move the
+/// next-feed time, so treating it as a new feed makes whatever is watching
+/// react to a clock that never moved.
+final lastClockFeedProvider = Provider<FeedingEvent?>((ref) {
+  final feeds = ref.watch(recentFeedingsProvider).value ?? const [];
+  for (final f in feeds) {
+    if (f.drivesFeedClock) return f;
+  }
+  return null;
+});
+
 /// The most recent solids, or null when none have been logged. Powers the
 /// home "Last ate" row, which has no prediction attached.
 final lastSolidsProvider = Provider<FeedingEvent?>((ref) {
