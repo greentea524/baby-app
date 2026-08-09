@@ -100,22 +100,86 @@ void main() {
       }
     });
 
-    test('every style has a distinct glyph for every phase', () {
-      // Two phases sharing an icon is allowed — the plane lands and waits in
-      // the same pose — but a style whose four phases are all one icon says
-      // nothing at all.
+    test('every style tells its phases apart somehow', () {
+      // By icon, by fill, or by pose — the bottle keeps one glyph and says
+      // everything with its level, so requiring distinct icons would have
+      // ruled out the style with the most to say.
+      const size = Size(48, 56);
       for (final style in CompanionStyle.values) {
         final art = style.art;
         if (art == null) continue;
-        final icons = {
-          for (final phase in CompanionPhase.values) art.icon(phase),
-        };
+        final looks = <String>{};
+        for (final phase in CompanionPhase.values) {
+          final pose = art.pose(phase, size, drift: 0, celebrate: 0.5);
+          final level = art.level(phase, progress: 0.5, celebrate: 0.5);
+          looks.add('${art.icon(phase).codePoint}|$pose|$level');
+        }
         expect(
-          icons.length,
+          looks.length,
           greaterThan(1),
-          reason: '${style.name} draws the same thing whatever happens',
+          reason: '${style.name} looks the same whatever happens',
         );
       }
+    });
+
+    test('only the bottle draws a level, and it runs full to empty', () {
+      const bottle = BottleArt();
+      // Full the moment a feed lands, empty by the time the next is due.
+      expect(
+        bottle.level(CompanionPhase.easy, progress: 0, celebrate: 0),
+        1,
+      );
+      expect(
+        bottle.level(CompanionPhase.due, progress: 1, celebrate: 0),
+        0,
+      );
+      expect(
+        bottle.level(CompanionPhase.soon, progress: 0.5, celebrate: 0),
+        closeTo(0.5, 0.001),
+      );
+
+      for (final art in [
+        const PlaneArt(),
+        const HourglassArt(),
+        const BatteryArt(),
+      ]) {
+        for (final phase in CompanionPhase.values) {
+          expect(art.level(phase, progress: 0.5, celebrate: 0.5), isNull);
+        }
+      }
+    });
+
+    test('the bottle never overfills or goes negative', () {
+      // progress is clamped upstream, but an overdue feed pushing past 1 or a
+      // clock skew pushing below 0 would otherwise clip outside the glyph.
+      const bottle = BottleArt();
+      for (final progress in [-0.5, 0.0, 0.5, 1.0, 1.5]) {
+        for (final phase in CompanionPhase.values) {
+          final level = bottle.level(
+            phase,
+            progress: progress,
+            celebrate: 0.5,
+          );
+          expect(level, isNotNull);
+          expect(level!, inInclusiveRange(0, 1));
+        }
+      }
+    });
+
+    test('the bottle pours back to full when a feed lands', () {
+      const bottle = BottleArt();
+      final start = bottle.level(
+        CompanionPhase.justFed,
+        progress: 1,
+        celebrate: 0,
+      );
+      final end = bottle.level(
+        CompanionPhase.justFed,
+        progress: 1,
+        celebrate: 1,
+      );
+      expect(start, 0, reason: 'starts from empty, whatever the clock says');
+      expect(end, 1);
     });
 
     test('every style poses inside its box, whatever the phase', () {

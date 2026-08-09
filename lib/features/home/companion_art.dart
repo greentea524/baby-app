@@ -11,6 +11,7 @@ import '../reminders/feed_prediction.dart';
 enum CompanionStyle {
   off('Off', 'Nothing in the corner'),
   plane('Plane', 'Lands when a feed is due, takes off when you log one'),
+  bottle('Bottle', 'Empties toward the feed, refills when you log one'),
   hourglass('Hourglass', 'Runs out toward the feed, flips when you log one'),
   battery('Battery', 'Drains toward the feed, charges when you log one');
 
@@ -26,6 +27,7 @@ enum CompanionStyle {
   CompanionArt? get art => switch (this) {
     CompanionStyle.off => null,
     CompanionStyle.plane => const PlaneArt(),
+    CompanionStyle.bottle => const BottleArt(),
     CompanionStyle.hourglass => const HourglassArt(),
     CompanionStyle.battery => const BatteryArt(),
   };
@@ -74,6 +76,19 @@ abstract class CompanionArt {
     required double drift,
     required double celebrate,
   });
+
+  /// How full to draw the glyph, 0..1 from the bottom, or null to draw it
+  /// whole.
+  ///
+  /// [progress] runs 0 at the last feed to 1 at the next one due. Styles that
+  /// use it turn the countdown into something continuous — "about half way"
+  /// rather than "not amber yet" — which is more than the three phases can
+  /// say on their own.
+  double? level(
+    CompanionPhase phase, {
+    required double progress,
+    required double celebrate,
+  }) => null;
 
   /// Whether to rule a line under the companion for [phase].
   bool ground(CompanionPhase phase) => false;
@@ -154,6 +169,46 @@ class PlaneArt extends CompanionArt {
           opacity: 1 - fade,
         );
     }
+  }
+}
+
+/// A bottle that empties toward the next feed and refills when one is logged
+/// (#17).
+///
+/// The app already draws `Icons.local_drink` for a bottle feed, so this is
+/// its own icon rather than a borrowed one.
+///
+/// The only style whose reading is continuous: the other three strike three
+/// poses, but the level renders where `now` actually sits between the last
+/// feed and the next, so a glance answers "about half way" rather than only
+/// "not amber yet".
+class BottleArt extends CompanionArt {
+  const BottleArt();
+
+  @override
+  IconData icon(CompanionPhase phase) => Icons.local_drink;
+
+  @override
+  CompanionPose pose(
+    CompanionPhase phase,
+    Size size, {
+    required double drift,
+    required double celebrate,
+  }) => _pose(Offset(size.width / 2, size.height / 2));
+
+  @override
+  double? level(
+    CompanionPhase phase, {
+    required double progress,
+    required double celebrate,
+  }) {
+    // Pouring back to full. Eased out so it slows as it fills, the way a
+    // bottle does, rather than slamming to the top.
+    if (phase == CompanionPhase.justFed) {
+      return Curves.easeOut.transform(celebrate);
+    }
+    // Full just after a feed, empty by the time the next one is due.
+    return (1 - progress).clamp(0.0, 1.0);
   }
 }
 

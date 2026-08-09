@@ -86,6 +86,7 @@ class _FeedCompanionState extends ConsumerState<FeedCompanion>
     final resting = phaseFor(
       feedDueState(due, now: widget.now, within: settings.headsUp),
     );
+    final progress = _progress(ref.read(lastClockFeedProvider)?.startTime, due);
     final phase = _celebrate.isAnimating ? CompanionPhase.justFed : resting;
 
     // Stilled, the companion still carries its phase — it just does not move.
@@ -112,12 +113,25 @@ class _FeedCompanionState extends ConsumerState<FeedCompanion>
                   : resting,
               drift: still ? 0.35 : _drift.value,
               celebrate: still ? 0 : _celebrate.value,
+              progress: progress,
               colors: CompanionColors.of(context),
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// How far through the wait we are: 0 at the last feed, 1 once due.
+  ///
+  /// Returns 1 — nothing left — whenever the span cannot be measured. A
+  /// missing last feed and a due time already behind it are both "you are
+  /// out of time", which is the safe direction for a countdown to round.
+  double _progress(DateTime? lastFedAt, DateTime due) {
+    if (lastFedAt == null) return 1;
+    final span = due.difference(lastFedAt).inSeconds;
+    if (span <= 0) return 1;
+    return (widget.now.difference(lastFedAt).inSeconds / span).clamp(0.0, 1.0);
   }
 
   /// Shared across styles on purpose: a screen reader wants the state, not
@@ -173,6 +187,7 @@ class _CompanionPainter extends CustomPainter {
     required this.phase,
     required this.drift,
     required this.celebrate,
+    required this.progress,
     required this.colors,
   });
 
@@ -180,6 +195,7 @@ class _CompanionPainter extends CustomPainter {
   final CompanionPhase phase;
   final double drift;
   final double celebrate;
+  final double progress;
   final CompanionColors colors;
 
   static const _iconSize = 22.0;
@@ -198,24 +214,19 @@ class _CompanionPainter extends CustomPainter {
       );
     }
 
-    final pose = art.pose(
-      phase,
-      size,
-      drift: drift,
-      celebrate: celebrate,
-    );
+    final pose = art.pose(phase, size, drift: drift, celebrate: celebrate);
     final icon = art.icon(phase);
+    final alpha = pose.opacity.clamp(0.0, 1.0);
+    final level = art.level(phase, progress: progress, celebrate: celebrate);
 
-    final painter = TextPainter(
+    TextPainter glyph(Color color) => TextPainter(
       text: TextSpan(
         text: String.fromCharCode(icon.codePoint),
         style: TextStyle(
           fontSize: _iconSize,
           fontFamily: icon.fontFamily,
           package: icon.fontPackage,
-          color: colors
-              .forPhase(phase)
-              .withValues(alpha: pose.opacity.clamp(0, 1)),
+          color: color,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -224,7 +235,38 @@ class _CompanionPainter extends CustomPainter {
     canvas.save();
     canvas.translate(pose.at.dx, pose.at.dy);
     if (pose.angle != 0) canvas.rotate(pose.angle);
-    painter.paint(canvas, Offset(-painter.width / 2, -painter.height / 2));
+
+    final full = colors.forPhase(phase).withValues(alpha: alpha);
+    if (level == null) {
+      final p = glyph(full);
+      p.paint(canvas, Offset(-p.width / 2, -p.height / 2));
+    } else {
+      // Drawn twice: the whole glyph faintly, so the vessel is still there
+      // when it is empty, then the same glyph again clipped to the bottom
+      // [level] of its box. Clipping the glyph rather than drawing a bar
+      // keeps the fill inside whatever shape the icon happens to be.
+      //
+      // The empty part is not as faint as it could be, on purpose. A drained
+      // bottle *is* the urgent state, and at a whisper it was the one moment
+      // this style said less than the others — every one of them goes solid
+      // red when the feed is due.
+      final ghost = glyph(full.withValues(alpha: alpha * 0.45));
+      ghost.paint(canvas, Offset(-ghost.width / 2, -ghost.height / 2));
+
+      final p = glyph(full);
+      final half = p.height / 2;
+      canvas.save();
+      canvas.clipRect(
+        Rect.fromLTRB(
+          -p.width / 2,
+          half - p.height * level.clamp(0.0, 1.0),
+          p.width / 2,
+          half,
+        ),
+      );
+      p.paint(canvas, Offset(-p.width / 2, -half));
+      canvas.restore();
+    }
     canvas.restore();
   }
 
@@ -234,5 +276,6 @@ class _CompanionPainter extends CustomPainter {
       old.phase != phase ||
       old.drift != drift ||
       old.celebrate != celebrate ||
+      old.progress != progress ||
       old.colors.easy != colors.easy;
 }
