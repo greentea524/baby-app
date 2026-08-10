@@ -16,7 +16,14 @@ abstract final class DiaperFormat {
     DiaperType.both => Icons.change_circle,
   };
 
-  /// Notes are the only extra detail on a diaper (color/consistency, KAN-149).
-  static String details(DiaperEvent e) =>
-      (e.notes != null && e.notes!.trim().isNotEmpty) ? e.notes!.trim() : '';
+  /// Size then notes, joined so a row reads as one thing — "Large · green,
+  /// runny" — rather than as two fields competing for the same line
+  /// (#20, KAN-149).
+  static String details(DiaperEvent e) {
+    final notes = e.notes?.trim() ?? '';
+    return [
+      if (e.size != null) e.size!.label,
+      if (notes.isNotEmpty) notes,
+    ].join(' · ');
+  }
 }

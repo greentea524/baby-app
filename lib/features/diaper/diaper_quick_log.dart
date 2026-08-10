@@ -28,6 +28,7 @@ class _DiaperSheet extends ConsumerStatefulWidget {
 class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
   late DiaperType _type;
   late DateTime _time;
+  DiaperSize? _size;
   final _notesController = TextEditingController();
   bool _busy = false;
 
@@ -37,6 +38,7 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
     final e = widget.existing;
     _type = e?.type ?? DiaperType.wet;
     _time = e?.time ?? DateTime.now();
+    _size = e?.size;
     if (e?.notes != null) _notesController.text = e!.notes!;
   }
 
@@ -59,6 +61,7 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
+      size: _size,
     );
     setState(() => _busy = true);
     try {
@@ -101,8 +104,36 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
               ),
           ],
           selected: {_type},
-          onSelectionChanged: (s) => setState(() => _type = s.first),
+          onSelectionChanged: (s) => setState(() {
+            _type = s.first;
+            // A wet-only change has nothing to size, so a size picked before
+            // the type was changed goes with it.
+            if (_type == DiaperType.wet) _size = null;
+          }),
         ),
+        // Only where there is something to measure, and never required —
+        // tapping the chosen size again clears it.
+        if (_type != DiaperType.wet) ...[
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Size (optional)',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ),
+          const SizedBox(height: 6),
+          SegmentedButton<DiaperSize>(
+            segments: [
+              for (final size in DiaperSize.values)
+                ButtonSegment(value: size, label: Text(size.label)),
+            ],
+            emptySelectionAllowed: true,
+            selected: {?_size},
+            onSelectionChanged: (s) =>
+                setState(() => _size = s.isEmpty ? null : s.first),
+          ),
+        ],
         const SizedBox(height: 16),
         EventTimeRow(time: _time, onChanged: (t) => setState(() => _time = t)),
         const SizedBox(height: 12),
