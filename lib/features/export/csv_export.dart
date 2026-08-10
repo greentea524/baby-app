@@ -14,6 +14,7 @@ String buildCsv(ExportData data) {
     'Date',
     'Time',
     'Subtype',
+    'Poop size',
     'Snack',
     'Duration (min)',
     'Amount (ml)',
@@ -34,6 +35,7 @@ String buildCsv(ExportData data) {
           _date(f.startTime),
           _time(f.startTime),
           f.type.name,
+          '',
           // Blank rather than "no", so filtering on "yes" is one click and the
           // column stays quiet on the many rows it does not apply to.
           f.isSnack ? 'yes' : '',
@@ -59,6 +61,7 @@ String buildCsv(ExportData data) {
           _time(p.time),
           '',
           '',
+          '',
           p.durationMinutes?.toString() ?? '',
           _num(p.amountMl),
           if (!metric) p.amountMl == null ? '' : formatFlOz(p.amountMl!),
@@ -77,6 +80,7 @@ String buildCsv(ExportData data) {
           _date(d.time),
           _time(d.time),
           d.type.name,
+          d.poopSize?.label ?? '',
           '',
           '',
           '',
@@ -94,6 +98,7 @@ String buildCsv(ExportData data) {
         cells: [
           'Growth',
           _date(g.date),
+          '',
           '',
           '',
           '',

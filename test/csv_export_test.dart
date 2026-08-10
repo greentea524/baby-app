@@ -197,6 +197,75 @@ void main() {
     });
   });
 
+  group('poop size (#20)', () {
+    DiaperEvent change(DiaperType type, {PoopSize? size}) => DiaperEvent(
+      id: '${type.name}${size?.name ?? ''}',
+      type: type,
+      time: DateTime(2026, 7, 30, 9),
+      poopSize: size,
+    );
+
+    test('the sheet has a Poop size column', () {
+      final csv = buildCsv(_data(diapers: [change(DiaperType.dirty)]));
+      expect(csv.split('\n').first, contains('Poop size'));
+    });
+
+    test('a recorded size lands under it, and nothing else does', () {
+      // The export has to carry what the app stores, or two exports of one
+      // window disagree — which is exactly what the PDF did with pumping
+      // until it was fixed.
+      final rows = buildCsv(
+        _data(
+          diapers: [
+            change(DiaperType.dirty, size: PoopSize.large),
+            change(DiaperType.wet),
+          ],
+        ),
+      ).trim().split('\n');
+      final column = rows.first.split(',').indexOf('Poop size');
+      expect(column, greaterThan(-1));
+
+      final values = rows.skip(1).map((r) => r.split(',')[column]).toList();
+      expect(values, containsAll(<String>['Large', '']));
+    });
+
+    test('every row stays the same width once Poop size is padded in', () {
+      // The new column has to reach the feeding, pumping and growth rows too,
+      // or the sheet shears sideways from the first non-diaper entry.
+      final rows = buildCsv(
+        _data(
+          feedings: [
+            FeedingEvent(
+              id: 'f',
+              type: FeedingType.bottle,
+              startTime: DateTime(2026, 7, 30, 8),
+              amountMl: 120,
+            ),
+          ],
+          diapers: [change(DiaperType.both, size: PoopSize.small)],
+          growth: [
+            GrowthMeasurement(
+              id: 'g',
+              date: DateTime(2026, 7, 30),
+              weightKg: 7.2,
+            ),
+          ],
+          pumps: [
+            PumpingEvent(
+              id: 'p',
+              time: DateTime(2026, 7, 30, 7),
+              amountMl: 90,
+            ),
+          ],
+        ),
+      ).trim().split('\n');
+      final width = rows.first.split(',').length;
+      for (final row in rows.skip(1)) {
+        expect(row.split(','), hasLength(width), reason: row);
+      }
+    });
+  });
+
   group('snacks', () {
     FeedingEvent feed({required bool isSnack}) => FeedingEvent(
       id: isSnack ? 's1' : 'f1',
