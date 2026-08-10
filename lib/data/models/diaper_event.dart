@@ -7,18 +7,18 @@ enum DiaperType { wet, dirty, both }
 /// Optional everywhere. Someone logging a change one-handed at 3am should not
 /// be made to answer a second question, so "not saying" is a first-class
 /// answer rather than a gap to be filled in later.
-enum DiaperSize {
+enum PoopSize {
   small('Small'),
   medium('Medium'),
   large('Large');
 
-  const DiaperSize(this.label);
+  const PoopSize(this.label);
 
   final String label;
 
   /// Tolerant of null and of a value this build does not know, since both
   /// mean the same thing to a reader: no size recorded.
-  static DiaperSize? fromName(String? name) =>
+  static PoopSize? fromName(String? name) =>
       name == null ? null : values.asNameMap()[name];
 }
 
@@ -34,8 +34,8 @@ class DiaperEvent {
     required this.type,
     required this.time,
     this.notes,
-    DiaperSize? size,
-  }) : size = type == DiaperType.wet ? null : size;
+    PoopSize? poopSize,
+  }) : poopSize = type == DiaperType.wet ? null : poopSize;
 
   final String id;
   final DiaperType type;
@@ -43,10 +43,11 @@ class DiaperEvent {
   final String? notes;
 
   /// How big it was, or null when nobody said.
-  final DiaperSize? size;
+  final PoopSize? poopSize;
 
-  /// Whether this change has a stool component, and so can carry a [size].
-  bool get hasStool => type != DiaperType.wet;
+  /// Whether this change has a poop component, and so can carry a
+  /// [poopSize].
+  bool get hasPoop => type != DiaperType.wet;
 
   factory DiaperEvent.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
@@ -56,7 +57,7 @@ class DiaperEvent {
       time: (data['time'] as Timestamp).toDate(),
       notes: data['notes'] as String?,
       // Absent on every change logged before sizes existed.
-      size: DiaperSize.fromName(data['size'] as String?),
+      poopSize: PoopSize.fromName(data['poopSize'] as String?),
     );
   }
 
@@ -64,6 +65,6 @@ class DiaperEvent {
     'type': type.name,
     'time': Timestamp.fromDate(time),
     'notes': notes,
-    'size': size?.name,
+    'poopSize': poopSize?.name,
   };
 }

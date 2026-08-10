@@ -28,7 +28,7 @@ class _DiaperSheet extends ConsumerStatefulWidget {
 class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
   late DiaperType _type;
   late DateTime _time;
-  DiaperSize? _size;
+  PoopSize? _size;
   final _notesController = TextEditingController();
   bool _busy = false;
 
@@ -38,7 +38,7 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
     final e = widget.existing;
     _type = e?.type ?? DiaperType.wet;
     _time = e?.time ?? DateTime.now();
-    _size = e?.size;
+    _size = e?.poopSize;
     if (e?.notes != null) _notesController.text = e!.notes!;
   }
 
@@ -61,7 +61,7 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
-      size: _size,
+      poopSize: _size,
     );
     setState(() => _busy = true);
     try {
@@ -118,14 +118,14 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Size (optional)',
+              'Poop size (optional)',
               style: Theme.of(context).textTheme.labelMedium,
             ),
           ),
           const SizedBox(height: 6),
-          SegmentedButton<DiaperSize>(
+          SegmentedButton<PoopSize>(
             segments: [
-              for (final size in DiaperSize.values)
+              for (final size in PoopSize.values)
                 ButtonSegment(value: size, label: Text(size.label)),
             ],
             emptySelectionAllowed: true,

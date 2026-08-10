@@ -22,7 +22,7 @@ abstract final class DiaperFormat {
   static String details(DiaperEvent e) {
     final notes = e.notes?.trim() ?? '';
     return [
-      if (e.size != null) e.size!.label,
+      if (e.poopSize != null) e.poopSize!.label,
       if (notes.isNotEmpty) notes,
     ].join(' · ');
   }

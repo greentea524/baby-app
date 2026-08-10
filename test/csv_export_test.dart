@@ -197,17 +197,17 @@ void main() {
     });
   });
 
-  group('diaper size (#20)', () {
-    DiaperEvent change(DiaperType type, {DiaperSize? size}) => DiaperEvent(
+  group('poop size (#20)', () {
+    DiaperEvent change(DiaperType type, {PoopSize? size}) => DiaperEvent(
       id: '${type.name}${size?.name ?? ''}',
       type: type,
       time: DateTime(2026, 7, 30, 9),
-      size: size,
+      poopSize: size,
     );
 
-    test('the sheet has a Size column', () {
+    test('the sheet has a Poop size column', () {
       final csv = buildCsv(_data(diapers: [change(DiaperType.dirty)]));
-      expect(csv.split('\n').first, contains('Size'));
+      expect(csv.split('\n').first, contains('Poop size'));
     });
 
     test('a recorded size lands under it, and nothing else does', () {
@@ -217,19 +217,19 @@ void main() {
       final rows = buildCsv(
         _data(
           diapers: [
-            change(DiaperType.dirty, size: DiaperSize.large),
+            change(DiaperType.dirty, size: PoopSize.large),
             change(DiaperType.wet),
           ],
         ),
       ).trim().split('\n');
-      final column = rows.first.split(',').indexOf('Size');
+      final column = rows.first.split(',').indexOf('Poop size');
       expect(column, greaterThan(-1));
 
       final values = rows.skip(1).map((r) => r.split(',')[column]).toList();
       expect(values, containsAll(<String>['Large', '']));
     });
 
-    test('every row stays the same width once Size is padded in', () {
+    test('every row stays the same width once Poop size is padded in', () {
       // The new column has to reach the feeding, pumping and growth rows too,
       // or the sheet shears sideways from the first non-diaper entry.
       final rows = buildCsv(
@@ -242,7 +242,7 @@ void main() {
               amountMl: 120,
             ),
           ],
-          diapers: [change(DiaperType.both, size: DiaperSize.small)],
+          diapers: [change(DiaperType.both, size: PoopSize.small)],
           growth: [
             GrowthMeasurement(
               id: 'g',
