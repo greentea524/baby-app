@@ -181,6 +181,47 @@ class CompanionColors {
   };
 }
 
+/// Laid-out glyphs, kept between frames.
+///
+/// [TextPainter.layout] builds a `ui.Paragraph`, and a paragraph holds native
+/// Skia memory that is only released when the Dart object is collected. The
+/// painter used to build one — two, for the bottle — inside `paint()`, which
+/// runs on every frame the plane is cruising: sixty a second, for as long as
+/// Home is open. That is a lot of native allocation to leave to the garbage
+/// collector, and on the web it is a known way to grow a tab until it dies.
+///
+/// The position changes every frame; the glyph does not. Caching on what
+/// actually varies takes the steady state to no allocation at all.
+///
+/// Unbounded because the key space is not: four icons across a handful of
+/// theme colours, so a few dozen entries at the very most.
+final _glyphCache = <(int, int), TextPainter>{};
+
+TextPainter _glyph(IconData icon, Color color) =>
+    _glyphCache.putIfAbsent((icon.codePoint, color.toARGB32()), () {
+      return TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(icon.codePoint),
+          style: TextStyle(
+            fontSize: _CompanionPainter._iconSize,
+            fontFamily: icon.fontFamily,
+            package: icon.fontPackage,
+            color: color,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+    });
+
+/// How many distinct glyphs are being held. The point of the cache is that
+/// this stays flat while a companion animates, so a test can assert the
+/// steady state rather than trusting the comment above it.
+@visibleForTesting
+int get companionGlyphCacheSize => _glyphCache.length;
+
+@visibleForTesting
+void clearCompanionGlyphCache() => _glyphCache.clear();
+
 class _CompanionPainter extends CustomPainter {
   _CompanionPainter({
     required this.art,
@@ -219,26 +260,27 @@ class _CompanionPainter extends CustomPainter {
     final alpha = pose.opacity.clamp(0.0, 1.0);
     final level = art.level(phase, progress: progress, celebrate: celebrate);
 
-    TextPainter glyph(Color color) => TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(icon.codePoint),
-        style: TextStyle(
-          fontSize: _iconSize,
-          fontFamily: icon.fontFamily,
-          package: icon.fontPackage,
-          color: color,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-
     canvas.save();
     canvas.translate(pose.at.dx, pose.at.dy);
     if (pose.angle != 0) canvas.rotate(pose.angle);
 
-    final full = colors.forPhase(phase).withValues(alpha: alpha);
+    // Fading is done with a layer rather than by tinting the glyph, so a
+    // continuously changing alpha does not mint a cache entry per frame.
+    final fading = alpha < 1;
+    if (fading) {
+      canvas.saveLayer(
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: _iconSize * 2,
+          height: _iconSize * 2,
+        ),
+        Paint()..color = Color.fromRGBO(0, 0, 0, alpha),
+      );
+    }
+
+    final full = colors.forPhase(phase);
     if (level == null) {
-      final p = glyph(full);
+      final p = _glyph(icon, full);
       p.paint(canvas, Offset(-p.width / 2, -p.height / 2));
     } else {
       // Drawn twice: the whole glyph faintly, so the vessel is still there
@@ -250,10 +292,10 @@ class _CompanionPainter extends CustomPainter {
       // bottle *is* the urgent state, and at a whisper it was the one moment
       // this style said less than the others — every one of them goes solid
       // red when the feed is due.
-      final ghost = glyph(full.withValues(alpha: alpha * 0.45));
+      final ghost = _glyph(icon, full.withValues(alpha: 0.45));
       ghost.paint(canvas, Offset(-ghost.width / 2, -ghost.height / 2));
 
-      final p = glyph(full);
+      final p = _glyph(icon, full);
       final half = p.height / 2;
       canvas.save();
       canvas.clipRect(
@@ -267,6 +309,8 @@ class _CompanionPainter extends CustomPainter {
       p.paint(canvas, Offset(-p.width / 2, -half));
       canvas.restore();
     }
+
+    if (fading) canvas.restore();
     canvas.restore();
   }
 
