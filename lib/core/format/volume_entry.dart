@@ -1,14 +1,13 @@
-import 'unit_system.dart';
 import 'volume_format.dart';
 
 /// The unit a volume is being *typed* in (#—, follows KAN-182).
 ///
-/// Separate from [UnitSystem] because it changes per entry rather than per
-/// caregiver: a US kitchen has bottles marked in ounces and pump bags marked
-/// in millilitres, and you read whichever one is in front of you. The setting
-/// picks the default; this picks what you are holding.
+/// Deliberately not tied to the caregiver's unit setting. The unit changes
+/// per entry rather than per person — you read whichever is printed on the
+/// bottle in front of you — and starting somewhere predictable beats starting
+/// somewhere clever.
 ///
-/// Storage stays millilitres either way — see [UnitSystem].
+/// Storage stays millilitres either way.
 enum VolumeUnit {
   ml('ml'),
   flOz('fl oz');
@@ -17,9 +16,13 @@ enum VolumeUnit {
 
   final String label;
 
-  /// What to offer first for a caregiver on [system].
-  static VolumeUnit defaultFor(UnitSystem system) =>
-      system.isMetric ? VolumeUnit.ml : VolumeUnit.flOz;
+  /// What every amount field opens in.
+  ///
+  /// Millilitres regardless of the caregiver's unit setting, because that is
+  /// what the thing in your hand is marked in: bottles and pump bags carry ml
+  /// even in a US kitchen, and formula scoops are dosed against it. Ounces
+  /// are a tap away for anyone reading a bottle the other way round.
+  static const initial = VolumeUnit.ml;
 
   /// A typed amount, in millilitres.
   double toMl(double typed) =>

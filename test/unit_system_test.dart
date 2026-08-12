@@ -21,7 +21,7 @@ void main() {
 
   group('formatVolume', () {
     test('US shows millilitres with the fluid-ounce equivalent', () {
-      expect(formatVolume(120, UnitSystem.us), '4.1 fl oz (120 ml)');
+      expect(formatVolume(120, UnitSystem.us), '120 ml (4.1 fl oz)');
     });
 
     test('metric shows millilitres alone', () {
@@ -30,7 +30,7 @@ void main() {
 
     test('both keep the ml figure, since that is what was typed in', () {
       for (final u in UnitSystem.values) {
-        expect(formatVolume(90, u), contains('90 ml'));
+        expect(formatVolume(90, u), startsWith('90 ml'));
       }
     });
   });

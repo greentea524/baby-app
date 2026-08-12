@@ -19,7 +19,7 @@ void main() {
       );
       expect(
         PumpingFormat.details(e, UnitSystem.us),
-        '18 min · Both · 4.1 fl oz (120 ml)',
+        '18 min · Both · 120 ml (4.1 fl oz)',
       );
       expect(
         PumpingFormat.details(e, UnitSystem.metric),
@@ -33,7 +33,7 @@ void main() {
         time: DateTime(2026, 7, 23, 8),
         amountMl: 90,
       );
-      expect(PumpingFormat.details(e, UnitSystem.us), '3 fl oz (90 ml)');
+      expect(PumpingFormat.details(e, UnitSystem.us), '90 ml (3 fl oz)');
     });
   });
 
