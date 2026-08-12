@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/format/unit_system.dart';
+import '../../core/format/volume_entry.dart';
 import '../../data/models/feeding_event.dart' show BreastSide;
 import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
+import '../common/volume_field.dart';
 
 /// Opens the pumping quick-log sheet (KAN-145). Pass [existing] to edit.
 Future<void> showPumpingQuickLog(
@@ -33,7 +36,14 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
   final _notes = TextEditingController();
   BreastSide _side = BreastSide.both;
   late DateTime _time;
+  late VolumeUnit _unit;
   bool _busy = false;
+
+  /// See the bottle form: an amount that was never retyped must be stored
+  /// unchanged, or re-parsing the display unit rewrites a number nobody
+  /// touched.
+  double? _storedMl;
+  bool _amountEdited = false;
 
   @override
   void initState() {
@@ -41,11 +51,10 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
     final e = widget.existing;
     _time = e?.time ?? DateTime.now();
     _side = e?.side ?? BreastSide.both;
+    _unit = VolumeUnit.defaultFor(ref.read(unitSystemProvider));
+    _storedMl = e?.amountMl;
     if (e?.amountMl != null) {
-      final a = e!.amountMl!;
-      _amount.text = a == a.roundToDouble()
-          ? a.toStringAsFixed(0)
-          : a.toString();
+      _amount.text = _unit.fieldText(e!.amountMl!);
     }
     if (e?.durationMinutes != null) {
       _duration.text = e!.durationMinutes!.toString();
@@ -71,7 +80,7 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
       id: widget.existing?.id ?? '',
       time: _time,
       side: _side,
-      amountMl: double.tryParse(_amount.text.trim()),
+      amountMl: _amountMl(),
       durationMinutes: int.tryParse(_duration.text.trim()),
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
@@ -88,6 +97,15 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// The amount to store: what was typed, converted, or the stored value
+  /// untouched when the field was never edited.
+  double? _amountMl() {
+    final typed = double.tryParse(_amount.text.trim());
+    if (typed == null) return _amountEdited ? null : _storedMl;
+    if (!_amountEdited && _storedMl != null) return _storedMl;
+    return _unit.toMl(typed);
   }
 
   void _snack(String msg) {
@@ -116,35 +134,27 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
           onSelectionChanged: (s) => setState(() => _side = s.first),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _amount,
-                autofocus: !isEdit,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Amount',
-                  suffixText: 'ml',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _duration,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Duration',
-                  suffixText: 'min',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
-          ],
+        // Amount takes its own line now that it carries a unit toggle;
+        // three controls abreast do not fit a phone.
+        VolumeField(
+          controller: _amount,
+          unit: _unit,
+          autofocus: !isEdit,
+          onUnitChanged: (unit, text) => setState(() {
+            _unit = unit;
+            _amount.text = text;
+          }),
+          onChanged: (_) => _amountEdited = true,
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _duration,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Duration',
+            suffixText: 'min',
+            border: OutlineInputBorder(),
+          ),
         ),
         const SizedBox(height: 12),
         EventTimeRow(time: _time, onChanged: (t) => setState(() => _time = t)),

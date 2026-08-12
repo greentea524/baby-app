@@ -5,8 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../../core/format/unit_system.dart';
+import '../../core/format/volume_entry.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
+import '../common/volume_field.dart';
 import 'feeding_format.dart';
 
 /// Opens the feeding quick-log sheet. Pass [existing] to edit an entry
@@ -285,21 +288,33 @@ class _SnackToggle extends StatelessWidget {
   }
 }
 
-class _BottleForm extends StatefulWidget {
+class _BottleForm extends ConsumerStatefulWidget {
   const _BottleForm({this.existing});
 
   final FeedingEvent? existing;
 
   @override
-  State<_BottleForm> createState() => _BottleFormState();
+  ConsumerState<_BottleForm> createState() => _BottleFormState();
 }
 
-class _BottleFormState extends State<_BottleForm> {
+class _BottleFormState extends ConsumerState<_BottleForm> {
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
   late DateTime _time;
+  late VolumeUnit _unit;
   String? _amountError;
   bool _isSnack = false;
+
+  /// What was stored, and whether the field has actually been typed in.
+  ///
+  /// Editing an entry without touching the amount must store the amount
+  /// unchanged. Re-parsing the field would round-trip it through the display
+  /// unit — 150 ml shown as 5.1 fl oz, saved back as 150.8 — so correcting a
+  /// note would quietly rewrite a number nobody touched. It settles there
+  /// rather than walking further on each edit, which makes it a wrong value
+  /// rather than a runaway one; still not ours to write.
+  double? _storedMl;
+  bool _amountEdited = false;
 
   @override
   void initState() {
@@ -307,11 +322,10 @@ class _BottleFormState extends State<_BottleForm> {
     final e = widget.existing;
     _time = e?.startTime ?? DateTime.now();
     _isSnack = e?.isSnack ?? false;
+    _unit = VolumeUnit.defaultFor(ref.read(unitSystemProvider));
+    _storedMl = e?.amountMl;
     if (e?.amountMl != null) {
-      final amt = e!.amountMl!;
-      _amountController.text = amt.toStringAsFixed(
-        amt == amt.roundToDouble() ? 0 : 1,
-      );
+      _amountController.text = _unit.fieldText(e!.amountMl!);
     }
     if (e?.notes != null) _notesController.text = e!.notes!;
   }
@@ -324,16 +338,20 @@ class _BottleFormState extends State<_BottleForm> {
   }
 
   FeedingEvent? _build() {
-    final amount = double.tryParse(_amountController.text.trim());
-    if (amount == null || amount <= 0) {
-      setState(() => _amountError = 'Enter an amount in ml');
+    final typed = double.tryParse(_amountController.text.trim());
+    if (typed == null || typed <= 0) {
+      setState(() => _amountError = 'Enter an amount in ${_unit.label}');
       return null;
     }
+    // Only re-derive what was actually retyped; see [_storedMl].
+    final millilitres = _amountEdited || _storedMl == null
+        ? _unit.toMl(typed)
+        : _storedMl!;
     return FeedingEvent(
       id: widget.existing?.id ?? '',
       type: FeedingType.bottle,
       startTime: _time,
-      amountMl: amount,
+      amountMl: millilitres,
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
@@ -349,17 +367,17 @@ class _BottleFormState extends State<_BottleForm> {
       children: [
         Text('Bottle', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 16),
-        TextField(
+        VolumeField(
           controller: _amountController,
+          unit: _unit,
           autofocus: widget.existing == null,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            labelText: 'Amount',
-            suffixText: 'ml',
-            errorText: _amountError,
-            border: const OutlineInputBorder(),
-          ),
+          errorText: _amountError,
+          onUnitChanged: (unit, text) => setState(() {
+            _unit = unit;
+            _amountController.text = text;
+          }),
           onChanged: (_) {
+            _amountEdited = true;
             if (_amountError != null) setState(() => _amountError = null);
           },
         ),
