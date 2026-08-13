@@ -10,11 +10,17 @@ rules_version = '2';
 //   babies/{babyId}/feedings/{eventId}
 //   babies/{babyId}/diapers/{eventId}
 //   babies/{babyId}/growth/{eventId}
+//   babies/{babyId}/pumps/{eventId}
+//   babies/{babyId}/appointments/{eventId}
 //   babies/{babyId}/invites/{email}       (pending caregiver invitations)
 //
 // A caregiver may touch a baby (and its subcollections) only if their uid is
 // in that baby's memberUids. Joining is allowed only for someone holding a
 // matching invite, and only to add themselves.
+//
+// That list is exhaustive, and deliberately so — see the event subcollection
+// rules below. Adding a subcollection to the app now means adding it here as
+// well, which is a rules deploy before the feature can ship.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -179,14 +185,145 @@ service cloud.firestore {
           || (signedIn() && resource.data.email == request.auth.token.email);
       }
 
-      // Event subcollections: full access to members.
+      // --- Event subcollections (#22) --------------------------------------
       //
-      // `invites` is excluded because this wildcard also matches it, and
-      // Firestore grants an operation if *any* rule allows it — so a blanket
-      // member-write here silently overrode the narrower invite rules above,
-      // whatever they said.
-      match /{sub}/{docId} {
-        allow read, write: if isMember(babyId) && sub != 'invites';
+      // Named one at a time rather than matched by wildcard. The wildcard let
+      // a member create any collection they liked under a baby, and it also
+      // matched `invites` — and because Firestore allows an operation if
+      // *any* rule allows it, a blanket member-write here silently overrode
+      // the narrower invite rules above, whatever they said. Naming the five
+      // the app actually uses closes both at once.
+      //
+      // The realistic threat is not a malicious co-parent. It is that these
+      // rules are the only thing between a bug and the database: a loop that
+      // writes every frame, a bad migration, a mistyped field. All of it is
+      // billed, and all of it is permanent.
+
+      match /feedings/{docId} {
+        allow read, delete: if isMember(babyId);
+        allow create: if isMember(babyId) && authored() && feedingShape();
+        allow update: if isMember(babyId) && reauthored() && feedingShape();
+
+        function feedingShape() {
+          let d = request.resource.data;
+          return d.type in ['breast', 'bottle', 'solids']
+            && d.startTime is timestamp
+            && count(d.get('durationMinutes', null))
+            && amount(d.get('amountMl', null))
+            && side(d.get('side', null))
+            && text(d.get('notes', null))
+            && d.get('isSnack', false) is bool;
+        }
+      }
+
+      match /diapers/{docId} {
+        allow read, delete: if isMember(babyId);
+        allow create: if isMember(babyId) && authored() && diaperShape();
+        allow update: if isMember(babyId) && reauthored() && diaperShape();
+
+        function diaperShape() {
+          let d = request.resource.data;
+          return d.type in ['wet', 'dirty', 'both']
+            && d.time is timestamp
+            && optional(d.get('poopSize', null), ['small', 'medium', 'large'])
+            && text(d.get('notes', null));
+        }
+      }
+
+      match /growth/{docId} {
+        allow read, delete: if isMember(babyId);
+        allow create: if isMember(babyId) && authored() && growthShape();
+        allow update: if isMember(babyId) && reauthored() && growthShape();
+
+        function growthShape() {
+          let d = request.resource.data;
+          return d.date is timestamp
+            && amount(d.get('weightKg', null))
+            && amount(d.get('heightCm', null))
+            && amount(d.get('headCm', null));
+        }
+      }
+
+      // `pumps`, not `pumping`: the collection is named for what is stored,
+      // and getting this wrong would deny every pump the app writes.
+      match /pumps/{docId} {
+        allow read, delete: if isMember(babyId);
+        allow create: if isMember(babyId) && authored() && pumpShape();
+        allow update: if isMember(babyId) && reauthored() && pumpShape();
+
+        function pumpShape() {
+          let d = request.resource.data;
+          return d.time is timestamp
+            && count(d.get('durationMinutes', null))
+            && amount(d.get('amountMl', null))
+            && side(d.get('side', null))
+            && text(d.get('notes', null));
+        }
+      }
+
+      match /appointments/{docId} {
+        allow read, delete: if isMember(babyId);
+        allow create: if isMember(babyId) && authored() && appointmentShape();
+        allow update: if isMember(babyId) && reauthored() && appointmentShape();
+
+        function appointmentShape() {
+          let d = request.resource.data;
+          return d.at is timestamp
+            && d.kind in ['checkup', 'vaccination', 'specialist', 'dental',
+                          'other']
+            && (d.get('completedAt', null) == null || d.completedAt is timestamp)
+            && text(d.get('title', null))
+            && text(d.get('provider', null))
+            && text(d.get('location', null))
+            && text(d.get('notes', null));
+        }
+      }
+
+      // --- Shared field checks ---------------------------------------------
+      //
+      // Every optional field is written as an explicit null rather than
+      // omitted — that is what `toMap()` produces — so "absent" and "null"
+      // both have to pass. `get` with a null default covers a document
+      // written by an older client that predates the field.
+
+      // Who logged it. Stamped client-side and, until now, never checked, so
+      // a caregiver could record an entry under someone else's name. Nothing
+      // displays it yet, but it is stored as fact and was not one.
+      function authored() {
+        return request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt is timestamp;
+      }
+
+      // An edit may not rewrite who created the entry, and must own up to
+      // who changed it.
+      function reauthored() {
+        return request.resource.data.createdBy == resource.data.createdBy
+          && request.resource.data.updatedBy == request.auth.uid
+          && request.resource.data.updatedAt is timestamp;
+      }
+
+      // Millilitres, kilograms, centimetres. Negative is not a quantity.
+      function amount(v) {
+        return v == null || (v is number && v >= 0);
+      }
+
+      // Whole minutes.
+      function count(v) {
+        return v == null || (v is int && v >= 0);
+      }
+
+      function side(v) {
+        return optional(v, ['left', 'right', 'both']);
+      }
+
+      function optional(v, allowed) {
+        return v == null || v in allowed;
+      }
+
+      // Free text. The app's own fields are a line or two; the cap is there
+      // so a bug cannot quietly write a megabyte per entry.
+      function text(v) {
+        return v == null || (v is string && v.size() <= 1000);
       }
     }
   }

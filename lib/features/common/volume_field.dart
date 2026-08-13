@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/format/volume_entry.dart';
+import 'number_input.dart';
 
 /// An amount field with a unit beside it, shared by the bottle and pumping
 /// forms.
@@ -41,9 +42,10 @@ class VolumeField extends StatelessWidget {
     final typed = double.tryParse(controller.text.trim());
     // An empty or unparseable field just changes unit; there is no value to
     // carry across, and blanking what someone half-typed would be rude.
-    onUnitChanged(next, typed == null ? controller.text : next.fieldText(
-      unit.toMl(typed),
-    ));
+    onUnitChanged(
+      next,
+      typed == null ? controller.text : next.fieldText(unit.toMl(typed)),
+    );
   }
 
   @override
@@ -56,6 +58,7 @@ class VolumeField extends StatelessWidget {
             controller: controller,
             autofocus: autofocus,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: positiveDecimalInput,
             decoration: InputDecoration(
               labelText: label,
               suffixText: unit.label,

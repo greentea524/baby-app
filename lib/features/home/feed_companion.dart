@@ -31,14 +31,13 @@ class FeedCompanion extends ConsumerStatefulWidget {
 }
 
 class _FeedCompanionState extends ConsumerState<FeedCompanion>
-    with TickerProviderStateMixin {
-  /// The idle loop. Deliberately long: it repaints for as long as Home is
-  /// open, and a fast loop is battery spent on decoration.
-  late final AnimationController _drift = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 9),
-  );
-
+    with SingleTickerProviderStateMixin {
+  /// The only animation in here, and it is a one-shot.
+  ///
+  /// There is deliberately no idle loop. The plane used to fly one, which
+  /// meant a repaint every frame for as long as Home was open — hours at a
+  /// time — and it was the only style that did. Between feeds the companion
+  /// now repaints when the phase changes and not otherwise.
   late final AnimationController _celebrate = AnimationController(
     vsync: this,
     duration: FeedCompanion.celebrateDuration,
@@ -54,7 +53,6 @@ class _FeedCompanionState extends ConsumerState<FeedCompanion>
 
   @override
   void dispose() {
-    _drift.dispose();
     _celebrate.dispose();
     super.dispose();
   }
@@ -91,12 +89,6 @@ class _FeedCompanionState extends ConsumerState<FeedCompanion>
 
     // Stilled, the companion still carries its phase — it just does not move.
     final still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    final shouldIdle = !still && art.idles(resting) && !_celebrate.isAnimating;
-    if (shouldIdle && !_drift.isAnimating) {
-      _drift.repeat();
-    } else if (!shouldIdle && _drift.isAnimating) {
-      _drift.stop();
-    }
 
     return Semantics(
       label: _semantics(phase),
@@ -104,14 +96,11 @@ class _FeedCompanionState extends ConsumerState<FeedCompanion>
         width: 48,
         height: kToolbarHeight,
         child: AnimatedBuilder(
-          animation: Listenable.merge([_drift, _celebrate]),
+          animation: _celebrate,
           builder: (context, _) => CustomPaint(
             painter: _CompanionPainter(
               art: art,
-              phase: _celebrate.isAnimating
-                  ? CompanionPhase.justFed
-                  : resting,
-              drift: still ? 0.35 : _drift.value,
+              phase: _celebrate.isAnimating ? CompanionPhase.justFed : resting,
               celebrate: still ? 0 : _celebrate.value,
               progress: progress,
               colors: CompanionColors.of(context),
@@ -185,13 +174,14 @@ class CompanionColors {
 ///
 /// [TextPainter.layout] builds a `ui.Paragraph`, and a paragraph holds native
 /// Skia memory that is only released when the Dart object is collected. The
-/// painter used to build one — two, for the bottle — inside `paint()`, which
-/// runs on every frame the plane is cruising: sixty a second, for as long as
-/// Home is open. That is a lot of native allocation to leave to the garbage
+/// painter used to build one — two, for the bottle — inside `paint()`, on
+/// every frame. That is a lot of native allocation to leave to the garbage
 /// collector, and on the web it is a known way to grow a tab until it dies.
 ///
-/// The position changes every frame; the glyph does not. Caching on what
-/// actually varies takes the steady state to no allocation at all.
+/// Now that nothing loops, the frames that matter are the celebration's: a
+/// second and a bit of them per feed, several times a day, forever. The pose
+/// changes on each one; the glyph does not. Caching on what actually varies
+/// takes it to no allocation at all.
 ///
 /// Unbounded because the key space is not: four icons across a handful of
 /// theme colours, so a few dozen entries at the very most.
@@ -226,7 +216,6 @@ class _CompanionPainter extends CustomPainter {
   _CompanionPainter({
     required this.art,
     required this.phase,
-    required this.drift,
     required this.celebrate,
     required this.progress,
     required this.colors,
@@ -234,7 +223,6 @@ class _CompanionPainter extends CustomPainter {
 
   final CompanionArt art;
   final CompanionPhase phase;
-  final double drift;
   final double celebrate;
   final double progress;
   final CompanionColors colors;
@@ -255,7 +243,7 @@ class _CompanionPainter extends CustomPainter {
       );
     }
 
-    final pose = art.pose(phase, size, drift: drift, celebrate: celebrate);
+    final pose = art.pose(phase, size, celebrate: celebrate);
     final icon = art.icon(phase);
     final alpha = pose.opacity.clamp(0.0, 1.0);
     final level = art.level(phase, progress: progress, celebrate: celebrate);
@@ -318,7 +306,6 @@ class _CompanionPainter extends CustomPainter {
   bool shouldRepaint(_CompanionPainter old) =>
       old.art.runtimeType != art.runtimeType ||
       old.phase != phase ||
-      old.drift != drift ||
       old.celebrate != celebrate ||
       old.progress != progress ||
       old.colors.easy != colors.easy;

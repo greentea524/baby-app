@@ -5,6 +5,7 @@ import '../../core/format/unit_system.dart';
 import '../../data/models/growth_measurement.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
+import '../common/number_input.dart';
 import '../common/save_and_close.dart';
 import 'growth_units.dart';
 
@@ -210,6 +211,7 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
     return TextField(
       controller: c,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: positiveDecimalInput,
       decoration: InputDecoration(
         labelText: label,
         suffixText: unit,

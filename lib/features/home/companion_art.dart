@@ -58,8 +58,16 @@ CompanionPhase phaseFor(FeedDueState due) => switch (due) {
 /// How a companion is posed and drawn.
 ///
 /// Everything around this — deciding the phase, spotting a newly logged feed,
-/// the controllers, reduced motion, the semantics — is shared, so a new style
+/// the controller, reduced motion, the semantics — is shared, so a new style
 /// is an icon per phase and a little arithmetic, not a new feature.
+///
+/// **Every style holds still between feeds.** The one animation any of them
+/// gets is the 1.4-second celebration after a feed is logged; the rest of the
+/// time the companion is a fixed glyph that repaints only when the phase
+/// changes. The plane used to cruise on a loop instead, repainting for as
+/// long as Home was open, and Home stays open for hours — which is a lot of
+/// frames to spend on decoration, and the one thing the styles that were
+/// never reported crashing did not do.
 abstract class CompanionArt {
   const CompanionArt();
 
@@ -68,12 +76,12 @@ abstract class CompanionArt {
 
   /// Where it sits, how far it is rotated, and how solid it is.
   ///
-  /// [drift] runs 0..1 through the idle loop, [celebrate] 0..1 through the
-  /// one-shot after a feed.
+  /// [celebrate] runs 0..1 through the one-shot after a feed, and is the only
+  /// thing that moves: between feeds every style holds a fixed pose. Nothing
+  /// here may animate on a loop — see [CompanionArt] for why.
   CompanionPose pose(
     CompanionPhase phase,
     Size size, {
-    required double drift,
     required double celebrate,
   });
 
@@ -92,10 +100,6 @@ abstract class CompanionArt {
 
   /// Whether to rule a line under the companion for [phase].
   bool ground(CompanionPhase phase) => false;
-
-  /// Whether the idle loop needs to run at all for [phase]. A style that
-  /// holds still can stop the controller and stop repainting.
-  bool idles(CompanionPhase phase) => false;
 }
 
 typedef CompanionPose = ({Offset at, double angle, double opacity});
@@ -103,8 +107,13 @@ typedef CompanionPose = ({Offset at, double angle, double opacity});
 CompanionPose _pose(Offset at, {double angle = 0, double opacity = 1}) =>
     (at: at, angle: angle, opacity: opacity);
 
-/// A plane that cruises, comes in to land, waits on the ground, and takes off
-/// again when a feed is logged (#14).
+/// A plane in the air, on approach, on the ground, and taking off again when
+/// a feed is logged (#14).
+///
+/// Reads as three stills rather than a flight: in the air when there is time,
+/// descending onto the runway as the feed comes up, parked when it is due.
+/// It used to fly the loop for real, which is the one thing no other style
+/// did and the one thing that had to go.
 class PlaneArt extends CompanionArt {
   const PlaneArt();
 
@@ -116,48 +125,37 @@ class PlaneArt extends CompanionArt {
     CompanionPhase.justFed => Icons.flight_takeoff,
   };
 
-  // A line under a cruising plane reads as an underline rather than as
+  // A line under a plane in the air reads as an underline rather than as
   // ground, so the runway only appears once the ground is part of the story.
   @override
   bool ground(CompanionPhase phase) => phase != CompanionPhase.easy;
 
   @override
-  bool idles(CompanionPhase phase) => phase != CompanionPhase.due;
-
-  @override
   CompanionPose pose(
     CompanionPhase phase,
     Size size, {
-    required double drift,
     required double celebrate,
   }) {
     final groundY = size.height * 0.72;
     final centreX = size.width / 2;
     switch (phase) {
       case CompanionPhase.easy:
-        // Crosses the slot and comes round again, riding a shallow bob so a
-        // straight line does not read as a slide.
-        //
         // Turned a quarter turn to face the way it is going: Icons.flight is
         // drawn from above, airport-signage style, while flight_land and
         // flight_takeoff are side views facing right. Left upright it would
         // be the one pose in the set looking somewhere else.
-        return _pose(
-          Offset(
-            6 + (size.width - 12) * drift,
-            size.height * 0.42 + math.sin(drift * math.pi * 2) * 2,
-          ),
-          angle: math.pi / 2,
-        );
+        return _pose(Offset(centreX, size.height * 0.42), angle: math.pi / 2);
       case CompanionPhase.soon:
-        return _pose(
-          Offset(centreX, groundY - 12 + math.sin(drift * math.pi * 2) * 1.5),
-        );
+        // Held clear of the runway rather than tilted: flight_land is already
+        // drawn nose-down, and rotating it further reads as a plane in
+        // trouble instead of one on approach. Height alone separates this
+        // from [due], where the glyph sits on the line.
+        return _pose(Offset(centreX, groundY - 16));
       case CompanionPhase.due:
         return _pose(Offset(centreX, groundY - 8));
       case CompanionPhase.justFed:
         // Climbs away to the right and thins out, so the hand-off back to
-        // cruising is a departure rather than a jump cut.
+        // the resting pose is a departure rather than a jump cut.
         final eased = Curves.easeOutCubic.transform(celebrate);
         // Clamped rather than trusted: (1 - 0.7) / 0.3 comes out a hair over
         // 1 in binary, so the fade would end fractionally below zero and
@@ -192,7 +190,6 @@ class BottleArt extends CompanionArt {
   CompanionPose pose(
     CompanionPhase phase,
     Size size, {
-    required double drift,
     required double celebrate,
   }) => _pose(Offset(size.width / 2, size.height / 2));
 
@@ -233,13 +230,15 @@ class HourglassArt extends CompanionArt {
   CompanionPose pose(
     CompanionPhase phase,
     Size size, {
-    required double drift,
     required double celebrate,
   }) {
     final centre = Offset(size.width / 2, size.height / 2);
     if (phase != CompanionPhase.justFed) return _pose(centre);
     // A single turn, eased at both ends so it lands rather than stopping.
-    return _pose(centre, angle: math.pi * Curves.easeInOut.transform(celebrate));
+    return _pose(
+      centre,
+      angle: math.pi * Curves.easeInOut.transform(celebrate),
+    );
   }
 }
 
@@ -259,7 +258,6 @@ class BatteryArt extends CompanionArt {
   CompanionPose pose(
     CompanionPhase phase,
     Size size, {
-    required double drift,
     required double celebrate,
   }) {
     final centre = Offset(size.width / 2, size.height / 2);

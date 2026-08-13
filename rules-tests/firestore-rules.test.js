@@ -7,9 +7,11 @@ import {
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import {
+  Timestamp,
   deleteDoc,
   doc,
   getDoc,
+  serverTimestamp,
   setDoc,
   updateDoc,
 } from "firebase/firestore";
@@ -31,6 +33,77 @@ let testEnv;
 function babyDoc(db, babyId = BABY) {
   return doc(db, "babies", babyId);
 }
+
+// --- What the app actually writes ------------------------------------------
+//
+// These mirror each model's `toMap()` plus the stamps its repository adds,
+// right down to the explicit nulls — `toMap` writes every optional field, so
+// "absent" and "null" are different things to the rules and both have to
+// pass. If a model gains a field, the builder here should gain it too, or
+// these stop being evidence that the real client still works.
+const AT = Timestamp.fromDate(new Date("2026-08-13T09:00:00Z"));
+
+const stamped = (uid = "alice") => ({
+  createdBy: uid,
+  createdAt: serverTimestamp(),
+});
+
+const edited = (uid = "alice") => ({
+  updatedBy: uid,
+  updatedAt: serverTimestamp(),
+});
+
+const feeding = (over = {}) => ({
+  type: "bottle",
+  startTime: AT,
+  durationMinutes: null,
+  amountMl: 120,
+  side: null,
+  notes: null,
+  isSnack: false,
+  ...stamped(),
+  ...over,
+});
+
+const diaper = (over = {}) => ({
+  type: "dirty",
+  time: AT,
+  notes: null,
+  poopSize: "small",
+  ...stamped(),
+  ...over,
+});
+
+const growth = (over = {}) => ({
+  date: AT,
+  weightKg: 7.5,
+  heightCm: null,
+  headCm: null,
+  ...stamped(),
+  ...over,
+});
+
+const pump = (over = {}) => ({
+  time: AT,
+  durationMinutes: 15,
+  amountMl: 90,
+  side: "both",
+  notes: null,
+  ...stamped(),
+  ...over,
+});
+
+const appointment = (over = {}) => ({
+  at: AT,
+  kind: "checkup",
+  title: "6-month well visit",
+  provider: null,
+  location: null,
+  notes: null,
+  completedAt: null,
+  ...stamped(),
+  ...over,
+});
 
 before(async () => {
   testEnv = await initializeTestEnvironment({
@@ -63,10 +136,7 @@ beforeEach(async () => {
       role: "editor",
       invitedByUid: "alice",
     });
-    await setDoc(doc(db, "babies", BABY, "feedings", "f1"), {
-      type: "bottle",
-      amountMl: 120,
-    });
+    await setDoc(doc(db, "babies", BABY, "feedings", "f1"), feeding());
     // The app is invite-only: starting a household needs an entry here.
     await setDoc(doc(db, "allowedUsers", ALICE_EMAIL), { note: "owner" });
   });
@@ -229,49 +299,217 @@ describe("baby deletion", () => {
 });
 
 describe("event subcollections", () => {
-  it("lets a member read and write feedings", async () => {
-    const db = asAlice();
-    await assertSucceeds(getDoc(doc(db, "babies", BABY, "feedings", "f1")));
-    await assertSucceeds(
-      setDoc(doc(db, "babies", BABY, "feedings", "f2"), { type: "breast" }),
-    );
-  });
+  const at = (db, sub, id) => doc(db, "babies", BABY, sub, id);
 
   it("blocks a non-member from reading feedings", async () => {
-    await assertFails(
-      getDoc(doc(asMallory(), "babies", BABY, "feedings", "f1")),
-    );
+    await assertFails(getDoc(at(asMallory(), "feedings", "f1")));
   });
 
   it("blocks a non-member from writing growth measurements", async () => {
-    await assertFails(
-      setDoc(doc(asMallory(), "babies", BABY, "growth", "g1"), {
-        weightKg: 7.5,
-      }),
-    );
+    await assertFails(setDoc(at(asMallory(), "growth", "g1"), growth()));
   });
 
   it("blocks an invitee who has not joined yet", async () => {
     // Holding an invite is not membership until it is accepted.
-    await assertFails(getDoc(doc(asBob(), "babies", BABY, "feedings", "f1")));
+    await assertFails(getDoc(at(asBob(), "feedings", "f1")));
   });
 
-  it("gates a newly added subcollection without a rules change", async () => {
-    // The wildcard `match /{sub}/{docId}` is what lets features like
-    // appointments ship without touching firestore.rules. Pin that down so a
-    // future narrowing of the wildcard fails loudly here.
+  it("blocks a subcollection the app does not have", async () => {
+    // Was allowed by the old `match /{sub}/{docId}` wildcard: a member could
+    // create any collection they liked under a baby, and nothing in the app
+    // would ever read it. Storage nobody is watching is storage nobody
+    // notices filling up.
+    await assertFails(
+      setDoc(at(asAlice(), "scratch", "x1"), { anything: true }),
+    );
+  });
+});
+
+// The half that matters most. Validation that rejects a real entry is worse
+// than no validation at all: the write is already in the local cache and
+// looks saved, and the rejection surfaces whenever the device next reaches
+// the server. Every payload here mirrors what the repositories send.
+describe("what the app writes today", () => {
+  const cases = {
+    feedings: feeding,
+    diapers: diaper,
+    growth: growth,
+    pumps: pump,
+    appointments: appointment,
+  };
+
+  for (const [sub, build] of Object.entries(cases)) {
+    it(`accepts a ${sub} entry as the app sends it`, async () => {
+      await assertSucceeds(
+        setDoc(doc(asAlice(), "babies", BABY, sub, "new1"), build()),
+      );
+    });
+
+    it(`accepts an edit to a ${sub} entry`, async () => {
+      await testEnv.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), "babies", BABY, sub, "e1"), build());
+      });
+      await assertSucceeds(
+        updateDoc(doc(asAlice(), "babies", BABY, sub, "e1"), {
+          ...build(),
+          ...edited(),
+        }),
+      );
+    });
+  }
+
+  it("accepts the optional fields left empty, as a quick log does", async () => {
+    // The fast path through every sheet: a type, a time, and nothing else.
     await assertSucceeds(
-      setDoc(doc(asAlice(), "babies", BABY, "appointments", "ap1"), {
-        kind: "checkup",
+      setDoc(
+        doc(asAlice(), "babies", BABY, "feedings", "quick"),
+        feeding({
+          amountMl: null,
+          durationMinutes: null,
+          side: null,
+          notes: null,
+        }),
+      ),
+    );
+  });
+
+  it("accepts a breast feed with a duration and a side", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "feedings", "breast"),
+        feeding({
+          type: "breast",
+          amountMl: null,
+          durationMinutes: 12,
+          side: "left",
+          isSnack: true,
+        }),
+      ),
+    );
+  });
+
+  it("accepts a field the rules have never heard of", async () => {
+    // Deliberate: being strict about unknown fields means every new field is
+    // a rules deploy before the app can ship it, and rules deploys are a
+    // manual step here. A schema that can move is worth more than that.
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "feedings", "future"),
+        feeding({ nursedInPublic: true }),
+      ),
+    );
+  });
+});
+
+describe("attribution", () => {
+  it("blocks logging an entry under someone else's name", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(babyDoc(ctx.firestore()), {
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+      });
+    });
+    await assertFails(
+      setDoc(
+        doc(asBob(), "babies", BABY, "feedings", "forged"),
+        feeding({ createdBy: "alice" }),
+      ),
+    );
+  });
+
+  it("blocks rewriting who created an entry", async () => {
+    await assertFails(
+      updateDoc(doc(asAlice(), "babies", BABY, "feedings", "f1"), {
+        createdBy: "mallory",
+        ...edited(),
       }),
     );
+  });
+
+  it("blocks an edit that does not say who made it", async () => {
     await assertFails(
-      setDoc(doc(asMallory(), "babies", BABY, "appointments", "ap2"), {
-        kind: "checkup",
+      updateDoc(doc(asAlice(), "babies", BABY, "feedings", "f1"), {
+        amountMl: 200,
       }),
     );
+  });
+
+  it("blocks an edit signed as somebody else", async () => {
     await assertFails(
-      getDoc(doc(asMallory(), "babies", BABY, "appointments", "ap1")),
+      updateDoc(doc(asAlice(), "babies", BABY, "feedings", "f1"), {
+        amountMl: 200,
+        ...edited("bob"),
+      }),
+    );
+  });
+});
+
+describe("malformed entries", () => {
+  const rejected = {
+    "a time that is a string": feeding({ startTime: "2026-08-13T09:00:00Z" }),
+    "a time that is a number": feeding({ startTime: 1786000000 }),
+    "a negative amount": feeding({ amountMl: -120 }),
+    "an amount that is an object": feeding({ amountMl: { ml: 120 } }),
+    "a duration with a fraction": feeding({ durationMinutes: 12.5 }),
+    "a negative duration": feeding({ durationMinutes: -5 }),
+    "a feed type nobody defined": feeding({ type: "telepathy" }),
+    "a side nobody defined": feeding({ side: "middle" }),
+    "isSnack as a string": feeding({ isSnack: "yes" }),
+    "notes longer than anything a person types": feeding({
+      notes: "x".repeat(1001),
+    }),
+  };
+
+  for (const [what, payload] of Object.entries(rejected)) {
+    it(`rejects ${what}`, async () => {
+      await assertFails(
+        setDoc(doc(asAlice(), "babies", BABY, "feedings", "bad"), payload),
+      );
+    });
+  }
+
+  it("rejects a diaper size nobody defined", async () => {
+    await assertFails(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "diapers", "bad"),
+        diaper({ poopSize: "enormous" }),
+      ),
+    );
+  });
+
+  it("rejects a negative weight", async () => {
+    await assertFails(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "growth", "bad"),
+        growth({ weightKg: -1 }),
+      ),
+    );
+  });
+
+  it("rejects an appointment kind nobody defined", async () => {
+    await assertFails(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "appointments", "bad"),
+        appointment({ kind: "seance" }),
+      ),
+    );
+  });
+
+  it("rejects a malformed edit, not just a malformed create", async () => {
+    await assertFails(
+      updateDoc(doc(asAlice(), "babies", BABY, "feedings", "f1"), {
+        amountMl: -1,
+        ...edited(),
+      }),
+    );
+  });
+
+  it("still accepts notes right up to the cap", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "feedings", "long"),
+        feeding({ notes: "x".repeat(1000) }),
+      ),
     );
   });
 });
