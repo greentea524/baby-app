@@ -64,6 +64,40 @@ is currently a placeholder that throws on purpose). Do this once:
 5. Add your dev/prod domains under **Authentication → Settings → Authorized
    domains** (`localhost` is allowed by default).
 
+## Who can use it — the invite allowlist
+
+The app is private. Google sign-in itself cannot be restricted to a list of
+addresses, so anyone can *sign in* — but without an entry in `allowedUsers`
+they cannot create a baby, and they were never able to read one they are not a
+member of. Signing in uninvited gets you a locked door, not a free tracker on
+someone else's bill.
+
+Two separate ways in, deliberately:
+
+| | Who it covers | How they get in |
+|---|---|---|
+| `allowedUsers/{email}` | People who may **start** a household of their own | A document you create by hand |
+| `babies/{babyId}/invites/{email}` | Caregivers joining an **existing** baby | The owner invites them in-app |
+
+An invitee never needs an allowlist entry — accepting an invite is an update to
+a baby the owner already vouched for. Only starting from nothing is gated.
+
+To let a new address start its own household, create a document in the Firebase
+console — **Firestore Database → Data → Start collection** `allowedUsers` — whose
+**document ID is the lowercased email**, e.g. `someone@example.com`. The
+document needs no fields; only its existence is checked. (There is no CLI
+command for writing a single document; the console is the way.)
+
+No email addresses live in this repository. The rules match on
+`request.auth.token.email` against whatever documents exist, so the list is
+data, not code — which is what keeps a public repo from publishing the guest
+list. Rules let each signed-in user read **only their own** entry, so the
+collection cannot be enumerated either.
+
+Removing the document stops that address starting *new* households; it does not
+evict them from babies they already belong to. Remove them from the baby's
+caregiver list for that.
+
 ## Run
 
 ```bash

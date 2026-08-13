@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_providers.dart';
 import '../../core/launch_action.dart';
 import '../../core/router/app_router.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -17,6 +18,7 @@ import '../pumping/pumping_quick_log.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
 import 'feed_companion.dart';
+import 'home_access.dart';
 import 'home_prefs.dart';
 import 'home_status_card.dart';
 import 'recent_activity_list.dart';
@@ -93,7 +95,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         error: (e, _) => Center(child: Text('Something went wrong: $e')),
         data: (_) => baby == null
             ? ListView(
-                children: const [IncomingInvitesBanner(), _NoBabyPrompt()],
+                children: const [IncomingInvitesBanner(), _EmptyHome()],
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -180,34 +182,126 @@ class _QuickActions extends ConsumerWidget {
   }
 }
 
+/// What Home shows before there is a baby to log against. Which of these is
+/// right depends on who is signed in — see [homeEmptyState].
+class _EmptyHome extends ConsumerWidget {
+  const _EmptyHome();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = homeEmptyState(
+      mayStartHousehold: ref.watch(mayStartHouseholdProvider),
+      incomingInvites: ref.watch(incomingInvitesProvider),
+    );
+    return switch (state) {
+      HomeEmptyState.loading => const Padding(
+        padding: EdgeInsets.all(48),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      HomeEmptyState.addBaby => const _NoBabyPrompt(),
+      // The banner above this is the whole answer, so this only says so.
+      HomeEmptyState.awaitingInvite => const _EmptyMessage(
+        icon: Icons.mark_email_read_outlined,
+        title: 'Accept the invitation above to start logging',
+      ),
+      HomeEmptyState.locked => const _LockedOutPrompt(),
+    };
+  }
+}
+
 class _NoBabyPrompt extends StatelessWidget {
   const _NoBabyPrompt();
 
   @override
   Widget build(BuildContext context) {
+    return _EmptyMessage(
+      icon: Icons.child_care,
+      title: 'Add your baby to start logging',
+      action: FilledButton.icon(
+        onPressed: () => showAddBabyDialog(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Add baby'),
+      ),
+    );
+  }
+}
+
+/// Shown to someone who signed in successfully but was never invited.
+///
+/// The address is on screen because that is the one thing they can act on:
+/// an invitation goes to a specific Google account, and signing in with the
+/// wrong one of your own accounts looks exactly like not being invited.
+class _LockedOutPrompt extends ConsumerWidget {
+  const _LockedOutPrompt();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final email = ref.watch(authStateProvider).value?.email;
+    return _EmptyMessage(
+      icon: Icons.lock_outline,
+      title: 'Access is by invitation',
+      body: Column(
+        children: [
+          if (email != null)
+            Text(
+              'You\'re signed in as $email, which hasn\'t been invited.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
+            ),
+          const SizedBox(height: 8),
+          Text(
+            'If you were invited, check it went to this address — or sign '
+            'in with the account it was sent to.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+      action: OutlinedButton.icon(
+        onPressed: () => ref.read(authRepositoryProvider).signOut(),
+        icon: const Icon(Icons.logout),
+        label: const Text('Use a different account'),
+      ),
+    );
+  }
+}
+
+/// The shared shape of all three: icon, headline, optional detail, optional
+/// action, centred in the empty body.
+class _EmptyMessage extends StatelessWidget {
+  const _EmptyMessage({
+    required this.icon,
+    required this.title,
+    this.body,
+    this.action,
+  });
+
+  final IconData icon;
+  final String title;
+  final Widget? body;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.child_care,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            Icon(icon, size: 64, color: theme.colorScheme.primary),
             const SizedBox(height: 16),
             Text(
-              'Add your baby to start logging',
-              style: Theme.of(context).textTheme.titleMedium,
+              title,
+              style: theme.textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => showAddBabyDialog(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Add baby'),
-            ),
+            if (body != null) ...[const SizedBox(height: 12), body!],
+            if (action != null) ...[const SizedBox(height: 16), action!],
           ],
         ),
       ),

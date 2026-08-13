@@ -78,6 +78,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium,
                 ),
+                const SizedBox(height: 8),
+                // Said before sign-in, not after: anyone who has not been
+                // invited would otherwise hand over a Google account only to
+                // be turned away, with no idea why.
+                Text(
+                  'Access is by invitation.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: 32),
                 FilledButton.icon(
                   onPressed: _busy ? null : _signIn,

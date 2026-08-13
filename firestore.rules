@@ -44,6 +44,37 @@ service cloud.firestore {
       return signedIn() && babyData(babyId).ownerUid == request.auth.uid;
     }
 
+    // Who may start a household.
+    //
+    // The app is private. Anyone with a Google account can sign in — that is
+    // Firebase Auth's business and not something rules can prevent — but
+    // signing in alone gets you nothing: you cannot read a baby you are not a
+    // member of, and without an entry here you cannot create one either.
+    //
+    // Deliberately keyed by lowercased email rather than uid, so someone can
+    // be allowed before they have ever signed in. Matches the `invites`
+    // convention.
+    //
+    // Readable only for your own address. `if signedIn()` alone would let any
+    // account probe whether a given email has access, which is a membership
+    // list nobody needs to be able to enumerate.
+    match /allowedUsers/{email} {
+      allow get: if signedIn() && email == myEmail();
+    }
+
+    // Lowercased, because the document id has to be unambiguous: providers
+    // are not required to normalise case, and the client looks the same
+    // document up the same way. If these two disagreed, the app would offer a
+    // household that the rules then refused to create.
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function mayStartHousehold() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/allowedUsers/$(myEmail()));
+    }
+
     // Notification preferences (KAN-167): quiet hours and the server-side
     // reminder switch. Strictly per-user — the doc id is the uid — and read
     // by the reminder Cloud Function via the Admin SDK.
@@ -63,8 +94,13 @@ service cloud.firestore {
     match /babies/{babyId} {
       allow read: if isMemberOf(resource.data);
 
-      // Create: the creator must make themselves the sole owner.
-      allow create: if signedIn()
+      // Create: an allowed caregiver, making themselves the sole owner.
+      //
+      // The allowlist gates *starting a household*, not joining one. Someone
+      // invited as a caregiver accepts by updating an existing baby, which is
+      // the rule below — so an invitee never needs an entry, and the two
+      // mechanisms do not overlap.
+      allow create: if mayStartHousehold()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.memberUids.hasOnly([request.auth.uid])
         && request.resource.data.members[request.auth.uid] == 'owner';

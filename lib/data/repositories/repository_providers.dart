@@ -278,6 +278,30 @@ final currentBabyInvitesProvider = StreamProvider<List<CaregiverInvite>>((ref) {
   return repo.watchInvitesForBaby(baby.id);
 });
 
+/// Whether the signed-in address may start a household of its own.
+///
+/// The app is private. Anyone can sign in with Google — rules cannot prevent
+/// that — but without an entry in `allowedUsers` they can neither read a baby
+/// they are not a member of nor create one, so signing in gets them a locked
+/// door rather than a free tracker on someone else's bill.
+///
+/// Lowercased to match the rules, which compare against
+/// `request.auth.token.email.lower()`. If the two normalised differently, the
+/// app would offer a household that the rules then refused to create.
+///
+/// Loading while it is still being fetched, so the UI can wait rather than
+/// accusing someone of not being invited during a round trip.
+final mayStartHouseholdProvider = FutureProvider<bool>((ref) async {
+  final email = ref.watch(authStateProvider).value?.email;
+  if (email == null) return false;
+  final doc = await ref
+      .watch(firestoreProvider)
+      .collection('allowedUsers')
+      .doc(email.trim().toLowerCase())
+      .get();
+  return doc.exists;
+});
+
 /// Invitations addressed to the signed-in user, across all babies. Powers
 /// the "you've been invited" acceptance prompt.
 final incomingInvitesProvider = StreamProvider<List<CaregiverInvite>>((ref) {
