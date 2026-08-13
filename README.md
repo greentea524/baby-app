@@ -240,6 +240,18 @@ Afterwards, confirm the change is live in the Firebase console under
 applies to `firestore.indexes.json` (`--only firestore:indexes`) and to the
 reminder function in `functions/` (`npm run deploy`).
 
+#### Deploy the app before the rules, not after
+
+Rules validate what gets written (#22), so a rule that is stricter than the
+running client rejects writes the client still thinks are fine — and since
+sheets no longer wait for the write (#21), the caregiver sees the entry save
+and gets an error minutes later. Ship the app first, then the rules.
+
+The reverse order is safe only when a rules change is purely a loosening.
+`rules-tests/` has a whole `describe("what the app writes today")` block whose
+job is to fail if a rule stops accepting a payload the client still sends —
+run `npm test` in `rules-tests/` before deploying either half.
+
 ### Why hosting sends `Cache-Control: no-cache`
 
 `firebase.json` sets `no-cache` on every hosted file. Without it, Hosting

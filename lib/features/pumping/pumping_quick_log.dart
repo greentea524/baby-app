@@ -7,6 +7,7 @@ import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
+import '../common/number_input.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
 
@@ -146,6 +147,7 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
         TextField(
           controller: _duration,
           keyboardType: TextInputType.number,
+          inputFormatters: wholeNumberInput,
           decoration: const InputDecoration(
             labelText: 'Duration',
             suffixText: 'min',
