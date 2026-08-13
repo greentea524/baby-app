@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/appointment.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
+import '../common/save_and_close.dart';
 import 'appointment_format.dart';
 
 /// Opens the appointment sheet. Pass [existing] to edit.
@@ -39,7 +40,11 @@ class _AppointmentSheetState extends ConsumerState<_AppointmentSheet> {
   late DateTime _at = widget.existing?.at ?? _defaultWhen();
   late AppointmentKind _kind = widget.existing?.kind ?? AppointmentKind.checkup;
   String? _error;
-  bool _busy = false;
+
+  /// Guards against a second tap landing while the sheet is closing. There
+  /// is no spinner any more — the sheet goes immediately (#21) — so this is
+  /// all that stands between an impatient double-tap and two records.
+  bool _saving = false;
 
   bool get _isEdit => widget.existing != null;
 
@@ -95,7 +100,8 @@ class _AppointmentSheetState extends ConsumerState<_AppointmentSheet> {
     return t.isEmpty ? null : t;
   }
 
-  Future<void> _save() async {
+  void _save() {
+    if (_saving) return;
     final repo = ref.read(appointmentsRepositoryProvider);
     if (repo == null) {
       setState(() => _error = 'No baby selected.');
@@ -111,19 +117,12 @@ class _AppointmentSheetState extends ConsumerState<_AppointmentSheet> {
       notes: _trimmed(_notes),
       completedAt: widget.existing?.completedAt,
     );
-    setState(() => _busy = true);
-    try {
-      if (_isEdit) {
-        await repo.update(appointment);
-      } else {
-        await repo.add(appointment);
-      }
-      if (mounted) Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) setState(() => _error = 'Could not save: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    _saving = true;
+    saveAndClose(
+      context,
+      () => _isEdit ? repo.update(appointment) : repo.add(appointment),
+      failure: 'Could not save the appointment',
+    );
   }
 
   @override
@@ -197,14 +196,8 @@ class _AppointmentSheetState extends ConsumerState<_AppointmentSheet> {
         ],
         const SizedBox(height: 16),
         FilledButton(
-          onPressed: _busy ? null : _save,
-          child: _busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(_isEdit ? 'Save changes' : 'Save'),
+          onPressed: _save,
+          child: Text(_isEdit ? 'Save changes' : 'Save'),
         ),
       ],
     );

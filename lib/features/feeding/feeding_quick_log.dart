@@ -8,6 +8,7 @@ import '../../data/repositories/repository_providers.dart';
 import '../../core/format/volume_entry.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
+import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
 import 'feeding_format.dart';
 
@@ -101,46 +102,35 @@ class _SaveBar extends ConsumerStatefulWidget {
 }
 
 class _SaveBarState extends ConsumerState<_SaveBar> {
-  bool _busy = false;
+  /// Guards against a second tap landing while the sheet is closing. There
+  /// is no spinner any more — the sheet goes immediately (#21) — so this is
+  /// all that stands between an impatient double-tap and two feeds.
+  bool _saving = false;
 
-  Future<void> _save() async {
+  void _save() {
+    if (_saving) return;
     final event = widget.build();
     if (event == null) return;
     final repo = ref.read(feedingRepositoryProvider);
     if (repo == null) {
-      _snack('No baby selected.');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No baby selected.')));
       return;
     }
-    setState(() => _busy = true);
-    try {
-      if (widget.isEdit) {
-        await repo.update(event);
-      } else {
-        await repo.add(event);
-      }
-      if (mounted) Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) _snack('Could not save: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    _saving = true;
+    saveAndClose(
+      context,
+      () => widget.isEdit ? repo.update(event) : repo.add(event),
+      failure: 'Could not save the feed',
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return FilledButton(
-      onPressed: _busy || !widget.enabled ? null : _save,
-      child: _busy
-          ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Text(widget.isEdit ? 'Save changes' : 'Save'),
+      onPressed: widget.enabled ? _save : null,
+      child: Text(widget.isEdit ? 'Save changes' : 'Save'),
     );
   }
 }

@@ -7,6 +7,7 @@ import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
+import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
 
 /// Opens the pumping quick-log sheet (KAN-145). Pass [existing] to edit.
@@ -36,7 +37,11 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
   BreastSide _side = BreastSide.both;
   late DateTime _time;
   late VolumeUnit _unit;
-  bool _busy = false;
+
+  /// Guards against a second tap landing while the sheet is closing. There
+  /// is no spinner any more — the sheet goes immediately (#21) — so this is
+  /// all that stands between an impatient double-tap and two records.
+  bool _saving = false;
 
   /// See the bottle form: an amount that was never retyped must be stored
   /// unchanged, or re-parsing the display unit rewrites a number nobody
@@ -69,10 +74,13 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  void _save() {
+    if (_saving) return;
     final repo = ref.read(pumpingRepositoryProvider);
     if (repo == null) {
-      _snack('No baby selected.');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No baby selected.')));
       return;
     }
     final event = PumpingEvent(
@@ -83,19 +91,12 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
       durationMinutes: int.tryParse(_duration.text.trim()),
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
-    setState(() => _busy = true);
-    try {
-      if (widget.existing != null) {
-        await repo.update(event);
-      } else {
-        await repo.add(event);
-      }
-      if (mounted) Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) _snack('Could not save: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    _saving = true;
+    saveAndClose(
+      context,
+      () => widget.existing != null ? repo.update(event) : repo.add(event),
+      failure: 'Could not save the pumping session',
+    );
   }
 
   /// The amount to store: what was typed, converted, or the stored value
@@ -105,10 +106,6 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
     if (typed == null) return _amountEdited ? null : _storedMl;
     if (!_amountEdited && _storedMl != null) return _storedMl;
     return _unit.toMl(typed);
-  }
-
-  void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -169,14 +166,8 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
         FilledButton(
           // Only reachable by editing a record that was already stamped
           // ahead; the row above says why the button is dead.
-          onPressed: _busy || isFutureLogTime(_time) ? null : _save,
-          child: _busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(isEdit ? 'Save changes' : 'Save'),
+          onPressed: isFutureLogTime(_time) ? null : _save,
+          child: Text(isEdit ? 'Save changes' : 'Save'),
         ),
       ],
     );

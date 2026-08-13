@@ -5,6 +5,7 @@ import '../../data/models/diaper_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
+import '../common/save_and_close.dart';
 import 'diaper_format.dart';
 
 /// Opens the diaper quick-log sheet. Pass [existing] to edit (KAN-150);
@@ -30,7 +31,11 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
   late DateTime _time;
   PoopSize? _size;
   final _notesController = TextEditingController();
-  bool _busy = false;
+
+  /// Guards against a second tap landing while the sheet is closing. There
+  /// is no spinner any more — the sheet goes immediately (#21) — so this is
+  /// all that stands between an impatient double-tap and two records.
+  bool _saving = false;
 
   @override
   void initState() {
@@ -48,10 +53,13 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  void _save() {
+    if (_saving) return;
     final repo = ref.read(diaperRepositoryProvider);
     if (repo == null) {
-      _snack('No baby selected.');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No baby selected.')));
       return;
     }
     final event = DiaperEvent(
@@ -63,23 +71,12 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
           : _notesController.text.trim(),
       poopSize: _size,
     );
-    setState(() => _busy = true);
-    try {
-      if (widget.existing != null) {
-        await repo.update(event);
-      } else {
-        await repo.add(event);
-      }
-      if (mounted) Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) _snack('Could not save: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    _saving = true;
+    saveAndClose(
+      context,
+      () => widget.existing != null ? repo.update(event) : repo.add(event),
+      failure: 'Could not save the diaper change',
+    );
   }
 
   @override
@@ -148,14 +145,8 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
         FilledButton(
           // Only reachable by editing a record that was already stamped
           // ahead; the row above says why the button is dead.
-          onPressed: _busy || isFutureLogTime(_time) ? null : _save,
-          child: _busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(isEdit ? 'Save changes' : 'Save'),
+          onPressed: isFutureLogTime(_time) ? null : _save,
+          child: Text(isEdit ? 'Save changes' : 'Save'),
         ),
       ],
     );

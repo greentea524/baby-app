@@ -35,23 +35,33 @@ class BabiesRepository {
         );
   }
 
-  Future<String> addBaby({
+  /// Creates a baby, returning its id **immediately** alongside the write
+  /// that will carry it to the server.
+  ///
+  /// The id is minted client-side rather than read back from `add()`, whose
+  /// future only completes on server acknowledgement — and offline that
+  /// never comes (#21). Firestore generates ids locally anyway, so nothing is
+  /// given up: the caller can select the new baby before the write lands.
+  ({String id, Future<void> written}) addBaby({
     required String name,
     required DateTime birthDate,
     BabySex? sex,
     BabyAvatar avatar = BabyAvatar.baby,
-  }) async {
-    final doc = await _col.add({
-      'name': name,
-      'birthDate': Timestamp.fromDate(birthDate),
-      'sex': sex?.name,
-      'avatar': avatar.name,
-      'ownerUid': _uid,
-      'members': {_uid: CaregiverRole.owner.name},
-      'memberUids': [_uid],
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    return doc.id;
+  }) {
+    final doc = _col.doc();
+    return (
+      id: doc.id,
+      written: doc.set({
+        'name': name,
+        'birthDate': Timestamp.fromDate(birthDate),
+        'sex': sex?.name,
+        'avatar': avatar.name,
+        'ownerUid': _uid,
+        'members': {_uid: CaregiverRole.owner.name},
+        'memberUids': [_uid],
+        'createdAt': FieldValue.serverTimestamp(),
+      }),
+    );
   }
 
   /// Updates only the profile fields; never touches membership.

@@ -19,6 +19,10 @@ Future<void> main() async {
 
   // Offline persistence: caches Firestore data locally (IndexedDB on web)
   // so the PWA works offline and syncs on reconnect.
+  //
+  // Writes queue rather than fail, but their futures stay pending until the
+  // server acknowledges them — which is why nothing in the UI awaits a write
+  // before closing. See `features/common/save_and_close.dart` (#21).
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
