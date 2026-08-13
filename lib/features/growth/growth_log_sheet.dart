@@ -5,6 +5,7 @@ import '../../core/format/unit_system.dart';
 import '../../data/models/growth_measurement.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
+import '../common/save_and_close.dart';
 import 'growth_units.dart';
 
 /// Opens the growth measurement sheet. Pass [existing] to edit.
@@ -40,7 +41,11 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
   late final UnitSystem _units;
   late DateTime _date;
   String? _error;
-  bool _busy = false;
+
+  /// Guards against a second tap landing while the sheet is closing. There
+  /// is no spinner any more — the sheet goes immediately (#21) — so this is
+  /// all that stands between an impatient double-tap and two records.
+  bool _saving = false;
 
   @override
   void initState() {
@@ -107,7 +112,8 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
     return _units.isMetric ? entered : inToCm(entered);
   }
 
-  Future<void> _save() async {
+  void _save() {
+    if (_saving) return;
     // Whatever was typed, what gets stored is always kg and cm.
     final weight = _parse(_weight);
     final oz = _parse(_oz);
@@ -137,19 +143,12 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
       heightCm: h,
       headCm: hc,
     );
-    setState(() => _busy = true);
-    try {
-      if (widget.existing != null) {
-        await repo.update(m);
-      } else {
-        await repo.add(m);
-      }
-      if (mounted) Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) setState(() => _error = 'Could not save: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    _saving = true;
+    saveAndClose(
+      context,
+      () => widget.existing != null ? repo.update(m) : repo.add(m),
+      failure: 'Could not save the measurement',
+    );
   }
 
   @override
@@ -200,14 +199,8 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
         ],
         const SizedBox(height: 16),
         FilledButton(
-          onPressed: _busy ? null : _save,
-          child: _busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(isEdit ? 'Save changes' : 'Save'),
+          onPressed: _save,
+          child: Text(isEdit ? 'Save changes' : 'Save'),
         ),
       ],
     );

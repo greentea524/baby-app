@@ -6,6 +6,7 @@ import '../../data/models/baby.dart';
 import '../../data/models/caregiver_invite.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../../core/auth/auth_providers.dart';
+import '../common/save_and_close.dart';
 import 'invite_message.dart';
 
 /// Manage who can log for the current baby (KAN-134): view caregivers,
@@ -76,7 +77,7 @@ class CaregiversScreen extends ConsumerWidget {
                                 // already on this row, so any member may.
                                 canRevoke: baby.isOwner(myUid),
                                 onCopy: () => _copyInviteMessage(
-                                  context,
+                                  ScaffoldMessenger.of(context),
                                   babyName: baby.name,
                                   email: invite.email,
                                 ),
@@ -148,10 +149,16 @@ class CaregiversScreen extends ConsumerWidget {
         ],
       ),
     );
-    if (ok == true) {
-      await ref.read(babiesRepositoryProvider)?.leaveBaby(baby.id);
-      if (context.mounted) Navigator.of(context).pop();
-    }
+    if (ok != true) return;
+    final repo = ref.read(babiesRepositoryProvider);
+    if (repo == null || !context.mounted) return;
+    // Leaving is a write like any other, so it closes this screen without
+    // waiting for the server (#21).
+    saveAndClose(
+      context,
+      () => repo.leaveBaby(baby.id),
+      failure: 'Could not leave ${baby.name}',
+    );
   }
 
   static String _shortUid(String uid) =>
@@ -166,8 +173,12 @@ Future<void> _showInvite(BuildContext context, WidgetRef ref, Baby baby) {
 }
 
 /// Puts the hand-off message on the clipboard and says so.
+///
+/// Takes the messenger rather than a context because one caller offers this
+/// from a SnackBar shown *after* its dialog has closed — by then the dialog's
+/// context is defunct, and looking one up from it would throw.
 Future<void> _copyInviteMessage(
-  BuildContext context, {
+  ScaffoldMessengerState messenger, {
   required String babyName,
   required String email,
 }) async {
@@ -180,8 +191,7 @@ Future<void> _copyInviteMessage(
       ),
     ),
   );
-  if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
+  messenger.showSnackBar(
     const SnackBar(content: Text('Message copied — send it to them')),
   );
 }
@@ -249,7 +259,11 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
   final _controller = TextEditingController();
   CaregiverRole _role = CaregiverRole.editor;
   String? _error;
-  bool _busy = false;
+
+  /// Guards against a second tap landing while the dialog is closing. There
+  /// is no spinner any more — it goes immediately (#21) — so this is all that
+  /// stands between an impatient double-tap and two confirmations.
+  bool _saving = false;
 
   @override
   void dispose() {
@@ -259,45 +273,46 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
 
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
-  Future<void> _add() async {
+  void _add() {
+    if (_saving) return;
     final email = _controller.text.trim();
     if (!_emailRe.hasMatch(email)) {
       setState(() => _error = 'Enter a valid email');
       return;
     }
-    setState(() => _busy = true);
-    try {
-      await ref
-          .read(babiesRepositoryProvider)
-          ?.inviteCaregiver(
-            babyId: widget.baby.id,
+    final repo = ref.read(babiesRepositoryProvider);
+    if (repo == null) return;
+
+    // Captured before the dialog goes: the confirmation outlives it.
+    final messenger = ScaffoldMessenger.of(context);
+    _saving = true;
+    saveAndClose(
+      context,
+      () => repo.inviteCaregiver(
+        babyId: widget.baby.id,
+        babyName: widget.baby.name,
+        email: email,
+        role: _role,
+      ),
+      failure: 'Could not add the caregiver',
+    );
+
+    // The moment the sender is about to message them is right now, so offer
+    // the text here rather than leaving it to be found on the row later.
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('$email added. They will not be notified — tell them.'),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: 'Copy message',
+          onPressed: () => _copyInviteMessage(
+            messenger,
             babyName: widget.baby.name,
             email: email,
-            role: _role,
-          );
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      // The moment the sender is about to message them is right now, so offer
-      // the text here rather than leaving it to be found on the row later.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$email added. They will not be notified — tell them.'),
-          duration: const Duration(seconds: 8),
-          action: SnackBarAction(
-            label: 'Copy message',
-            onPressed: () => _copyInviteMessage(
-              context,
-              babyName: widget.baby.name,
-              email: email,
-            ),
           ),
         ),
-      );
-    } catch (e) {
-      if (mounted) setState(() => _error = 'Could not add: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+      ),
+    );
   }
 
   @override
@@ -335,19 +350,10 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _busy ? null : () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _busy ? null : _add,
-          child: _busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Add'),
-        ),
+        FilledButton(onPressed: _add, child: const Text('Add')),
       ],
     );
   }

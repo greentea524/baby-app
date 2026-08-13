@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,23 +11,22 @@ import '../../data/repositories/repository_providers.dart';
 class IncomingInvitesBanner extends ConsumerWidget {
   const IncomingInvitesBanner({super.key});
 
-  Future<void> _accept(
-    BuildContext context,
-    WidgetRef ref,
-    CaregiverInvite invite,
-  ) async {
+  /// The same shape as `saveAndClose`, minus the close: the membership write
+  /// is started but not awaited, because offline it would not complete and
+  /// tapping Accept would appear to do nothing (#21). The local cache carries
+  /// the new membership immediately, so switching to the baby is right away.
+  void _accept(BuildContext context, WidgetRef ref, CaregiverInvite invite) {
     final repo = ref.read(babiesRepositoryProvider);
     if (repo == null) return;
-    try {
-      await repo.acceptInvite(invite);
-      await ref.read(selectedBabyIdProvider.notifier).select(invite.babyId);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not accept: $e')));
-      }
-    }
+    final messenger = ScaffoldMessenger.of(context);
+    unawaited(
+      Future.sync(() => repo.acceptInvite(invite)).catchError((Object e) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Could not accept the invitation: $e')),
+        );
+      }),
+    );
+    unawaited(ref.read(selectedBabyIdProvider.notifier).select(invite.babyId));
   }
 
   @override

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/baby.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/save_and_close.dart';
 
 /// Create a baby (and auto-select it), or edit an existing one when
 /// [existing] is passed (KAN-135).
@@ -33,7 +36,11 @@ class _BabyDialogState extends ConsumerState<_BabyDialog> {
   late BabySex? _sex = widget.existing?.sex;
   late BabyAvatar _avatar = widget.existing?.avatar ?? BabyAvatar.baby;
   String? _nameError;
-  bool _busy = false;
+
+  /// Guards against a second tap landing while the dialog is closing. There
+  /// is no spinner any more — it goes immediately (#21) — so this is all that
+  /// stands between an impatient double-tap and two babies.
+  bool _saving = false;
 
   bool get _isEdit => widget.existing != null;
 
@@ -53,7 +60,8 @@ class _BabyDialogState extends ConsumerState<_BabyDialog> {
     if (picked != null) setState(() => _birthDate = picked);
   }
 
-  Future<void> _save() async {
+  void _save() {
+    if (_saving) return;
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       setState(() => _nameError = 'Enter a name');
@@ -61,35 +69,38 @@ class _BabyDialogState extends ConsumerState<_BabyDialog> {
     }
     final repo = ref.read(babiesRepositoryProvider);
     if (repo == null) return;
-    setState(() => _busy = true);
-    try {
-      if (_isEdit) {
-        await repo.updateBaby(
-          widget.existing!.copyWith(
-            name: name,
-            birthDate: _birthDate,
-            sex: _sex,
-            avatar: _avatar,
-          ),
-        );
-      } else {
-        final id = await repo.addBaby(
-          name: name,
-          birthDate: _birthDate,
-          sex: _sex,
-          avatar: _avatar,
-        );
-        await ref.read(selectedBabyIdProvider.notifier).select(id);
-      }
-      if (mounted) Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) {
-        setState(() => _busy = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not save: $e')));
-      }
+    _saving = true;
+
+    if (_isEdit) {
+      final edited = widget.existing!.copyWith(
+        name: name,
+        birthDate: _birthDate,
+        sex: _sex,
+        avatar: _avatar,
+      );
+      saveAndClose(
+        context,
+        () => repo.updateBaby(edited),
+        failure: 'Could not save the baby',
+      );
+      return;
     }
+
+    final created = repo.addBaby(
+      name: name,
+      birthDate: _birthDate,
+      sex: _sex,
+      avatar: _avatar,
+    );
+    // The id exists before the write does, so the new baby can be selected
+    // straight away — which is what makes the rest of the app show it while
+    // the write is still queued.
+    unawaited(ref.read(selectedBabyIdProvider.notifier).select(created.id));
+    saveAndClose(
+      context,
+      () => created.written,
+      failure: 'Could not save the baby',
+    );
   }
 
   @override
@@ -167,19 +178,10 @@ class _BabyDialogState extends ConsumerState<_BabyDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _busy ? null : () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(
-          onPressed: _busy ? null : _save,
-          child: _busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Save'),
-        ),
+        FilledButton(onPressed: _save, child: const Text('Save')),
       ],
     );
   }
