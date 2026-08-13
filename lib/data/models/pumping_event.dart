@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'baby_event.dart';
+
 import 'feeding_event.dart' show BreastSide;
 
 /// A breast-pump session. Stored at `babies/{babyId}/pumps/{id}`. Kept
 /// separate from feeding (KAN-145): pumping tracks milk *supply*, not the
 /// baby's intake, so it shouldn't skew feeding totals/intervals.
-class PumpingEvent {
+class PumpingEvent implements BabyEvent {
   const PumpingEvent({
     required this.id,
     required this.time,
@@ -15,6 +17,7 @@ class PumpingEvent {
     this.notes,
   });
 
+  @override
   final String id;
   final DateTime time;
   final int? durationMinutes;
@@ -36,6 +39,7 @@ class PumpingEvent {
     );
   }
 
+  @override
   Map<String, dynamic> toMap() => {
     'time': Timestamp.fromDate(time),
     'durationMinutes': durationMinutes,

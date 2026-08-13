@@ -1,19 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/appointment.dart';
+import 'event_repository.dart';
 
-/// Reads/writes scheduled visits for one baby:
-/// `babies/{babyId}/appointments/{id}`. [_uid] is the current caregiver,
-/// stamped onto writes for attribution (KAN-159).
-class AppointmentsRepository {
-  AppointmentsRepository(this._firestore, this._babyId, this._uid);
+/// Scheduled visits for one baby: `babies/{babyId}/appointments/{eventId}`.
+class AppointmentsRepository extends EventRepository<Appointment> {
+  AppointmentsRepository(super.firestore, super.babyId, super.uid);
 
-  final FirebaseFirestore _firestore;
-  final String _babyId;
-  final String _uid;
+  @override
+  String get collection => 'appointments';
 
-  CollectionReference<Map<String, dynamic>> get _col =>
-      _firestore.collection('babies').doc(_babyId).collection('appointments');
+  @override
+  String get timeField => 'at';
+
+  @override
+  Appointment fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) =>
+      Appointment.fromDoc(doc);
 
   /// Every appointment in date order, earliest first.
   ///
@@ -23,29 +25,6 @@ class AppointmentsRepository {
   /// "upcoming" forever. Splitting client-side re-evaluates on every build,
   /// and the document count here is tiny — a child has dozens of visits, not
   /// thousands.
-  Stream<List<Appointment>> watchAll({int limit = 200}) {
-    return _col
-        .orderBy('at')
-        .limit(limit)
-        .snapshots()
-        .map((snap) => snap.docs.map(Appointment.fromDoc).toList());
-  }
-
-  Future<String> add(Appointment appointment) async {
-    final doc = await _col.add({
-      ...appointment.toMap(),
-      'createdBy': _uid,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    return doc.id;
-  }
-
-  Future<void> update(Appointment appointment) =>
-      _col.doc(appointment.id).update({
-        ...appointment.toMap(),
-        'updatedBy': _uid,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-  Future<void> delete(String id) => _col.doc(id).delete();
+  Stream<List<Appointment>> watchAll({int limit = 200}) =>
+      col.orderBy(timeField).limit(limit).snapshots().map(parse);
 }
