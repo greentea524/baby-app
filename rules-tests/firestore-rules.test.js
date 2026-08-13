@@ -22,6 +22,9 @@ import {
 // has no relationship to it.
 const BABY = "baby1";
 const BOB_EMAIL = "bob@example.com";
+const ALICE_EMAIL = "alice@example.com";
+// Signed in, never invited, not on the allowlist.
+const MALLORY_EMAIL = "mallory@example.com";
 
 let testEnv;
 
@@ -64,11 +67,15 @@ beforeEach(async () => {
       type: "bottle",
       amountMl: 120,
     });
+    // The app is invite-only: starting a household needs an entry here.
+    await setDoc(doc(db, "allowedUsers", ALICE_EMAIL), { note: "owner" });
   });
 });
 
-const asAlice = () => testEnv.authenticatedContext("alice").firestore();
-const asMallory = () => testEnv.authenticatedContext("mallory").firestore();
+const asAlice = () =>
+  testEnv.authenticatedContext("alice", { email: ALICE_EMAIL }).firestore();
+const asMallory = () =>
+  testEnv.authenticatedContext("mallory", { email: MALLORY_EMAIL }).firestore();
 const asBob = () =>
   testEnv.authenticatedContext("bob", { email: BOB_EMAIL }).firestore();
 const asAnon = () => testEnv.unauthenticatedContext().firestore();
@@ -125,6 +132,79 @@ describe("baby creation", () => {
         ownerUid: "mallory",
         memberUids: ["mallory", "alice"],
         members: { mallory: "owner", alice: "editor" },
+      }),
+    );
+  });
+});
+
+describe("the allowlist", () => {
+  it("blocks a signed-in stranger from starting a household", async () => {
+    // Everything about this document is correct — sole owner, own uid. The
+    // only thing wrong with it is who is asking, which is the whole point:
+    // without this, anyone with a Google account gets a free baby tracker on
+    // someone else's Firebase bill.
+    await assertFails(
+      setDoc(babyDoc(asMallory(), "new4"), {
+        name: "Uninvited",
+        ownerUid: "mallory",
+        memberUids: ["mallory"],
+        members: { mallory: "owner" },
+      }),
+    );
+  });
+
+  it("lets an allowed caregiver start one", async () => {
+    await assertSucceeds(
+      setDoc(babyDoc(asAlice(), "new5"), {
+        name: "Second",
+        ownerUid: "alice",
+        memberUids: ["alice"],
+        members: { alice: "owner" },
+      }),
+    );
+  });
+
+  it("does not stand between an invitee and their invite", async () => {
+    // Bob is invited but not allowlisted, and must stay able to accept. The
+    // allowlist gates starting a household, not joining one — if it gated
+    // both, it would lock out exactly the people it was meant to let in.
+    await assertSucceeds(
+      updateDoc(babyDoc(asBob()), {
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+      }),
+    );
+  });
+
+  it("lets you check your own entry", async () => {
+    await assertSucceeds(getDoc(doc(asAlice(), "allowedUsers", ALICE_EMAIL)));
+  });
+
+  it("blocks reading somebody else's", async () => {
+    // Otherwise any account could enumerate who has access.
+    await assertFails(getDoc(doc(asMallory(), "allowedUsers", ALICE_EMAIL)));
+  });
+
+  it("blocks writing yourself in", async () => {
+    await assertFails(
+      setDoc(doc(asMallory(), "allowedUsers", MALLORY_EMAIL), { note: "hi" }),
+    );
+  });
+
+  it("matches the address whatever case the token carries", async () => {
+    // Providers are not obliged to normalise case, and a document id is
+    // matched byte for byte. Without lowercasing, the same person would be
+    // allowed or refused depending on how their token happened to spell them.
+    const shouting = testEnv
+      .authenticatedContext("alice", { email: "Alice@Example.COM" })
+      .firestore();
+    await assertSucceeds(getDoc(doc(shouting, "allowedUsers", ALICE_EMAIL)));
+    await assertSucceeds(
+      setDoc(babyDoc(shouting, "new6"), {
+        name: "Third",
+        ownerUid: "alice",
+        memberUids: ["alice"],
+        members: { alice: "owner" },
       }),
     );
   });
