@@ -168,7 +168,9 @@ void main() {
       expect(label(tester), 'Feed logged');
 
       // And it hands back rather than staying airborne.
-      await tester.pump(FeedCompanion.celebrateDuration + const Duration(seconds: 1));
+      await tester.pump(
+        FeedCompanion.celebrateDuration + const Duration(seconds: 1),
+      );
       await tester.pump();
       expect(label(tester), 'Next feed is a while off');
     });
@@ -185,7 +187,9 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(
           await SharedPreferences.getInstance(),
         ),
-        nextFeedDueProvider.overrideWithValue(now.add(const Duration(hours: 2))),
+        nextFeedDueProvider.overrideWithValue(
+          now.add(const Duration(hours: 2)),
+        ),
         lastClockFeedProvider.overrideWithValue(feed('first')),
       ]);
       await tester.pump();
@@ -203,7 +207,9 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(
           await SharedPreferences.getInstance(),
         ),
-        nextFeedDueProvider.overrideWithValue(now.add(const Duration(hours: 2))),
+        nextFeedDueProvider.overrideWithValue(
+          now.add(const Duration(hours: 2)),
+        ),
         // Same id, different content — an edit, not a new feed.
         lastClockFeedProvider.overrideWithValue(
           FeedingEvent(
@@ -217,6 +223,75 @@ void main() {
       await tester.pump();
 
       expect(label(tester), 'Next feed is a while off');
+    });
+  });
+
+  group('nothing loops between feeds', () {
+    // The reported crash: Home stays open for hours, and the plane was the
+    // one style repainting the whole time. A scheduled frame with nothing
+    // happening means something is animating that should not be.
+    final restingStates = {
+      'a while off': now.add(const Duration(hours: 2)),
+      'due soon': now.add(const Duration(minutes: 10)),
+      'overdue': now.subtract(const Duration(minutes: 5)),
+    };
+
+    for (final style in ['plane', 'bottle', 'hourglass', 'battery']) {
+      for (final state in restingStates.entries) {
+        testWidgets('$style stands still when the feed is ${state.key}', (
+          tester,
+        ) async {
+          await pumpCompanion(
+            tester,
+            due: state.value,
+            last: feed('a'),
+            prefs: {'home_companion_style': style},
+          );
+          expect(companion, findsOneWidget);
+          expect(
+            tester.binding.hasScheduledFrame,
+            isFalse,
+            reason: '$style is still animating',
+          );
+
+          // And is still idle an hour of app-bar time later.
+          await tester.pump(const Duration(hours: 1));
+          expect(tester.binding.hasScheduledFrame, isFalse);
+        });
+      }
+    }
+
+    testWidgets('the celebration is the one thing that runs, and it ends', (
+      tester,
+    ) async {
+      final container = await pumpCompanion(
+        tester,
+        due: now.subtract(const Duration(minutes: 5)),
+        last: feed('first'),
+      );
+      container.updateOverrides([
+        sharedPreferencesProvider.overrideWithValue(
+          await SharedPreferences.getInstance(),
+        ),
+        nextFeedDueProvider.overrideWithValue(
+          now.add(const Duration(hours: 3)),
+        ),
+        lastClockFeedProvider.overrideWithValue(feed('second')),
+      ]);
+      await tester.pump();
+
+      expect(
+        tester.binding.hasScheduledFrame,
+        isTrue,
+        reason: 'the take-off should actually animate',
+      );
+
+      await tester.pumpAndSettle();
+      expect(
+        tester.binding.hasScheduledFrame,
+        isFalse,
+        reason: 'and hand back to a still pose',
+      );
     });
   });
 

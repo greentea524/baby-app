@@ -49,7 +49,9 @@ void main() {
 
     test('falls back to the plane on a value it does not know', () async {
       // A style removed in a later version, or a hand-edited preference.
-      final container = await containerWith({'home_companion_style': 'zeppelin'});
+      final container = await containerWith({
+        'home_companion_style': 'zeppelin',
+      });
       expect(container.read(companionStyleProvider), CompanionStyle.plane);
     });
   });
@@ -110,7 +112,7 @@ void main() {
         if (art == null) continue;
         final looks = <String>{};
         for (final phase in CompanionPhase.values) {
-          final pose = art.pose(phase, size, drift: 0, celebrate: 0.5);
+          final pose = art.pose(phase, size, celebrate: 0.5);
           final level = art.level(phase, progress: 0.5, celebrate: 0.5);
           looks.add('${art.icon(phase).codePoint}|$pose|$level');
         }
@@ -125,14 +127,8 @@ void main() {
     test('only the bottle draws a level, and it runs full to empty', () {
       const bottle = BottleArt();
       // Full the moment a feed lands, empty by the time the next is due.
-      expect(
-        bottle.level(CompanionPhase.easy, progress: 0, celebrate: 0),
-        1,
-      );
-      expect(
-        bottle.level(CompanionPhase.due, progress: 1, celebrate: 0),
-        0,
-      );
+      expect(bottle.level(CompanionPhase.easy, progress: 0, celebrate: 0), 1);
+      expect(bottle.level(CompanionPhase.due, progress: 1, celebrate: 0), 0);
       expect(
         bottle.level(CompanionPhase.soon, progress: 0.5, celebrate: 0),
         closeTo(0.5, 0.001),
@@ -155,11 +151,7 @@ void main() {
       const bottle = BottleArt();
       for (final progress in [-0.5, 0.0, 0.5, 1.0, 1.5]) {
         for (final phase in CompanionPhase.values) {
-          final level = bottle.level(
-            phase,
-            progress: progress,
-            celebrate: 0.5,
-          );
+          final level = bottle.level(phase, progress: progress, celebrate: 0.5);
           expect(level, isNotNull);
           expect(level!, inInclusiveRange(0, 1));
         }
@@ -189,11 +181,11 @@ void main() {
         if (art == null) continue;
         for (final phase in CompanionPhase.values) {
           for (final t in [0.0, 0.25, 0.5, 0.75, 1.0]) {
-            final pose = art.pose(phase, size, drift: t, celebrate: t);
+            final pose = art.pose(phase, size, celebrate: t);
             expect(
               pose.at.dx,
               inInclusiveRange(-4, size.width + 4),
-              reason: '${style.name} $phase drifts out of the slot',
+              reason: '${style.name} $phase sits outside the slot',
             );
             expect(pose.at.dy, inInclusiveRange(-4, size.height + 4));
             expect(pose.opacity, inInclusiveRange(0, 1));
@@ -218,33 +210,37 @@ void main() {
       }
     });
 
-    test('the still styles do not ask for a loop', () {
-      // An idle loop repaints for as long as Home is open, so a style that
-      // holds still should not be running one.
-      for (final art in [const HourglassArt(), const BatteryArt()]) {
-        for (final phase in CompanionPhase.values) {
-          expect(art.idles(phase), isFalse);
+    test('nothing but the celebration moves', () {
+      // The plane used to fly a loop between feeds, repainting every frame
+      // for as long as Home was open — hours at a time — and it was the only
+      // style that did. A resting pose now has to be the same pose whatever
+      // else is going on, so no style can quietly start animating again.
+      const size = Size(48, 56);
+      final resting = CompanionPhase.values
+          .where((p) => p != CompanionPhase.justFed)
+          .toList();
+      for (final style in CompanionStyle.values) {
+        final art = style.art;
+        if (art == null) continue;
+        for (final phase in resting) {
+          final poses = <CompanionPose>{
+            for (final t in [0.0, 0.3, 0.6, 1.0])
+              art.pose(phase, size, celebrate: t),
+          };
+          expect(
+            poses,
+            hasLength(1),
+            reason: '${style.name} $phase moves while resting',
+          );
         }
       }
-      expect(const PlaneArt().idles(CompanionPhase.easy), isTrue);
-      expect(const PlaneArt().idles(CompanionPhase.due), isFalse);
     });
 
     test('the hourglass turns a full half-circle and lands upright', () {
       const art = HourglassArt();
       const size = Size(48, 56);
-      final start = art.pose(
-        CompanionPhase.justFed,
-        size,
-        drift: 0,
-        celebrate: 0,
-      );
-      final end = art.pose(
-        CompanionPhase.justFed,
-        size,
-        drift: 0,
-        celebrate: 1,
-      );
+      final start = art.pose(CompanionPhase.justFed, size, celebrate: 0);
+      final end = art.pose(CompanionPhase.justFed, size, celebrate: 1);
       expect(start.angle, 0);
       expect(end.angle, closeTo(3.14159, 0.001));
     });
