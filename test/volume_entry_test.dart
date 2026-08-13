@@ -9,9 +9,18 @@ import 'package:baby_app/core/format/volume_format.dart';
 /// on every edit walks away from what was entered.
 void main() {
   group('which unit is offered first', () {
-    test('follows the caregiver setting', () {
-      expect(VolumeUnit.defaultFor(UnitSystem.metric), VolumeUnit.ml);
-      expect(VolumeUnit.defaultFor(UnitSystem.us), VolumeUnit.flOz);
+    test('always millilitres, whatever the caregiver setting says', () {
+      // Bottles and pump bags are marked in ml even in a US kitchen, so the
+      // field opens on the unit printed on the thing in your hand. Ounces are
+      // one tap away rather than the starting point.
+      expect(VolumeUnit.initial, VolumeUnit.ml);
+    });
+
+    test('and the display agrees with it', () {
+      // The two have to match: opening in ml and reading back "5 fl oz
+      // (148 ml)" makes the app look like it changed the number.
+      expect(formatVolume(150, UnitSystem.us), startsWith('150 ml'));
+      expect(formatVolume(150, UnitSystem.metric), '150 ml');
     });
   });
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/format/unit_system.dart';
 import '../../core/format/volume_entry.dart';
 import '../../data/models/feeding_event.dart' show BreastSide;
 import '../../data/models/pumping_event.dart';
@@ -51,7 +50,7 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
     final e = widget.existing;
     _time = e?.time ?? DateTime.now();
     _side = e?.side ?? BreastSide.both;
-    _unit = VolumeUnit.defaultFor(ref.read(unitSystemProvider));
+    _unit = VolumeUnit.initial;
     _storedMl = e?.amountMl;
     if (e?.amountMl != null) {
       _amount.text = _unit.fieldText(e!.amountMl!);

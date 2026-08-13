@@ -97,7 +97,7 @@ void main() {
         startTime: DateTime(2026, 7, 23),
         amountMl: 120,
       );
-      expect(FeedingFormat.details(e, UnitSystem.us), '4.1 fl oz (120 ml)');
+      expect(FeedingFormat.details(e, UnitSystem.us), '120 ml (4.1 fl oz)');
       // Metric drops the conversion rather than showing both.
       expect(FeedingFormat.details(e, UnitSystem.metric), '120 ml');
     });

@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
-import '../../core/format/unit_system.dart';
 import '../../core/format/volume_entry.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
@@ -322,7 +321,7 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
     final e = widget.existing;
     _time = e?.startTime ?? DateTime.now();
     _isSnack = e?.isSnack ?? false;
-    _unit = VolumeUnit.defaultFor(ref.read(unitSystemProvider));
+    _unit = VolumeUnit.initial;
     _storedMl = e?.amountMl;
     if (e?.amountMl != null) {
       _amountController.text = _unit.fieldText(e!.amountMl!);
