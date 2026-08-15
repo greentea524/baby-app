@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'baby_event.dart';
+
 /// What kind of visit an appointment is (KAN-176). Display labels and icons
 /// live in `AppointmentFormat` so the model stays free of Flutter imports.
 enum AppointmentKind { checkup, vaccination, specialist, dental, other }
@@ -8,7 +10,7 @@ enum AppointmentKind { checkup, vaccination, specialist, dental, other }
 ///
 /// The first forward-looking record in the app — everything else logs what
 /// already happened.
-class Appointment {
+class Appointment implements BabyEvent {
   const Appointment({
     required this.id,
     required this.at,
@@ -20,6 +22,7 @@ class Appointment {
     this.completedAt,
   });
 
+  @override
   final String id;
 
   /// When the appointment is. Stored as an absolute instant; the UI renders
@@ -82,6 +85,7 @@ class Appointment {
     );
   }
 
+  @override
   Map<String, dynamic> toMap() => {
     'at': Timestamp.fromDate(at),
     'kind': kind.name,

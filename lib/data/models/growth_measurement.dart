@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'baby_event.dart';
+
 /// A growth data point. Stored at
 /// `users/{uid}/babies/{babyId}/growth/{id}`. Any subset of the three
 /// metrics may be present (a visit might record only weight, say).
-class GrowthMeasurement {
+class GrowthMeasurement implements BabyEvent {
   const GrowthMeasurement({
     required this.id,
     required this.date,
@@ -12,6 +14,7 @@ class GrowthMeasurement {
     this.headCm,
   });
 
+  @override
   final String id;
   final DateTime date;
   final double? weightKg;
@@ -33,6 +36,7 @@ class GrowthMeasurement {
     );
   }
 
+  @override
   Map<String, dynamic> toMap() => {
     'date': Timestamp.fromDate(date),
     'weightKg': weightKg,

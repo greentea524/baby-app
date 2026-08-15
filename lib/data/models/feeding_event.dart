@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'baby_event.dart';
+
 enum FeedingType { breast, bottle, solids }
 
 enum BreastSide { left, right, both }
@@ -7,7 +9,7 @@ enum BreastSide { left, right, both }
 /// A feeding event. Stored at `users/{uid}/babies/{babyId}/feedings/{id}`.
 /// Full CRUD lands with the Feeding Logging epic (KAN-130); this defines
 /// the schema the rest of the app scopes against.
-class FeedingEvent {
+class FeedingEvent implements BabyEvent {
   const FeedingEvent({
     required this.id,
     required this.type,
@@ -19,6 +21,7 @@ class FeedingEvent {
     this.isSnack = false,
   });
 
+  @override
   final String id;
   final FeedingType type;
   final DateTime startTime;
@@ -66,6 +69,7 @@ class FeedingEvent {
     );
   }
 
+  @override
   Map<String, dynamic> toMap() => {
     'type': type.name,
     'startTime': Timestamp.fromDate(startTime),
