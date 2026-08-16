@@ -139,7 +139,8 @@ class _Trends extends ConsumerWidget {
         if (stats.totalFeeds > 0) ...[
           _ChartSection(
             title: 'Longest night stretch',
-            subtitle: 'Between milk feeds, '
+            subtitle:
+                'Between milk feeds, '
                 '${hourLabel(nightStartHour)}–${hourLabel(nightEndHour)}',
             values: [for (final m in nights) m.toDouble()],
             labels: labels,
@@ -328,6 +329,10 @@ class _ChartSection extends StatelessWidget {
             ),
           const SizedBox(height: 4),
           TrendChart(
+            // The heading above is drawn, not spoken by the chart — passing
+            // it in is what lets the chart say what it is a chart *of*.
+            title: title,
+            subtitle: subtitle,
             values: values,
             labels: labels,
             valueFormat: valueFormat,

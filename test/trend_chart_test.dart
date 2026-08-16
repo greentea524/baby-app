@@ -1,13 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:baby_app/features/common/chart_text.dart';
 import 'package:baby_app/features/insights/trend_chart.dart';
 
 /// The bars carry no labels of their own, so tapping one is the only way to
 /// read the number behind it.
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   const width = 400.0;
   const height = 160.0;
+
+  /// The axis labels as the chart draws them at the default text size.
+  ChartText plainLabels() => const ChartText(
+    style: TextStyle(fontSize: 9),
+    scaler: TextScaler.noScaling,
+  );
+
+  /// The geometry the widget would compute for [values], so a test taps
+  /// where the chart actually put the column.
+  TrendGeometry geometryFor(
+    List<double> values, {
+    String Function(double)? axisFormat,
+    String Function(double)? secondaryFormat,
+  }) {
+    final format = axisFormat ?? TrendChart.trim;
+    final ticks = TrendScale.of(values).ticks;
+    return TrendGeometry.measured(
+      count: values.length,
+      labels: plainLabels(),
+      axisLabels: [for (final t in ticks) format(t)],
+      secondaryLabels: secondaryFormat == null
+          ? null
+          : [for (final t in ticks) secondaryFormat(t)],
+    );
+  }
 
   Future<void> pumpChart(
     WidgetTester tester, {
@@ -23,6 +51,7 @@ void main() {
           child: SizedBox(
             width: width,
             child: TrendChart(
+              title: 'Feeds per day',
               values: values,
               labels: labels,
               height: height,
@@ -40,12 +69,17 @@ void main() {
   Future<void> tapBar(
     WidgetTester tester,
     int index,
-    int count, {
-    bool hasSecondary = false,
+    List<double> values, {
+    String Function(double)? axisFormat,
+    String Function(double)? secondaryFormat,
   }) async {
-    final geometry = TrendGeometry(count: count, hasSecondary: hasSecondary);
+    final geometry = geometryFor(
+      values,
+      axisFormat: axisFormat,
+      secondaryFormat: secondaryFormat,
+    );
     final plot = geometry.plot(const Size(width, height));
-    final slot = plot.width / count;
+    final slot = plot.width / values.length;
     // Anchor to the chart's own gesture area: Scaffold and Material insert
     // CustomPaints of their own, so byType(CustomPaint).first is not it.
     final origin = tester.getTopLeft(
@@ -61,7 +95,11 @@ void main() {
   }
 
   testWidgets('prompts before anything is selected', (tester) async {
-    await pumpChart(tester, values: [1, 2, 3], labels: ['Jul 1', 'Jul 2', 'Jul 3']);
+    await pumpChart(
+      tester,
+      values: [1, 2, 3],
+      labels: ['Jul 1', 'Jul 2', 'Jul 3'],
+    );
     expect(find.text('Tap a bar for details'), findsOneWidget);
   });
 
@@ -71,7 +109,7 @@ void main() {
       values: [4, 7, 2],
       labels: ['Jul 1', 'Jul 2', 'Jul 3'],
     );
-    await tapBar(tester, 1, 3);
+    await tapBar(tester, 1, [4, 7, 2]);
     expect(find.text('Jul 2 · 7'), findsOneWidget);
     expect(find.text('Tap a bar for details'), findsNothing);
   });
@@ -82,8 +120,8 @@ void main() {
       values: [4, 7, 2],
       labels: ['Jul 1', 'Jul 2', 'Jul 3'],
     );
-    await tapBar(tester, 1, 3);
-    await tapBar(tester, 2, 3);
+    await tapBar(tester, 1, [4, 7, 2]);
+    await tapBar(tester, 2, [4, 7, 2]);
     expect(find.text('Jul 3 · 2'), findsOneWidget);
     expect(find.text('Jul 2 · 7'), findsNothing);
   });
@@ -96,7 +134,7 @@ void main() {
       values: [4, 0, 2],
       labels: ['Jul 1', 'Jul 2', 'Jul 3'],
     );
-    await tapBar(tester, 1, 3);
+    await tapBar(tester, 1, [4, 0, 2]);
     expect(find.text('Jul 2 · 0'), findsOneWidget);
   });
 
@@ -110,12 +148,14 @@ void main() {
       valueFormat: (v) => '${v.toStringAsFixed(0)} ml',
       secondaryFormat: (v) => '${(v / 29.5735).toStringAsFixed(1)} fl oz',
     );
-    await tapBar(tester, 0, 1, hasSecondary: true);
+    await tapBar(tester, 0, [
+      240,
+    ], secondaryFormat: (v) => '${(v / 29.5735).toStringAsFixed(1)} fl oz');
     expect(find.text('Jul 1 · 240 ml (8.1 fl oz)'), findsOneWidget);
   });
 
   testWidgets('a narrow axis format never reaches the caption', (tester) async {
-    // The axis gutter is 36px wide, so a duration is abbreviated there — but
+    // A duration is abbreviated on the axis to keep the gutter narrow — but
     // the caption has the room to spell the tapped value out in full, and
     // that is the number the tap was for.
     await pumpChart(
@@ -125,7 +165,9 @@ void main() {
       valueFormat: (v) => '${v ~/ 60}h ${(v % 60).toInt()}m',
       axisFormat: (v) => '${(v / 60).toStringAsFixed(1)}h',
     );
-    await tapBar(tester, 0, 1);
+    await tapBar(tester, 0, [
+      400,
+    ], axisFormat: (v) => '${(v / 60).toStringAsFixed(1)}h');
     expect(find.text('Jul 1 · 6h 40m'), findsOneWidget);
   });
 
@@ -137,14 +179,10 @@ void main() {
       values: [4, 7, 2],
       labels: ['Jul 1', 'Jul 2', 'Jul 3'],
     );
-    await tapBar(tester, 1, 3);
+    await tapBar(tester, 1, [4, 7, 2]);
     expect(find.text('Jul 2 · 7'), findsOneWidget);
 
-    await pumpChart(
-      tester,
-      values: [9, 9],
-      labels: ['Aug 1', 'Aug 2'],
-    );
+    await pumpChart(tester, values: [9, 9], labels: ['Aug 1', 'Aug 2']);
     await tester.pump();
     expect(find.text('Tap a bar for details'), findsOneWidget);
   });
@@ -159,7 +197,12 @@ void main() {
 
   group('TrendGeometry', () {
     test('maps a position to the column under it', () {
-      const geometry = TrendGeometry(count: 4, hasSecondary: false);
+      const geometry = TrendGeometry(
+        count: 4,
+        leftPad: 36,
+        rightPad: 8,
+        bottomPad: 20,
+      );
       const size = Size(width, height);
       final plot = geometry.plot(size);
       final slot = plot.width / 4;
@@ -175,7 +218,12 @@ void main() {
     test('ignores height, so a short bar is still reachable', () {
       // Bars can be a pixel tall; requiring a vertical hit would make the
       // smallest days the hardest to read.
-      const geometry = TrendGeometry(count: 3, hasSecondary: false);
+      const geometry = TrendGeometry(
+        count: 3,
+        leftPad: 36,
+        rightPad: 8,
+        bottomPad: 20,
+      );
       const size = Size(width, height);
       final plot = geometry.plot(size);
       expect(geometry.indexAt(Offset(plot.left + 1, plot.top + 1), size), 0);
@@ -183,7 +231,12 @@ void main() {
     });
 
     test('returns null outside the plot', () {
-      const geometry = TrendGeometry(count: 3, hasSecondary: false);
+      const geometry = TrendGeometry(
+        count: 3,
+        leftPad: 36,
+        rightPad: 8,
+        bottomPad: 20,
+      );
       const size = Size(width, height);
       final plot = geometry.plot(size);
       expect(geometry.indexAt(Offset(plot.left - 5, 50), size), isNull);
@@ -192,8 +245,10 @@ void main() {
 
     test('leaves room on the right for a second unit', () {
       const size = Size(width, height);
-      final plain = const TrendGeometry(count: 3, hasSecondary: false).plot(size);
-      final dual = const TrendGeometry(count: 3, hasSecondary: true).plot(size);
+      final plain = geometryFor([10]).plot(size);
+      final dual = geometryFor([
+        10,
+      ], secondaryFormat: (v) => '${v.toStringAsFixed(1)} fl oz').plot(size);
       expect(dual.right, lessThan(plain.right));
     });
   });
