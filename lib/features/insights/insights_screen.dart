@@ -6,6 +6,9 @@ import '../../core/format/volume_format.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../timeline/timeline_format.dart';
+import 'day_timeline_strip.dart';
+import 'day_view_data.dart';
+import 'diaper_mix_bar.dart';
 import 'feed_pattern_data.dart';
 import 'insights_providers.dart';
 import 'range_stats.dart';
@@ -74,11 +77,16 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                         : RefreshIndicator(
                             onRefresh: () async =>
                                 ref.invalidate(rangeStatsProvider(_range)),
-                            child: _Trends(
-                              stats: data.stats,
-                              feedings: data.feedings,
-                              range: _range,
-                            ),
+                            // A day is a different question from a trend, so
+                            // it gets different charts rather than the same
+                            // ones with one bar in them.
+                            child: _range.isSingleDay
+                                ? _Today(data: data)
+                                : _Trends(
+                                    stats: data.stats,
+                                    feedings: data.feedings,
+                                    range: _range,
+                                  ),
                           ),
                   ),
                 ),
@@ -193,6 +201,98 @@ class _Trends extends ConsumerWidget {
             secondaryFormat: units.isMetric ? null : formatFlOz,
           ),
       ],
+    );
+  }
+}
+
+/// One day: when things happened, and what was in the diapers.
+///
+/// The trend charts are deliberately absent. They plot a bar per day, so at a
+/// range of one they are a single bar — a number drawn slowly. What a day
+/// actually wants answering is *when*, which is what the strip is for.
+class _Today extends ConsumerWidget {
+  const _Today({required this.data});
+
+  final InsightsData data;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final today = DateTime.now();
+
+    // The range fetch covers only the day being viewed, so the last dirty
+    // diaper before today is not in it. The recent stream is already
+    // subscribed by Home and reaches back far enough, so this costs nothing.
+    final recent = ref.watch(recentDiapersProvider).value ?? const [];
+
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+        _SummaryGrid(stats: data.stats),
+        const SizedBox(height: 8),
+        _DaySection(
+          title: 'Through the day',
+          subtitle: 'Every entry, midnight to midnight',
+          child: DayTimelineStrip(
+            marks: dayMarks(
+              day: today,
+              feedings: data.feedings,
+              diapers: data.diapers,
+              pumps: data.pumps,
+            ),
+          ),
+        ),
+        _DaySection(
+          title: 'Diapers',
+          child: DiaperMixBar(
+            mix: diaperMix(data.diapers),
+            lastWithPoop: lastWithPoop(recent),
+            now: today,
+          ),
+        ),
+        if (data.stats.totalFeeds == 0 && data.diapers.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+            child: Text(
+              'Nothing logged today yet.',
+              style: theme.textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// A titled block on the day view, matching [_ChartSection]'s spacing so the
+/// two ranges do not look like different screens.
+class _DaySection extends StatelessWidget {
+  const _DaySection({required this.title, required this.child, this.subtitle});
+
+  final String title;
+  final String? subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: theme.textTheme.titleSmall),
+          if (subtitle != null)
+            Text(
+              subtitle!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
     );
   }
 }

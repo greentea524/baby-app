@@ -25,6 +25,48 @@ enum HomeLayout {
       values.asNameMap()[name] ?? HomeLayout.combined;
 }
 
+/// Where the quick-log buttons sit on Home.
+///
+/// Logging a feed is what the app is opened for, and it used to sit below the
+/// status card and today's totals — around a third of the way down a phone,
+/// and closer to half once solids and pumping are in play. That is a long
+/// reach at 3am with a baby in the other arm.
+enum HomeActions {
+  /// Directly under the app bar, above everything else.
+  top('Top', 'Right under the app bar, in reach one-handed'),
+
+  /// Under the status rows, where they used to be.
+  belowStatus('Below status', 'After the last-fed and diaper rows');
+
+  const HomeActions(this.label, this.description);
+
+  final String label;
+  final String description;
+
+  static HomeActions fromName(String? name) =>
+      values.asNameMap()[name] ?? HomeActions.top;
+}
+
+const _homeActionsKey = 'home_actions';
+
+final homeActionsProvider = NotifierProvider<HomeActionsNotifier, HomeActions>(
+  HomeActionsNotifier.new,
+);
+
+class HomeActionsNotifier extends Notifier<HomeActions> {
+  @override
+  HomeActions build() => HomeActions.fromName(
+    ref.read(sharedPreferencesProvider).getString(_homeActionsKey),
+  );
+
+  Future<void> setPlacement(HomeActions placement) async {
+    state = placement;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setString(_homeActionsKey, placement.name);
+  }
+}
+
 const _homeLayoutKey = 'home_layout';
 
 final homeLayoutProvider = NotifierProvider<HomeLayoutNotifier, HomeLayout>(

@@ -76,6 +76,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final babiesAsync = ref.watch(babiesStreamProvider);
     final baby = ref.watch(currentBabyProvider);
+    final actionsFirst = ref.watch(homeActionsProvider) == HomeActions.top;
     _maybeHandleLaunchAction(baby != null);
 
     return Scaffold(
@@ -94,19 +95,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Something went wrong: $e')),
         data: (_) => baby == null
-            ? ListView(
-                children: const [IncomingInvitesBanner(), _EmptyHome()],
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const IncomingInvitesBanner(),
-                  HomeStatusCard(now: _now),
-                  const TodaySummaryRow(),
-                  const _QuickActions(),
-                  const _RecentHeader(),
-                  const ActivityFilterBar(),
-                  Expanded(child: RecentActivityList(now: _now)),
+            ? ListView(children: const [IncomingInvitesBanner(), _EmptyHome()])
+            // One scroll view for the whole screen. The status card and the
+            // activity list used to be a fixed block above a list with its
+            // own scroll area, so on a short screen — or at a large text
+            // size — the cards held their full height and squeezed the list
+            // into whatever was left. Now everything scrolls together and
+            // nothing has to be given up.
+            : CustomScrollView(
+                slivers: [
+                  const SliverToBoxAdapter(child: IncomingInvitesBanner()),
+                  // Logging is what the app is opened for, so by default it
+                  // is the first thing under the app bar rather than a third
+                  // of the way down the screen.
+                  if (actionsFirst)
+                    const SliverToBoxAdapter(child: _QuickActions()),
+                  SliverToBoxAdapter(child: HomeStatusCard(now: _now)),
+                  const SliverToBoxAdapter(child: TodaySummaryRow()),
+                  if (!actionsFirst)
+                    const SliverToBoxAdapter(child: _QuickActions()),
+                  const SliverToBoxAdapter(child: _RecentHeader()),
+                  const SliverToBoxAdapter(child: ActivityFilterBar()),
+                  RecentActivityList(now: _now),
                 ],
               ),
       ),
@@ -122,12 +132,16 @@ class _RecentHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A Wrap for the same reason as the status row: at 150% text the label
+    // and the link no longer fit across a phone, and a Row overflowed. The
+    // link drops to its own line instead of being clipped.
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
-      child: Row(
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           const Text('Recent'),
-          const Spacer(),
           TextButton.icon(
             onPressed: () => context.push(AppRoutes.timeline),
             icon: const Icon(Icons.timeline, size: 18),
@@ -148,7 +162,7 @@ class _QuickActions extends ConsumerWidget {
     // feeds and diapers are what most people open the app to log.
     final showPumping = ref.watch(showPumpingActionProvider);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Column(
         children: [
           Row(

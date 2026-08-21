@@ -9,6 +9,11 @@ import '../activity/activity_tile.dart';
 /// Unified recent activity: feeds and diaper changes merged by time. This is
 /// the home dashboard's "what happened recently" view; the full daily
 /// timeline with calendar + stats is the Timeline tab (KAN-132).
+///
+/// A sliver rather than a widget, because Home is one scroll view now: the
+/// list used to have a scroll area of its own inside an `Expanded`, which
+/// pinned it to whatever height was left over and meant the cards above it
+/// could never move out of the way on a short screen.
 class RecentActivityList extends ConsumerWidget {
   const RecentActivityList({super.key, this.now});
 
@@ -23,7 +28,12 @@ class RecentActivityList extends ConsumerWidget {
     if ((!feedsAsync.hasValue && feedsAsync.isLoading) ||
         (!diapersAsync.hasValue && diapersAsync.isLoading) ||
         (!pumpsAsync.hasValue && pumpsAsync.isLoading)) {
-      return const Center(child: CircularProgressIndicator());
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
     }
 
     final entries = mergeActivities(
@@ -33,10 +43,10 @@ class RecentActivityList extends ConsumerWidget {
     );
 
     if (entries.isEmpty) {
-      return const Center(
+      return const SliverToBoxAdapter(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: Text('No activity yet.'),
+          child: Center(child: Text('No activity yet.')),
         ),
       );
     }
@@ -47,15 +57,17 @@ class RecentActivityList extends ConsumerWidget {
     // Distinct from "No activity yet": there *is* activity, just none of this
     // kind, and saying so points at the filter as the reason.
     if (visible.isEmpty) {
-      return Center(
+      return SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text('No ${filter.label.toLowerCase()} in recent activity.'),
+          child: Center(
+            child: Text('No ${filter.label.toLowerCase()} in recent activity.'),
+          ),
         ),
       );
     }
 
-    return ListView.separated(
+    return SliverList.separated(
       itemCount: visible.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, i) => ActivityTile(

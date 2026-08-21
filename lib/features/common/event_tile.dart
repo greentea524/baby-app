@@ -94,6 +94,12 @@ class EventTile extends StatelessWidget {
 }
 
 /// Right-hand label: one line, or two when a [detail] stamp is supplied.
+///
+/// Width-bounded, because [ListTile] hands its trailing widget as much room
+/// as it asks for and then gives the title what is left. At a large text size
+/// a two-line stamp asked for most of a phone, and the row overflowed. A
+/// fraction of the screen is a blunt cap, but it is one the timestamp always
+/// fits inside — the text wraps within it rather than being clipped.
 class _Trailing extends StatelessWidget {
   const _Trailing({required this.text, this.detail});
 
@@ -104,21 +110,30 @@ class _Trailing extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     if (detail == null) {
-      return Text(text, style: theme.textTheme.bodySmall);
+      return _bounded(context, Text(text, style: theme.textTheme.bodySmall));
     }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(text, style: theme.textTheme.bodySmall),
-        Text(
-          detail!,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
+    return _bounded(context, _stamp(theme));
   }
+
+  Widget _bounded(BuildContext context, Widget child) => ConstrainedBox(
+    constraints: BoxConstraints(
+      maxWidth: MediaQuery.sizeOf(context).width * 0.4,
+    ),
+    child: child,
+  );
+
+  Widget _stamp(ThemeData theme) => Column(
+    mainAxisSize: MainAxisSize.min,
+    mainAxisAlignment: MainAxisAlignment.center,
+    crossAxisAlignment: CrossAxisAlignment.end,
+    children: [
+      Text(text, style: theme.textTheme.bodySmall),
+      Text(
+        detail!,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    ],
+  );
 }
