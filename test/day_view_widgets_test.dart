@@ -21,6 +21,16 @@ void main() {
     ),
   );
 
+  /// The bar's coloured segments. DecoratedBox rather than ColoredBox
+  /// because "both" carries a gradient; the legend swatches are Containers,
+  /// so they do not match.
+  /// The bar itself is the only ClipRRect in the widget; the legend swatches
+  /// are Containers outside it.
+  Finder barSegments() => find.descendant(
+    of: find.byType(ClipRRect),
+    matching: find.byType(DecoratedBox),
+  );
+
   List<String> semanticLabels(WidgetTester tester, Finder of) {
     final found = <String>[];
     void visit(SemanticsNode node) {
@@ -123,10 +133,7 @@ void main() {
           now: now,
         ),
       );
-      final segments = find.descendant(
-        of: find.byType(DiaperMixBar),
-        matching: find.byType(ColoredBox),
-      );
+      final segments = barSegments();
       expect(segments, findsNWidgets(3));
       for (var i = 0; i < 3; i++) {
         final size = tester.getSize(segments.at(i));
@@ -144,10 +151,7 @@ void main() {
           now: now,
         ),
       );
-      final segments = find.descendant(
-        of: find.byType(DiaperMixBar),
-        matching: find.byType(ColoredBox),
-      );
+      final segments = barSegments();
       expect(segments, findsNWidgets(2), reason: 'a zero draws no segment');
       expect(
         tester.getSize(segments.at(0)).width,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/models/diaper_event.dart';
 import '../timeline/timeline_format.dart';
+import 'chart_palette.dart';
 import 'day_view_data.dart';
 
 /// The day's diapers as one bar split by what was in them, plus the answer to
@@ -37,15 +38,15 @@ class DiaperMixBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final colours = DayColours.of(context);
 
-    final segments = <({String label, int count, Color colour})>[
-      (label: 'Wet', count: mix.wet, colour: scheme.primary),
-      (label: 'Dirty', count: mix.dirty, colour: scheme.tertiary),
-      (
-        label: 'Both',
-        count: mix.both,
-        colour: scheme.tertiary.withValues(alpha: 0.55),
-      ),
+    // "Both" is drawn as both colours rather than a third invented one, so
+    // it is read off the other two instead of being remembered. It used to
+    // be the dirty colour at 55% opacity, which is not a second colour.
+    final segments = <({String label, int count, Color colour, Gradient? mix})>[
+      (label: 'Wet', count: mix.wet, colour: colours.wet, mix: null),
+      (label: 'Dirty', count: mix.dirty, colour: colours.diaper, mix: null),
+      (label: 'Both', count: mix.both, colour: colours.wet, mix: colours.both),
     ];
     final present = segments.where((s) => s.count > 0).toList();
 
@@ -69,14 +70,25 @@ class DiaperMixBar extends StatelessWidget {
                         // allow, and a Row hands its children loose ones. The
                         // bar laid out at full width and zero height, which
                         // draws as nothing at all.
+                        // Hairline gaps between segments. Without them the
+                        // split "both" block butts its teal half against the
+                        // dirty amber beside it, and a three-part bar reads
+                        // as four.
                         : Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              for (final s in present)
+                              for (final (i, s) in present.indexed) ...[
+                                if (i > 0) const SizedBox(width: 2),
                                 Expanded(
                                   flex: s.count,
-                                  child: ColoredBox(color: s.colour),
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: s.mix == null ? s.colour : null,
+                                      gradient: s.mix,
+                                    ),
+                                  ),
                                 ),
+                              ],
                             ],
                           ),
                   ),
@@ -92,6 +104,7 @@ class DiaperMixBar extends StatelessWidget {
                         label: s.label,
                         count: s.count,
                         colour: s.colour,
+                        mix: s.mix,
                         muted: s.count == 0,
                       ),
                   ],
@@ -135,11 +148,15 @@ class _Count extends StatelessWidget {
     required this.count,
     required this.colour,
     required this.muted,
+    this.mix,
   });
 
   final String label;
   final int count;
   final Color colour;
+
+  /// Set for "both", whose swatch carries the same split as its segment.
+  final Gradient? mix;
   final bool muted;
 
   @override
@@ -155,7 +172,10 @@ class _Count extends StatelessWidget {
           width: 10,
           height: 10,
           decoration: BoxDecoration(
-            color: muted ? theme.colorScheme.surfaceContainerHighest : colour,
+            color: muted
+                ? theme.colorScheme.surfaceContainerHighest
+                : (mix == null ? colour : null),
+            gradient: muted ? null : mix,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
