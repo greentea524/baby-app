@@ -30,8 +30,8 @@ class _GrowthSheet extends ConsumerStatefulWidget {
 }
 
 class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
-  /// In metric this holds kilograms; in US it holds whole pounds and [_oz]
-  /// carries the remainder.
+  /// In metric this holds kilograms; in US it holds pounds — which may carry
+  /// a fraction — and [_oz] carries any ounces on top.
   final _weight = TextEditingController();
   final _oz = TextEditingController();
   final _height = TextEditingController();
@@ -48,12 +48,31 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
   /// all that stands between an impatient double-tap and two records.
   bool _saving = false;
 
+  /// What was stored when the sheet opened, and whether each field has since
+  /// been retyped.
+  ///
+  /// A field that nobody touched has to be written back exactly as it was.
+  /// Every field here loses something on the way to being displayed — kg is
+  /// rounded to a decimal, pounds to a whole ounce, inches to a decimal — so
+  /// re-reading the text is not reading the measurement. Open a 7.4 lb entry
+  /// and it shows 7 lb 6 oz; save without touching it and the baby has
+  /// quietly lost 11 grams.
+  double? _storedKg;
+  double? _storedHeightCm;
+  double? _storedHeadCm;
+  bool _weightEdited = false;
+  bool _heightEdited = false;
+  bool _headEdited = false;
+
   @override
   void initState() {
     super.initState();
     _units = ref.read(unitSystemProvider);
     final e = widget.existing;
     _date = e?.date ?? DateTime.now();
+    _storedKg = e?.weightKg;
+    _storedHeightCm = e?.heightCm;
+    _storedHeadCm = e?.headCm;
     if (e?.weightKg != null) {
       if (_units.isMetric) {
         _weight.text = _fmt(e!.weightKg!);
@@ -107,6 +126,15 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
 
   String get _lengthUnit => _units.isMetric ? 'cm' : 'in';
 
+  double? _weightKg() => weightToStore(
+    metric: _units.isMetric,
+    stored: _storedKg,
+    edited: _weightEdited,
+    kilograms: _parse(_weight),
+    pounds: _parse(_weight),
+    ounces: _parse(_oz),
+  );
+
   /// A typed length in the caregiver's units, as centimetres for storage.
   double? _toCm(double? entered) {
     if (entered == null) return null;
@@ -116,18 +144,13 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
   void _save() {
     if (_saving) return;
     // Whatever was typed, what gets stored is always kg and cm.
-    final weight = _parse(_weight);
-    final oz = _parse(_oz);
-    final double? w;
-    if (_units.isMetric) {
-      w = weight;
-    } else {
-      w = (weight == null && oz == null)
-          ? null
-          : lbOzToKg(weight?.toInt() ?? 0, oz ?? 0);
-    }
-    final h = _toCm(_parse(_height));
-    final hc = _toCm(_parse(_head));
+    final w = _weightKg();
+    final h = _heightEdited || _storedHeightCm == null
+        ? _toCm(_parse(_height))
+        : _storedHeightCm;
+    final hc = _headEdited || _storedHeadCm == null
+        ? _toCm(_parse(_head))
+        : _storedHeadCm;
     if (w == null && h == null && hc == null) {
       setState(() => _error = 'Enter at least one measurement.');
       return;
@@ -173,24 +196,54 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
           ],
         ),
         const SizedBox(height: 8),
-        // Metric weighs in a single decimal field; US splits into whole
-        // pounds plus ounces, which is how scales and paediatricians
-        // report it.
+        // Metric weighs in a single decimal field; US splits into pounds
+        // plus ounces, which is how scales and paediatricians report it.
+        // The pounds field takes a decimal too, for a scale that reads
+        // "7.5 lb" rather than "7 lb 8 oz".
         if (_units.isMetric)
-          _numberField(_weight, 'Weight', 'kg')
+          _numberField(
+            _weight,
+            'Weight',
+            'kg',
+            onEdit: () => _weightEdited = true,
+          )
         else
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: _numberField(_weight, 'Weight', 'lb')),
+              Expanded(
+                child: _numberField(
+                  _weight,
+                  'Weight',
+                  'lb',
+                  onEdit: () => _weightEdited = true,
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _numberField(_oz, 'Ounces', 'oz')),
+              Expanded(
+                child: _numberField(
+                  _oz,
+                  'Ounces',
+                  'oz',
+                  onEdit: () => _weightEdited = true,
+                ),
+              ),
             ],
           ),
         const SizedBox(height: 12),
-        _numberField(_height, 'Height', _lengthUnit),
+        _numberField(
+          _height,
+          'Height',
+          _lengthUnit,
+          onEdit: () => _heightEdited = true,
+        ),
         const SizedBox(height: 12),
-        _numberField(_head, 'Head circumference', _lengthUnit),
+        _numberField(
+          _head,
+          'Head circumference',
+          _lengthUnit,
+          onEdit: () => _headEdited = true,
+        ),
         if (_error != null) ...[
           const SizedBox(height: 12),
           Text(
@@ -207,7 +260,12 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
     );
   }
 
-  Widget _numberField(TextEditingController c, String label, String unit) {
+  Widget _numberField(
+    TextEditingController c,
+    String label,
+    String unit, {
+    required VoidCallback onEdit,
+  }) {
     return TextField(
       controller: c,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -218,6 +276,7 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
         border: const OutlineInputBorder(),
       ),
       onChanged: (_) {
+        onEdit();
         if (_error != null) setState(() => _error = null);
       },
     );
