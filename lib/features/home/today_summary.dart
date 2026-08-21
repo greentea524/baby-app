@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
+import '../../data/models/diaper_event.dart';
+import '../../data/models/feeding_event.dart';
+import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../timeline/day_stats.dart';
 import '../timeline/timeline_format.dart';
@@ -17,22 +20,38 @@ import '../timeline/timeline_format.dart';
 /// Deliberately not built on `selectedDayProvider`: that follows whatever day
 /// the timeline is browsing, so Home would quietly start reporting last
 /// Tuesday.
-final todayStatsProvider = Provider<DayStats>((ref) {
+typedef TodayEvents = ({
+  List<FeedingEvent> feedings,
+  List<DiaperEvent> diapers,
+  List<PumpingEvent> pumps,
+});
+
+/// Everything logged today, from the streams Home is already subscribed to.
+final todayEventsProvider = Provider<TodayEvents>((ref) {
   final now = DateTime.now();
   bool isToday(DateTime t) =>
       t.year == now.year && t.month == now.month && t.day == now.day;
 
-  final feeds = (ref.watch(recentFeedingsProvider).value ?? const [])
-      .where((f) => isToday(f.startTime))
-      .toList();
-  final diapers = (ref.watch(recentDiapersProvider).value ?? const [])
-      .where((d) => isToday(d.time))
-      .toList();
-  final pumps = (ref.watch(recentPumpingProvider).value ?? const [])
-      .where((p) => isToday(p.time))
-      .toList();
+  return (
+    feedings: [
+      for (final f in ref.watch(recentFeedingsProvider).value ?? const [])
+        if (isToday(f.startTime)) f,
+    ],
+    diapers: [
+      for (final d in ref.watch(recentDiapersProvider).value ?? const [])
+        if (isToday(d.time)) d,
+    ],
+    pumps: [
+      for (final p in ref.watch(recentPumpingProvider).value ?? const [])
+        if (isToday(p.time)) p,
+    ],
+  );
+});
 
-  return DayStats.from(feeds, diapers, pumps: pumps);
+/// Today's totals, from the same events.
+final todayStatsProvider = Provider<DayStats>((ref) {
+  final today = ref.watch(todayEventsProvider);
+  return DayStats.from(today.feedings, today.diapers, pumps: today.pumps);
 });
 
 /// Today's running totals as a single line.
