@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
 import '../common/chart_text.dart';
+import 'chart_palette.dart';
 import 'day_view_data.dart';
 import 'feed_pattern_data.dart';
 
@@ -39,12 +40,14 @@ class DayTimelineStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final colours = DayColours.of(context);
 
+    // A top-up shares the feed's colour because it *is* a feed; it is told
+    // apart by being drawn hollow, not by a fainter shade of the same thing.
     Color colourOf(DayMarkKind kind) => switch (kind) {
-      DayMarkKind.feed => scheme.primary,
-      DayMarkKind.snack => scheme.primary.withValues(alpha: 0.45),
-      DayMarkKind.diaper => scheme.tertiary,
-      DayMarkKind.pump => scheme.secondary,
+      DayMarkKind.feed || DayMarkKind.snack => colours.feed,
+      DayMarkKind.diaper => colours.diaper,
+      DayMarkKind.pump => colours.pump,
     };
 
     if (marks.isEmpty) {
@@ -125,6 +128,8 @@ class _Legend extends StatelessWidget {
   final List<DayMarkKind> kinds;
   final Color Function(DayMarkKind) colourOf;
 
+  static bool _hollow(DayMarkKind kind) => kind == DayMarkKind.snack;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -137,11 +142,17 @@ class _Legend extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // The key matches the mark: a hollow swatch for the hollow
+              // tick, so the legend explains the drawing rather than
+              // restating its colour.
               Container(
                 width: 10,
                 height: 10,
                 decoration: BoxDecoration(
-                  color: colourOf(kind),
+                  color: _hollow(kind) ? null : colourOf(kind),
+                  border: _hollow(kind)
+                      ? Border.all(color: colourOf(kind), width: 1.6)
+                      : null,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -211,11 +222,26 @@ class _StripPainter extends CustomPainter {
     for (final mark in marks) {
       final lane = DayTimelineStrip.laneOf(mark.kind);
       final top = band.top + laneHeight * lane + 4;
+      final hollow = mark.kind == DayMarkKind.snack;
+      // Top-ups share the feed lane and the feed colour, so they are told
+      // apart by being drawn as an outline — a cue that survives being
+      // printed, dimmed, or read by someone who cannot separate the hues.
       final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x(mark.hour) - 1.5, top, 3, laneHeight - 8),
+        Rect.fromLTWH(
+          x(mark.hour) - (hollow ? 2.5 : 1.5),
+          top,
+          hollow ? 5 : 3,
+          laneHeight - 8,
+        ),
         const Radius.circular(1.5),
       );
-      canvas.drawRRect(rect, Paint()..color = colourOf(mark.kind));
+      canvas.drawRRect(
+        rect,
+        Paint()
+          ..color = colourOf(mark.kind)
+          ..style = hollow ? PaintingStyle.stroke : PaintingStyle.fill
+          ..strokeWidth = 1.4,
+      );
     }
   }
 
