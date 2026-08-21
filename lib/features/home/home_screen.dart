@@ -124,15 +124,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-/// "Recent" with the way through to the full daily timeline. The recent list
-/// below is the short version of the same data, so this is a "see all" link
-/// rather than a separate destination (KAN-175).
-class _RecentHeader extends StatelessWidget {
+/// The activity list's scope, with the way through to the full daily
+/// timeline. The list below is the short version of the same data, so this is
+/// a "see all" link rather than a separate destination (KAN-175).
+class _RecentHeader extends ConsumerWidget {
   const _RecentHeader();
 
   @override
-  Widget build(BuildContext context) {
-    // A Wrap for the same reason as the status row: at 150% text the label
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scope = ref.watch(homeActivityScopeProvider);
+    // A Wrap for the same reason as the status row: at 150% text the toggle
     // and the link no longer fit across a phone, and a Row overflowed. The
     // link drops to its own line instead of being clipped.
     return Padding(
@@ -141,7 +142,22 @@ class _RecentHeader extends StatelessWidget {
         alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          const Text('Recent'),
+          // Replaces a plain "Recent" heading: the word was already there
+          // saying what the list held, so making it the control costs no
+          // room and one tap now changes what the list holds.
+          SegmentedButton<HomeActivityScope>(
+            style: const ButtonStyle(
+              visualDensity: VisualDensity(horizontal: -2, vertical: -2),
+            ),
+            showSelectedIcon: false,
+            segments: [
+              for (final s in HomeActivityScope.values)
+                ButtonSegment(value: s, label: Text(s.label)),
+            ],
+            selected: {scope},
+            onSelectionChanged: (s) =>
+                ref.read(homeActivityScopeProvider.notifier).setScope(s.first),
+          ),
           TextButton.icon(
             onPressed: () => context.push(AppRoutes.timeline),
             icon: const Icon(Icons.timeline, size: 18),

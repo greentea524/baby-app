@@ -5,6 +5,7 @@ import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_filter.dart';
 import '../activity/activity_tile.dart';
+import 'home_prefs.dart';
 
 /// Unified recent activity: feeds and diaper changes merged by time. This is
 /// the home dashboard's "what happened recently" view; the full daily
@@ -51,8 +52,24 @@ class RecentActivityList extends ConsumerWidget {
       );
     }
 
+    final scope = ref.watch(homeActivityScopeProvider);
+    final inScope = scope == HomeActivityScope.today
+        ? onlyToday(entries, now: now ?? DateTime.now())
+        : entries;
+
+    // Distinct from an empty filter result: the day has not started, rather
+    // than the filter having hidden everything.
+    if (inScope.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: Text('Nothing logged today yet.')),
+        ),
+      );
+    }
+
     final filter = ref.watch(activityFilterProvider);
-    final visible = applyActivityFilter(entries, filter);
+    final visible = applyActivityFilter(inScope, filter);
 
     // Distinct from "No activity yet": there *is* activity, just none of this
     // kind, and saying so points at the filter as the reason.
@@ -61,7 +78,11 @@ class RecentActivityList extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Center(
-            child: Text('No ${filter.label.toLowerCase()} in recent activity.'),
+            child: Text(
+              scope == HomeActivityScope.today
+                  ? 'No ${filter.label.toLowerCase()} today.'
+                  : 'No ${filter.label.toLowerCase()} in recent activity.',
+            ),
           ),
         ),
       );
@@ -73,11 +94,29 @@ class RecentActivityList extends ConsumerWidget {
       itemBuilder: (context, i) => ActivityTile(
         entry: visible[i],
         now: now,
-        // A timestamp rather than "2 hr ago". This list spans days, so the
+        // A timestamp rather than "2 hr ago". Recent spans days, so the
         // stamp carries a short date once a row is older than today —
-        // a bare "9:30 PM" could otherwise be any night.
+        // a bare "9:30 PM" could otherwise be any night. In Today every row
+        // is today by definition, and the date would be noise on all of them.
         timeDisplay: ActivityTimeDisplay.stamp,
       ),
     );
   }
+}
+
+/// Entries from the same calendar day as [now], newest first.
+///
+/// A calendar day, not the last 24 hours: "today" on a dashboard means since
+/// midnight, and a rolling window would keep last night's 11pm feed on the
+/// list well into this afternoon.
+List<ActivityEntry> onlyToday(
+  List<ActivityEntry> entries, {
+  required DateTime now,
+}) {
+  final start = DateTime(now.year, now.month, now.day);
+  final end = start.add(const Duration(days: 1));
+  return [
+    for (final e in entries)
+      if (!e.time.isBefore(start) && e.time.isBefore(end)) e,
+  ];
 }

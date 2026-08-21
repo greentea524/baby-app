@@ -25,6 +25,55 @@ enum HomeLayout {
       values.asNameMap()[name] ?? HomeLayout.combined;
 }
 
+/// What Home's activity list covers.
+///
+/// Two different questions, and the list can only answer one at a time.
+/// "What has been happening" wants the last few entries whenever they were;
+/// "how has today gone" wants today's record, complete, with yesterday's
+/// late-evening feeds kept out of it.
+enum HomeActivityScope {
+  /// The most recent entries, whatever day they fall on.
+  recent('Recent', 'The last few entries, whenever they were'),
+
+  /// Today's entries only, from midnight.
+  today('Today', "Today's entries only, from midnight");
+
+  const HomeActivityScope(this.label, this.description);
+
+  final String label;
+  final String description;
+
+  static HomeActivityScope fromName(String? name) =>
+      values.asNameMap()[name] ?? HomeActivityScope.recent;
+}
+
+const _activityScopeKey = 'home_activity_scope';
+
+/// Persisted, unlike the activity *filter* next to it.
+///
+/// The filter is deliberately in-memory, because a kind filter still applied
+/// days later reads as missing data. This does not have that problem: both
+/// options are labelled on screen, and "Today" showing only today is what it
+/// says it does.
+final homeActivityScopeProvider =
+    NotifierProvider<HomeActivityScopeNotifier, HomeActivityScope>(
+      HomeActivityScopeNotifier.new,
+    );
+
+class HomeActivityScopeNotifier extends Notifier<HomeActivityScope> {
+  @override
+  HomeActivityScope build() => HomeActivityScope.fromName(
+    ref.read(sharedPreferencesProvider).getString(_activityScopeKey),
+  );
+
+  Future<void> setScope(HomeActivityScope scope) async {
+    state = scope;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setString(_activityScopeKey, scope.name);
+  }
+}
+
 /// Where the quick-log buttons sit on Home.
 ///
 /// Logging a feed is what the app is opened for, and it used to sit below the
