@@ -80,6 +80,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final babiesAsync = ref.watch(babiesStreamProvider);
     final baby = ref.watch(currentBabyProvider);
     final actionsFirst = ref.watch(homeActionsProvider) == HomeActions.top;
+    final showList =
+        ref.watch(homeActivityScopeProvider) == HomeActivityScope.recent;
     _maybeHandleLaunchAction(baby != null);
 
     return Scaffold(
@@ -117,18 +119,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SliverToBoxAdapter(child: TodaySummaryRow()),
                   if (!actionsFirst)
                     const SliverToBoxAdapter(child: _QuickActions()),
-                  const SliverToBoxAdapter(child: _RecentHeader()),
                   // Today is the same day the Insights day view draws, shown
                   // here so the glance does not cost a tab change. Recent is
                   // the running log, which needs its kind filter; the charts
-                  // do not, so the bar goes with the list.
-                  if (ref.watch(homeActivityScopeProvider) ==
-                      HomeActivityScope.today)
-                    SliverToBoxAdapter(child: _TodayCharts(now: _now))
-                  else ...[
-                    const SliverToBoxAdapter(child: ActivityFilterBar()),
-                    RecentActivityList(now: _now),
-                  ],
+                  // do not, so the bar is only there for the list.
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _PinnedActivityControls(
+                      extent:
+                          _RecentHeader.headerHeight(context) +
+                          (showList ? ActivityFilterBar.barHeight(context) : 0),
+                      showFilters: showList,
+                      background: Theme.of(context).colorScheme.surface,
+                    ),
+                  ),
+                  if (showList)
+                    RecentActivityList(now: _now)
+                  else
+                    SliverToBoxAdapter(child: _TodayCharts(now: _now)),
                 ],
               ),
       ),
@@ -139,46 +147,112 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 /// The activity list's scope, with the way through to the full daily
 /// timeline. The list below is the short version of the same data, so this is
 /// a "see all" link rather than a separate destination (KAN-175).
+///
+/// Deliberately a single line at every text size. It is pinned to the top of
+/// the list, and a pinned header has to be told its height before it lays
+/// anything out — a row that might wrap to two lines cannot be measured in
+/// advance, and guessing short would clip it. That is why the timeline link
+/// is an icon here rather than the labelled button it used to be.
 class _RecentHeader extends ConsumerWidget {
   const _RecentHeader();
+
+  /// How tall the header is at [context]'s text size.
+  ///
+  /// Floors at 48 because an [IconButton] is 48 high whatever the text size,
+  /// and the first attempt sized this from the text alone — which came out
+  /// exactly 8 pixels short and overflowed at every scale.
+  static double headerHeight(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(40).clamp(48, 88) + 10;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scope = ref.watch(homeActivityScopeProvider);
-    // A Wrap for the same reason as the status row: at 150% text the toggle
-    // and the link no longer fit across a phone, and a Row overflowed. The
-    // link drops to its own line instead of being clipped.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
+      child: Row(
         children: [
           // Replaces a plain "Recent" heading: the word was already there
           // saying what the list held, so making it the control costs no
           // room and one tap now changes what the list holds.
-          SegmentedButton<HomeActivityScope>(
-            style: const ButtonStyle(
-              visualDensity: VisualDensity(horizontal: -2, vertical: -2),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SegmentedButton<HomeActivityScope>(
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity(horizontal: -2, vertical: -2),
+                ),
+                showSelectedIcon: false,
+                segments: [
+                  for (final s in HomeActivityScope.values)
+                    ButtonSegment(value: s, label: Text(s.label)),
+                ],
+                selected: {scope},
+                onSelectionChanged: (s) => ref
+                    .read(homeActivityScopeProvider.notifier)
+                    .setScope(s.first),
+              ),
             ),
-            showSelectedIcon: false,
-            segments: [
-              for (final s in HomeActivityScope.values)
-                ButtonSegment(value: s, label: Text(s.label)),
-            ],
-            selected: {scope},
-            onSelectionChanged: (s) =>
-                ref.read(homeActivityScopeProvider.notifier).setScope(s.first),
           ),
-          TextButton.icon(
+          IconButton(
             onPressed: () => context.push(AppRoutes.timeline),
-            icon: const Icon(Icons.timeline, size: 18),
-            label: const Text('Full timeline'),
+            icon: const Icon(Icons.timeline),
+            tooltip: 'Full timeline',
           ),
         ],
       ),
     );
   }
+}
+
+/// Keeps the scope toggle and the kind filters on screen while the rows
+/// scroll under them.
+///
+/// Home is one scroll view, so without this the controls for the list
+/// disappear as soon as you start reading it — which is exactly when you
+/// want to change what it is showing.
+class _PinnedActivityControls extends SliverPersistentHeaderDelegate {
+  const _PinnedActivityControls({
+    required this.extent,
+    required this.showFilters,
+    required this.background,
+  });
+
+  final double extent;
+  final bool showFilters;
+  final Color background;
+
+  @override
+  double get maxExtent => extent;
+
+  @override
+  double get minExtent => extent;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlaps) =>
+      // Sized to exactly [extent], not merely no taller than it. A pinned
+      // header whose child comes out shorter than its declared extent fails
+      // the sliver's own geometry check — "layoutExtent exceeds
+      // paintExtent" — so the header takes the height it claimed and the
+      // toggle row absorbs whatever the filter bar does not.
+      SizedBox(
+        height: extent,
+        // Opaque, or the rows would scroll visibly behind the controls.
+        child: ColoredBox(
+          color: background,
+          child: Column(
+            children: [
+              const Expanded(child: _RecentHeader()),
+              if (showFilters) const ActivityFilterBar(),
+            ],
+          ),
+        ),
+      );
+
+  @override
+  bool shouldRebuild(_PinnedActivityControls old) =>
+      old.extent != extent ||
+      old.showFilters != showFilters ||
+      old.background != background;
 }
 
 /// Today at a glance: the same two charts the Insights day view draws.

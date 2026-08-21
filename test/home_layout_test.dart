@@ -291,4 +291,73 @@ void main() {
       expect(HomeActivityScope.fromName('fortnight'), HomeActivityScope.recent);
     });
   });
+
+  group('the list controls stay put', () {
+    /// Enough entries to scroll well past the header's original position.
+    List<FeedingEvent> manyFeeds() => [
+      for (var i = 0; i < 30; i++)
+        FeedingEvent(
+          id: 'f$i',
+          type: FeedingType.bottle,
+          startTime: now.subtract(Duration(minutes: 30 * (i + 1))),
+          amountMl: 100 + i.toDouble(),
+        ),
+    ];
+
+    testWidgets('the toggle and filters are still there after scrolling', (
+      tester,
+    ) async {
+      // Home is one scroll view, so without pinning these disappear the
+      // moment you start reading the list — which is exactly when you want
+      // to change what it shows.
+      await pumpHome(tester, feedings: manyFeeds(), withData: false);
+      final toggle = find.byType(SegmentedButton<HomeActivityScope>);
+      final before = tester.getTopLeft(toggle).dy;
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -2000));
+      await tester.pumpAndSettle();
+
+      expect(toggle, findsOneWidget, reason: 'the toggle scrolled away');
+      expect(find.byType(ActivityFilterBar), findsOneWidget);
+      expect(
+        tester.getTopLeft(toggle).dy,
+        lessThanOrEqualTo(before),
+        reason: 'it should have stopped, not kept moving',
+      );
+    });
+
+    testWidgets('the rows underneath still scroll', (tester) async {
+      await pumpHome(tester, feedings: manyFeeds(), withData: false);
+      expect(find.text('129 ml (4.4 fl oz)'), findsNothing);
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -3000));
+      await tester.pumpAndSettle();
+
+      expect(find.text('129 ml (4.4 fl oz)'), findsOneWidget);
+    });
+
+    testWidgets('the pinned block fits its own height at every text size', (
+      tester,
+    ) async {
+      // The delegate is handed a number before it lays anything out. Too
+      // small overflows; too large fails the sliver's geometry check. Both
+      // have happened.
+      for (final scale in [1.0, 1.3, 1.5, 2.0]) {
+        await pumpHome(
+          tester,
+          feedings: manyFeeds(),
+          withData: false,
+          textScale: scale,
+        );
+        expect(tester.takeException(), isNull, reason: 'at ${scale}x');
+      }
+    });
+
+    testWidgets('Today pins the toggle without a filter bar', (tester) async {
+      await pumpHome(tester, prefs: {'home_activity_scope': 'today'});
+      expect(find.byType(SegmentedButton<HomeActivityScope>), findsOneWidget);
+      expect(find.byType(ActivityFilterBar), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

@@ -59,12 +59,23 @@ class ActivityFilterNotifier extends Notifier<ActivityFilter> {
 class ActivityFilterBar extends ConsumerWidget {
   const ActivityFilterBar({super.key});
 
+  /// How tall the bar is at [context]'s text size.
+  ///
+  /// Public because Home pins this bar, and a `SliverPersistentHeader` has to
+  /// be given its extent before it lays anything out.
+  static double barHeight(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(44).clamp(44, 72);
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(activityFilterProvider);
 
+    // Grows with the reader's text size. It was a flat 44, which clipped the
+    // chips once the labels scaled up — and it is now also the height a
+    // pinned header has to be told in advance, so guessing it is no longer
+    // only a cosmetic problem.
     return SizedBox(
-      height: 44,
+      height: barHeight(context),
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
