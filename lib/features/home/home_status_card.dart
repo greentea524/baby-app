@@ -290,26 +290,25 @@ class _StatusRow extends StatelessWidget {
                 // list below, where every row's "x ago" sits on the right
                 // edge. Pairing them on one line also buys back a line of
                 // height on what had become a four-line row.
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                //
+                // A Wrap rather than a Row so the pairing is a preference
+                // instead of a promise: at a large text size the two no
+                // longer fit across a phone, and a Row overflowed — visibly,
+                // from 150% up. Here the value drops to its own line instead,
+                // which costs a line of height only for the readers who need
+                // it. Neither Text is truncated, because the whole row is the
+                // answer to "when did they last eat".
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.end,
+                  spacing: 12,
                   children: [
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: theme.textTheme.labelMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Natural width, so the value never truncates — the label
-                    // ellipsizes instead if the row gets tight.
+                    Text(label, style: theme.textTheme.labelMedium),
                     Text(
                       value,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
-                      textAlign: TextAlign.end,
                     ),
                   ],
                 ),
