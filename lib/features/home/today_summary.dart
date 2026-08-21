@@ -60,7 +60,15 @@ final todayStatsProvider = Provider<DayStats>((ref) {
 /// footnote to the cards above, not a section in its own right, and letting
 /// it reflow to two rows made it compete with them for attention.
 class TodaySummaryRow extends ConsumerWidget {
-  const TodaySummaryRow({super.key});
+  const TodaySummaryRow({super.key, this.showCounts = true});
+
+  /// False when the day charts are on screen below.
+  ///
+  /// Their legend already says how many feeds and diapers there were, and
+  /// the diaper bar breaks them down further — repeating the numbers a
+  /// centimetre above is a second answer to a question already answered.
+  /// The volumes stay either way: no legend carries millilitres.
+  final bool showCounts;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,17 +76,14 @@ class TodaySummaryRow extends ConsumerWidget {
     final units = ref.watch(unitSystemProvider);
     final theme = Theme.of(context);
 
-    // A row of zeros is noise on a dashboard; the quick-log buttons below are
-    // the useful thing before anything has been logged.
-    if (stats.feedCount == 0 &&
-        stats.diaperCount == 0 &&
-        stats.pumpCount == 0) {
-      return const SizedBox.shrink();
-    }
-
     final parts = <({IconData icon, String text})>[
-      (icon: Icons.restaurant, text: '${stats.feedCount} feeds'),
-      (icon: Icons.baby_changing_station, text: '${stats.diaperCount} diapers'),
+      if (showCounts) ...[
+        (icon: Icons.restaurant, text: '${stats.feedCount} feeds'),
+        (
+          icon: Icons.baby_changing_station,
+          text: '${stats.diaperCount} diapers',
+        ),
+      ],
       if (stats.bottleMl > 0)
         (
           icon: Icons.local_drink,
@@ -96,6 +101,11 @@ class TodaySummaryRow extends ConsumerWidget {
               : '${formatFlOz(stats.pumpedMl)} fl oz',
         ),
     ];
+
+    // A row of zeros is noise on a dashboard, and so is a row of nothing:
+    // with the counts moved to the chart legend, a day of breastfeeding and
+    // no bottles leaves this with nothing to say.
+    if (parts.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),

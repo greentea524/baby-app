@@ -199,15 +199,33 @@ void main() {
       (hour: 14.25, kind: DayMarkKind.pump),
     ];
 
-    testWidgets('draws a legend for the kinds that are present', (
+    testWidgets('the legend says how many of each, not just which', (
       tester,
     ) async {
+      // The counts used to sit in a row above the chart, repeating what the
+      // legend was already half-saying. One line now answers both.
       await pump(tester, const DayTimelineStrip(marks: marks));
-      expect(find.text('Feeds'), findsOneWidget);
-      expect(find.text('Diapers'), findsOneWidget);
-      expect(find.text('Pumping'), findsOneWidget);
+      expect(find.text('1 feed'), findsOneWidget);
+      expect(find.text('1 diaper'), findsOneWidget);
+      expect(find.text('1 pump'), findsOneWidget);
       // Nothing was a top-up, so that key would be a lie.
-      expect(find.text('Top-ups'), findsNothing);
+      expect(find.textContaining('top-up'), findsNothing);
+    });
+
+    testWidgets('and counts more than one properly', (tester) async {
+      await pump(
+        tester,
+        const DayTimelineStrip(
+          marks: [
+            (hour: 1, kind: DayMarkKind.feed),
+            (hour: 4, kind: DayMarkKind.feed),
+            (hour: 7, kind: DayMarkKind.feed),
+            (hour: 9, kind: DayMarkKind.snack),
+          ],
+        ),
+      );
+      expect(find.text('3 feeds'), findsOneWidget);
+      expect(find.text('1 top-up'), findsOneWidget);
     });
 
     testWidgets('says so when the day is empty', (tester) async {
@@ -223,9 +241,10 @@ void main() {
 
       final labels = semanticLabels(tester, find.byType(DayTimelineStrip));
       expect(labels.any((l) => l.startsWith('The day as a timeline')), isTrue);
-      expect(labels, contains('Feeds at 2a 30'));
-      expect(labels, contains('Diapers at 9a'));
-      expect(labels, contains('Pumping at 2p 15'));
+      // Singular: each node is one event, not the category.
+      expect(labels, contains('Feed at 2a 30'));
+      expect(labels, contains('Diaper at 9a'));
+      expect(labels, contains('Pump at 2p 15'));
       handle.dispose();
     });
 
