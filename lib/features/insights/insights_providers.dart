@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/diaper_event.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -7,6 +8,10 @@ import 'range_stats.dart';
 
 /// How far back the insights trends look (KAN-166).
 enum InsightsRange {
+  /// Today. Not a short week: the trend charts plot one bar per day, so at
+  /// this range they collapse to a single bar and say nothing. The screen
+  /// shows a different set of charts instead.
+  day('Day', 1),
   week('Week', 7),
   month('Month', 30);
 
@@ -14,6 +19,8 @@ enum InsightsRange {
 
   final String label;
   final int days;
+
+  bool get isSingleDay => this == InsightsRange.day;
 }
 
 /// What the insights screen needs for a range: the daily aggregates, plus the
@@ -21,8 +28,15 @@ enum InsightsRange {
 ///
 /// The raw events are carried alongside rather than discarded because the
 /// feed-times chart needs the exact timestamps that aggregation throws away —
-/// and re-fetching them would be a second identical query (KAN-185).
-typedef InsightsData = ({RangeStats stats, List<FeedingEvent> feedings});
+/// and re-fetching them would be a second identical query (KAN-185). The day
+/// view needs all three for the same reason: it plots when things happened,
+/// which is the first thing aggregation loses.
+typedef InsightsData = ({
+  RangeStats stats,
+  List<FeedingEvent> feedings,
+  List<DiaperEvent> diapers,
+  List<PumpingEvent> pumps,
+});
 
 /// Aggregated trends for [range], ending with today. One-shot fetches rather
 /// than live streams: a month of events is a lot to keep subscribed, and the
@@ -80,5 +94,7 @@ final rangeStatsProvider = FutureProvider.family<InsightsData?, InsightsRange>((
       pumps: pumps,
     ),
     feedings: feedings,
+    diapers: diapers,
+    pumps: pumps,
   );
 });
