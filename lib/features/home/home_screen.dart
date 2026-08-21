@@ -13,6 +13,9 @@ import '../appointments/next_appointment_button.dart';
 import '../caregivers/incoming_invites.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_quick_log.dart';
+import '../insights/day_timeline_strip.dart';
+import '../insights/day_view_data.dart';
+import '../insights/diaper_mix_bar.dart';
 import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
 import 'add_baby_dialog.dart';
@@ -115,8 +118,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   if (!actionsFirst)
                     const SliverToBoxAdapter(child: _QuickActions()),
                   const SliverToBoxAdapter(child: _RecentHeader()),
-                  const SliverToBoxAdapter(child: ActivityFilterBar()),
-                  RecentActivityList(now: _now),
+                  // Today is the same day the Insights day view draws, shown
+                  // here so the glance does not cost a tab change. Recent is
+                  // the running log, which needs its kind filter; the charts
+                  // do not, so the bar goes with the list.
+                  if (ref.watch(homeActivityScopeProvider) ==
+                      HomeActivityScope.today)
+                    SliverToBoxAdapter(child: _TodayCharts(now: _now))
+                  else ...[
+                    const SliverToBoxAdapter(child: ActivityFilterBar()),
+                    RecentActivityList(now: _now),
+                  ],
                 ],
               ),
       ),
@@ -162,6 +174,50 @@ class _RecentHeader extends ConsumerWidget {
             onPressed: () => context.push(AppRoutes.timeline),
             icon: const Icon(Icons.timeline, size: 18),
             label: const Text('Full timeline'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Today at a glance: the same two charts the Insights day view draws.
+///
+/// Built from the recent streams Home already subscribes to rather than the
+/// range query behind Insights — they hold the last fifty of each, which
+/// covers a day comfortably, and it means the charts move the instant
+/// something is logged instead of on a refetch.
+class _TodayCharts extends ConsumerWidget {
+  const _TodayCharts({required this.now});
+
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final today = ref.watch(todayEventsProvider);
+    // Not limited to today: "none yet" means something different at six in
+    // the morning than at six in the evening, and what separates them is
+    // when the last one actually was.
+    final recentDiapers = ref.watch(recentDiapersProvider).value ?? const [];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DayTimelineStrip(
+            marks: dayMarks(
+              day: now,
+              feedings: today.feedings,
+              diapers: today.diapers,
+              pumps: today.pumps,
+            ),
+          ),
+          const SizedBox(height: 20),
+          DiaperMixBar(
+            mix: diaperMix(today.diapers),
+            lastWithPoop: lastWithPoop(recentDiapers),
+            now: now,
           ),
         ],
       ),

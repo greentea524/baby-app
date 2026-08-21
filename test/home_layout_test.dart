@@ -5,14 +5,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:baby_app/core/auth/auth_providers.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
-import 'package:baby_app/data/models/activity_entry.dart';
 import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
+import 'package:baby_app/features/activity/activity_filter.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
 import 'package:baby_app/features/home/recent_activity_list.dart';
+import 'package:baby_app/features/insights/day_timeline_strip.dart';
+import 'package:baby_app/features/insights/diaper_mix_bar.dart';
 import 'package:baby_app/features/home/home_screen.dart';
 
 /// Home has to survive a small screen at a large text size (#—).
@@ -111,11 +113,11 @@ void main() {
         ),
       ),
     );
-    // Two frames: the first builds, the second delivers the streams' initial
-    // values. Without it the card renders its empty state and a test about a
-    // full Home would be quietly testing an empty one.
-    await tester.pump();
-    await tester.pump();
+    // Settle rather than pump a fixed number of times. Home subscribes to
+    // several streams and they do not all deliver on the same frame — two
+    // pumps got the feeds and diapers but left the pumping out, so a test
+    // about a full Home was quietly testing most of one.
+    await tester.pumpAndSettle();
   }
 
   testWidgets('fits a phone at the default text size', (tester) async {
@@ -209,7 +211,7 @@ void main() {
     });
   });
 
-  group('what the activity list covers', () {
+  group('what the Today toggle shows', () {
     /// The toggle's own segment. "Today" is also the label on the summary
     /// row above, so a bare text finder matches two widgets.
     Finder segment(String label) => find.descendant(
@@ -217,78 +219,61 @@ void main() {
       matching: find.text(label),
     );
 
-    // Anchored to real midnight so the two entries are unambiguously on
-    // different days whenever the suite happens to run.
-    final midnight = DateTime(now.year, now.month, now.day);
-    final todayFeed = FeedingEvent(
-      id: 'today',
-      type: FeedingType.bottle,
-      startTime: midnight.add(const Duration(minutes: 1)),
-      amountMl: 100,
-    );
-    final yesterdayFeed = FeedingEvent(
-      id: 'yesterday',
-      type: FeedingType.bottle,
-      startTime: midnight.subtract(const Duration(hours: 1)),
-      amountMl: 200,
-    );
-
-    testWidgets('Recent reaches back past midnight', (tester) async {
-      await pumpHome(
-        tester,
-        feedings: [todayFeed, yesterdayFeed],
-        withData: false,
-      );
-      expect(find.text('100 ml (3.4 fl oz)'), findsOneWidget);
-      expect(find.text('200 ml (6.8 fl oz)'), findsOneWidget);
+    testWidgets('Recent is the activity list, with its kind filter', (
+      tester,
+    ) async {
+      await pumpHome(tester);
+      expect(find.byType(RecentActivityList), findsOneWidget);
+      expect(find.byType(ActivityFilterBar), findsOneWidget);
+      expect(find.byType(DayTimelineStrip), findsNothing);
     });
 
-    testWidgets('Today stops at midnight', (tester) async {
-      // A calendar day, not a rolling 24 hours — otherwise last night's
-      // 11pm feed would still be on the list this afternoon.
-      await pumpHome(
-        tester,
-        feedings: [todayFeed, yesterdayFeed],
-        withData: false,
-        prefs: {'home_activity_scope': 'today'},
-      );
-      expect(find.text('100 ml (3.4 fl oz)'), findsOneWidget);
-      expect(find.text('200 ml (6.8 fl oz)'), findsNothing);
+    testWidgets('Today is the day charts instead', (tester) async {
+      // The same two the Insights day view draws, so a glance at how today
+      // has gone does not cost a tab change.
+      await pumpHome(tester, prefs: {'home_activity_scope': 'today'});
+      expect(find.byType(DayTimelineStrip), findsOneWidget);
+      expect(find.byType(DiaperMixBar), findsOneWidget);
+      expect(find.byType(RecentActivityList), findsNothing);
+      // The charts have nothing to filter by kind.
+      expect(find.byType(ActivityFilterBar), findsNothing);
     });
 
-    testWidgets('the toggle switches between them', (tester) async {
-      await pumpHome(
-        tester,
-        feedings: [todayFeed, yesterdayFeed],
-        withData: false,
-      );
-      expect(find.text('200 ml (6.8 fl oz)'), findsOneWidget);
+    testWidgets('the toggle swaps one for the other', (tester) async {
+      await pumpHome(tester);
+      expect(find.byType(RecentActivityList), findsOneWidget);
 
       await tester.tap(segment('Today'));
       await tester.pump();
-      expect(find.text('200 ml (6.8 fl oz)'), findsNothing);
+      expect(find.byType(DayTimelineStrip), findsOneWidget);
+      expect(find.byType(RecentActivityList), findsNothing);
 
       await tester.tap(segment('Recent'));
       await tester.pump();
-      expect(find.text('200 ml (6.8 fl oz)'), findsOneWidget);
+      expect(find.byType(RecentActivityList), findsOneWidget);
+      expect(find.byType(DayTimelineStrip), findsNothing);
     });
 
-    testWidgets('Today says so when the day has not started', (tester) async {
+    testWidgets('the charts show what was logged today', (tester) async {
+      await pumpHome(tester, prefs: {'home_activity_scope': 'today'});
+      // The fixture is a bottle, some solids, a diaper and a pump, all today.
+      expect(find.text('Feeds'), findsOneWidget);
+      expect(find.text('Diapers'), findsWidgets);
+      expect(find.text('Pumping'), findsOneWidget);
+    });
+
+    testWidgets('and cope with a day that has not started', (tester) async {
       await pumpHome(
         tester,
-        feedings: [yesterdayFeed],
         withData: false,
         prefs: {'home_activity_scope': 'today'},
       );
-      expect(find.text('Nothing logged today yet.'), findsOneWidget);
+      expect(find.text('Nothing logged on this day.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('the choice is remembered', (tester) async {
-      await pumpHome(
-        tester,
-        feedings: [todayFeed, yesterdayFeed],
-        withData: false,
-      );
+      await pumpHome(tester);
       await tester.tap(segment('Today'));
       await tester.pump();
 
@@ -304,47 +289,6 @@ void main() {
 
     test('falls back on a value it does not know', () {
       expect(HomeActivityScope.fromName('fortnight'), HomeActivityScope.recent);
-    });
-  });
-
-  group('drawing the line at midnight', () {
-    // The pure rule behind the toggle, tested away from the widget so the
-    // boundary cases are readable.
-    final noon = DateTime(2026, 8, 20, 12);
-    ActivityEntry entry(DateTime t) => FeedingEntry(
-      FeedingEvent(id: 't', type: FeedingType.bottle, startTime: t),
-    );
-
-    test('keeps the whole calendar day, edge to edge', () {
-      final entries = [
-        entry(DateTime(2026, 8, 20)),
-        entry(DateTime(2026, 8, 20, 23, 59, 59)),
-      ];
-      expect(onlyToday(entries, now: noon), hasLength(2));
-    });
-
-    test('drops a minute before midnight', () {
-      final entries = [entry(DateTime(2026, 8, 19, 23, 59))];
-      expect(onlyToday(entries, now: noon), isEmpty);
-    });
-
-    test('drops tomorrow, in case one was mis-stamped', () {
-      final entries = [entry(DateTime(2026, 8, 21))];
-      expect(onlyToday(entries, now: noon), isEmpty);
-    });
-
-    test('keeps the order it was given', () {
-      final entries = [
-        entry(DateTime(2026, 8, 20, 18)),
-        entry(DateTime(2026, 8, 20, 6)),
-      ];
-      final kept = onlyToday(entries, now: noon);
-      expect(kept.first.time.hour, 18);
-      expect(kept.last.time.hour, 6);
-    });
-
-    test('an empty list stays empty', () {
-      expect(onlyToday(const [], now: noon), isEmpty);
     });
   });
 }
