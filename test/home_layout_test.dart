@@ -257,9 +257,24 @@ void main() {
     testWidgets('the charts show what was logged today', (tester) async {
       await pumpHome(tester, prefs: {'home_activity_scope': 'today'});
       // The fixture is a bottle, some solids, a diaper and a pump, all today.
-      expect(find.text('Feeds'), findsOneWidget);
-      expect(find.text('Diapers'), findsWidgets);
-      expect(find.text('Pumping'), findsOneWidget);
+      expect(find.text('2 feeds'), findsOneWidget);
+      expect(find.text('1 diaper'), findsOneWidget);
+      expect(find.text('1 pump'), findsOneWidget);
+    });
+
+    testWidgets('and the counts are not repeated above them', (tester) async {
+      // The summary row used to carry the same numbers a centimetre higher.
+      // Its volumes stay — no legend carries millilitres.
+      await pumpHome(tester, prefs: {'home_activity_scope': 'today'});
+      expect(find.text('2 feeds'), findsOneWidget, reason: 'legend only');
+      expect(find.text('1 diapers'), findsNothing);
+      expect(find.textContaining('fl oz'), findsWidgets);
+    });
+
+    testWidgets('but Recent still gets them, having no legend', (tester) async {
+      await pumpHome(tester);
+      expect(find.text('2 feeds'), findsOneWidget);
+      expect(find.text('1 diapers'), findsOneWidget);
     });
 
     testWidgets('and cope with a day that has not started', (tester) async {

@@ -116,7 +116,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   if (actionsFirst)
                     const SliverToBoxAdapter(child: _QuickActions()),
                   SliverToBoxAdapter(child: HomeStatusCard(now: _now)),
-                  const SliverToBoxAdapter(child: TodaySummaryRow()),
+                  // The day charts' legend carries the counts, so the row
+                  // above them is left with the volumes it alone can show.
+                  SliverToBoxAdapter(
+                    child: TodaySummaryRow(showCounts: showList),
+                  ),
                   if (!actionsFirst)
                     const SliverToBoxAdapter(child: _QuickActions()),
                   // Today is the same day the Insights day view draws, shown

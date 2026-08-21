@@ -29,12 +29,23 @@ class DayTimelineStrip extends StatelessWidget {
     DayMarkKind.pump => 2,
   };
 
-  static String labelOf(DayMarkKind kind) => switch (kind) {
-    DayMarkKind.feed => 'Feeds',
-    DayMarkKind.snack => 'Top-ups',
-    DayMarkKind.diaper => 'Diapers',
-    DayMarkKind.pump => 'Pumping',
+  /// The name of one of them — what a single mark is.
+  static String singularOf(DayMarkKind kind) => switch (kind) {
+    DayMarkKind.feed => 'Feed',
+    DayMarkKind.snack => 'Top-up',
+    DayMarkKind.diaper => 'Diaper',
+    DayMarkKind.pump => 'Pump',
   };
+
+  /// "3 feeds", "1 top-up" — the legend's text, and the summary's.
+  ///
+  /// The count lives here rather than in a row above the chart: a legend
+  /// that says what a colour means and how many there were of it answers
+  /// both questions in the space one of them was using.
+  static String countLabel(DayMarkKind kind, int count) {
+    final name = singularOf(kind).toLowerCase();
+    return '$count ${count == 1 ? name : '${name}s'}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,26 +99,28 @@ class DayTimelineStrip extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        _Legend(kinds: _kindsPresent(), colourOf: colourOf),
+        _Legend(counts: _counts(), colourOf: colourOf),
       ],
     );
   }
 
-  List<DayMarkKind> _kindsPresent() => [
-    for (final kind in DayMarkKind.values)
-      if (marks.any((m) => m.kind == kind)) kind,
-  ];
+  /// How many of each kind there were, in a fixed order, skipping kinds the
+  /// day has none of — a key for something that is not on the chart is a
+  /// line to read and nothing to find.
+  Map<DayMarkKind, int> _counts() {
+    final counts = <DayMarkKind, int>{};
+    for (final kind in DayMarkKind.values) {
+      final n = marks.where((m) => m.kind == kind).length;
+      if (n > 0) counts[kind] = n;
+    }
+    return counts;
+  }
 
   /// Spoken as a sentence, because a band of ticks is nothing at all to a
   /// screen reader (#24).
   String _summary() {
-    final counts = <DayMarkKind, int>{};
-    for (final m in marks) {
-      counts[m.kind] = (counts[m.kind] ?? 0) + 1;
-    }
     final parts = [
-      for (final entry in counts.entries)
-        '${entry.value} ${labelOf(entry.key).toLowerCase()}',
+      for (final entry in _counts().entries) countLabel(entry.key, entry.value),
     ];
     final first = _clock(marks.first.hour);
     final last = _clock(marks.last.hour);
@@ -123,9 +136,9 @@ class DayTimelineStrip extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend({required this.kinds, required this.colourOf});
+  const _Legend({required this.counts, required this.colourOf});
 
-  final List<DayMarkKind> kinds;
+  final Map<DayMarkKind, int> counts;
   final Color Function(DayMarkKind) colourOf;
 
   static bool _hollow(DayMarkKind kind) => kind == DayMarkKind.snack;
@@ -138,7 +151,7 @@ class _Legend extends StatelessWidget {
       spacing: 14,
       runSpacing: 4,
       children: [
-        for (final kind in kinds)
+        for (final entry in counts.entries)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -149,16 +162,16 @@ class _Legend extends StatelessWidget {
                 width: 10,
                 height: 10,
                 decoration: BoxDecoration(
-                  color: _hollow(kind) ? null : colourOf(kind),
-                  border: _hollow(kind)
-                      ? Border.all(color: colourOf(kind), width: 1.6)
+                  color: _hollow(entry.key) ? null : colourOf(entry.key),
+                  border: _hollow(entry.key)
+                      ? Border.all(color: colourOf(entry.key), width: 1.6)
                       : null,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               const SizedBox(width: 5),
               Text(
-                DayTimelineStrip.labelOf(kind),
+                DayTimelineStrip.countLabel(entry.key, entry.value),
                 style: theme.textTheme.bodySmall,
               ),
             ],
@@ -268,7 +281,7 @@ class _StripPainter extends CustomPainter {
           ),
           properties: SemanticsProperties(
             label:
-                '${DayTimelineStrip.labelOf(mark.kind)} at '
+                '${DayTimelineStrip.singularOf(mark.kind)} at '
                 '${DayTimelineStrip._clock(mark.hour)}',
             textDirection: TextDirection.ltr,
           ),
