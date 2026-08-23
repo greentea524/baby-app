@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
@@ -6,7 +8,7 @@ import 'chart_palette.dart';
 import 'day_view_data.dart';
 import 'feed_pattern_data.dart';
 
-/// The day as a 24-hour band, one tick per event (#—).
+/// The day as a 24-hour band, one dot per event (#26).
 ///
 /// The chart the day view is really for. A bar chart answers "how many",
 /// which for a single day is a number and does not need a chart; this
@@ -14,20 +16,28 @@ import 'feed_pattern_data.dart';
 /// night gap ran, and how long it has been since anything happened.
 ///
 /// Night is shaded rather than drawn as a boundary, so the gap a caregiver
-/// cares about is a shape rather than something to work out from tick marks.
+/// cares about is a shape rather than something to work out from marks.
+///
+/// Everything sits on one row. It used to be three lanes of thin ticks, one
+/// per kind, which answered the question per-kind and left the whole-day
+/// rhythm to be assembled by eye across rows — and cost the ~50pt of height
+/// the lanes needed to be visible at all.
+///
+/// A single row only works because the marks are dots with a ring in the
+/// surface colour. On a phone the band is roughly 14pt an hour, so a feed and
+/// a change ten minutes apart land on top of each other, and a feed hidden
+/// behind a diaper is a wrong reading rather than an ugly one. The ring cuts a
+/// visible crescent out of whatever it overlaps, so near-simultaneous events
+/// read as two things close together — which is the truth. A 3pt tick had
+/// nowhere to put a ring.
 class DayTimelineStrip extends StatelessWidget {
-  const DayTimelineStrip({super.key, required this.marks, this.height = 92});
+  const DayTimelineStrip({super.key, required this.marks, this.height = 46});
 
+  /// In time order, as [dayMarks] returns them — the strip nudges marks that
+  /// would overlap, which needs to happen left to right.
   final List<DayMark> marks;
-  final double height;
 
-  /// Which row of the band a kind sits on, so overlapping events at the same
-  /// hour do not land on top of each other.
-  static int laneOf(DayMarkKind kind) => switch (kind) {
-    DayMarkKind.feed || DayMarkKind.snack => 0,
-    DayMarkKind.diaper => 1,
-    DayMarkKind.pump => 2,
-  };
+  final double height;
 
   /// The name of one of them — what a single mark is.
   static String singularOf(DayMarkKind kind) => switch (kind) {
@@ -74,6 +84,9 @@ class DayTimelineStrip extends StatelessWidget {
     }
 
     return Column(
+      // Otherwise the strip swells to whatever loose height it is handed —
+      // it reads as 46pt plus a legend and measured 600 inside a Center.
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Semantics(
@@ -86,6 +99,7 @@ class DayTimelineStrip extends StatelessWidget {
                 colourOf: colourOf,
                 night: scheme.onSurface.withValues(alpha: 0.05),
                 grid: scheme.outlineVariant,
+                ring: scheme.surface,
                 text: ChartText.of(
                   context,
                   style: TextStyle(
@@ -155,8 +169,8 @@ class _Legend extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // The key matches the mark: a hollow swatch for the hollow
-              // tick, so the legend explains the drawing rather than
+              // The key matches the mark: a round swatch, hollow for the
+              // hollow dot, so the legend explains the drawing rather than
               // restating its colour.
               Container(
                 width: 10,
@@ -164,9 +178,9 @@ class _Legend extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: _hollow(entry.key) ? null : colourOf(entry.key),
                   border: _hollow(entry.key)
-                      ? Border.all(color: colourOf(entry.key), width: 1.6)
+                      ? Border.all(color: colourOf(entry.key), width: 2)
                       : null,
-                  borderRadius: BorderRadius.circular(2),
+                  shape: BoxShape.circle,
                 ),
               ),
               const SizedBox(width: 5),
@@ -187,6 +201,7 @@ class _StripPainter extends CustomPainter {
     required this.colourOf,
     required this.night,
     required this.grid,
+    required this.ring,
     required this.text,
   });
 
@@ -194,24 +209,77 @@ class _StripPainter extends CustomPainter {
   final Color Function(DayMarkKind) colourOf;
   final Color night;
   final Color grid;
+
+  /// The surface behind the band, used to halo each dot.
+  final Color ring;
+
   final ChartText text;
 
-  static const _lanes = 3;
+  /// Small on purpose. The band is roughly 14pt an hour on a phone, so an 8pt
+  /// dot already spans about 35 minutes where a 3pt tick spanned 13. On a
+  /// chart whose whole content is *when*, a friendlier, rounder, bigger dot
+  /// is the move that turns a timeline into a decoration.
+  static const _dotRadius = 4.0;
+  static const _ringWidth = 1.5;
+
+  /// The outline that tells a top-up from a feed.
+  static const _hollowStroke = 2.0;
+
+  /// The closest two dots may be drawn before the later one is pushed right.
+  ///
+  /// The ring separates overlapping dots by cutting a crescent out of the one
+  /// behind, and what is left of that one is exactly `gap - _ringWidth` wide.
+  /// So the ring alone stops working at very small gaps: measured on a 340pt
+  /// band, which is about 14pt an hour, two events ten minutes apart leave
+  /// 0.8pt of the earlier dot — nothing, once antialiased. A feed and a nappy
+  /// change logged together is the commonest case there is, and a feed hidden
+  /// behind a diaper is a wrong reading rather than an ugly one.
+  ///
+  /// Two points of visible dot is enough to read, so that is the gap: the
+  /// ring, plus two. It shifts a mark by at most a quarter hour at the
+  /// density that triggers it, which is the cost of not losing it entirely.
+  /// Positions inside a cluster are approximate; the times in the semantics
+  /// labels are not.
+  static const _minGap = _ringWidth + 2;
 
   @override
   void paint(Canvas canvas, Size size) {
     final labelHeight = text.lineHeight + 6;
     final band = Rect.fromLTRB(0, 0, size.width, size.height - labelHeight);
-    double x(double hour) => band.left + band.width * (hour / 24);
 
-    // Night, shaded in two pieces because it wraps midnight.
+    // Shrinks rather than clipping when the hour labels grow at a large text
+    // size and leave the band with less than a dot's worth of height.
+    final radius = math.min(_dotRadius, (band.height - _ringWidth * 2) / 2);
+    if (radius <= 0) return;
+
+    // A dot at midnight or at midnight-tomorrow is centred on the edge and
+    // loses its outer half, so the scale is inset by one — which costs a
+    // little time accuracy at both ends and is worth it.
+    final pad = radius + _ringWidth;
+    final left = band.left + pad;
+    final span = band.width - pad * 2;
+    double x(double hour) => left + span * (hour / 24);
+
+    // Night, shaded in two pieces because it wraps midnight. Taken out to the
+    // band's own edges rather than the inset scale, so the padding does not
+    // show as an unshaded sliver at either end.
     final nightPaint = Paint()..color = night;
     canvas.drawRect(
-      Rect.fromLTRB(x(0), band.top, x(nightEndHour.toDouble()), band.bottom),
+      Rect.fromLTRB(
+        band.left,
+        band.top,
+        x(nightEndHour.toDouble()),
+        band.bottom,
+      ),
       nightPaint,
     );
     canvas.drawRect(
-      Rect.fromLTRB(x(nightStartHour.toDouble()), band.top, x(24), band.bottom),
+      Rect.fromLTRB(
+        x(nightStartHour.toDouble()),
+        band.top,
+        band.right,
+        band.bottom,
+      ),
       nightPaint,
     );
 
@@ -230,37 +298,51 @@ class _StripPainter extends CustomPainter {
       );
     }
 
-    // A lane per kind, so two things at the same minute stay legible.
-    final laneHeight = band.height / _lanes;
+    // One row. Each dot lays its own ring down first, so the ring of a later
+    // mark cuts into whatever it overlaps — that crescent is what keeps two
+    // events minutes apart reading as two events.
+    final centreY = band.top + band.height / 2;
+    final ringPaint = Paint()
+      ..color = ring
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _ringWidth;
+
+    // Relies on [marks] being in time order, which is what dayMarks returns.
+    double? previous;
     for (final mark in marks) {
-      final lane = DayTimelineStrip.laneOf(mark.kind);
-      final top = band.top + laneHeight * lane + 4;
-      final hollow = mark.kind == DayMarkKind.snack;
-      // Top-ups share the feed lane and the feed colour, so they are told
+      var cx = x(mark.hour);
+      if (previous != null && cx - previous < _minGap) {
+        // Never past the end of the band: at the very end of the day there is
+        // nowhere left to push, and piling up there beats drawing outside.
+        cx = math.min(previous + _minGap, band.right - pad);
+      }
+      previous = cx;
+
+      final centre = Offset(cx, centreY);
+      canvas.drawCircle(centre, radius + _ringWidth / 2, ringPaint);
+
+      // Top-ups share the feed colour because they *are* feeds, and are told
       // apart by being drawn as an outline — a cue that survives being
       // printed, dimmed, or read by someone who cannot separate the hues.
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          x(mark.hour) - (hollow ? 2.5 : 1.5),
-          top,
-          hollow ? 5 : 3,
-          laneHeight - 8,
-        ),
-        const Radius.circular(1.5),
-      );
-      canvas.drawRRect(
-        rect,
+      final hollow = mark.kind == DayMarkKind.snack;
+      final stroke = math.min(_hollowStroke, radius);
+      canvas.drawCircle(
+        centre,
+        hollow ? radius - stroke / 2 : radius,
         Paint()
           ..color = colourOf(mark.kind)
           ..style = hollow ? PaintingStyle.stroke : PaintingStyle.fill
-          ..strokeWidth = 1.4,
+          ..strokeWidth = stroke,
       );
     }
   }
 
   @override
   bool shouldRepaint(_StripPainter old) =>
-      old.marks != marks || old.night != night || old.text != text;
+      old.marks != marks ||
+      old.night != night ||
+      old.ring != ring ||
+      old.text != text;
 
   /// One node per event: a band of ticks is unreachable otherwise, and the
   /// time each one happened is the whole content of this chart.
