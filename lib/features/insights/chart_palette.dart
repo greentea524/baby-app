@@ -13,8 +13,8 @@ import 'package:flutter/material.dart';
 ///
 /// Four hues, spaced around the wheel and none of them a red/green pair, so
 /// they stay apart for the commonest colour-vision deficiencies. Colour is
-/// still never the only cue: the strip puts each kind in its own lane and
-/// draws top-ups hollow, and the diaper bar labels every count in words.
+/// still never the only cue: the strip draws top-ups hollow and names every
+/// mark in its semantics, and the diaper bar labels every count in words.
 @immutable
 class DayColours {
   const DayColours({
