@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
+import 'package:baby_app/data/models/notification_prefs.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/companion_art.dart';
 import 'package:baby_app/features/home/feed_companion.dart';
@@ -45,6 +46,14 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(stored),
         nextFeedDueProvider.overrideWithValue(due),
         lastClockFeedProvider.overrideWithValue(last),
+        // The plane reads the heads-up from reminderSettingsProvider, which
+        // now also watches the account's copy of the interval (#27) — and
+        // that reaches Firebase auth. Stubbed out rather than stubbing
+        // Firebase: this test is about the pose, not about syncing.
+        hasAccountPrefsProvider.overrideWithValue(false),
+        notificationPrefsProvider.overrideWith(
+          (ref) => const Stream<NotificationPrefs>.empty(),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -162,6 +171,10 @@ void main() {
           now.add(const Duration(hours: 3)),
         ),
         lastClockFeedProvider.overrideWithValue(feed('second')),
+        hasAccountPrefsProvider.overrideWithValue(false),
+        notificationPrefsProvider.overrideWith(
+          (ref) => const Stream<NotificationPrefs>.empty(),
+        ),
       ]);
       await tester.pump();
 
@@ -191,6 +204,10 @@ void main() {
           now.add(const Duration(hours: 2)),
         ),
         lastClockFeedProvider.overrideWithValue(feed('first')),
+        hasAccountPrefsProvider.overrideWithValue(false),
+        notificationPrefsProvider.overrideWith(
+          (ref) => const Stream<NotificationPrefs>.empty(),
+        ),
       ]);
       await tester.pump();
 
@@ -218,6 +235,10 @@ void main() {
             startTime: now.subtract(const Duration(minutes: 30)),
             amountMl: 150,
           ),
+        ),
+        hasAccountPrefsProvider.overrideWithValue(false),
+        notificationPrefsProvider.overrideWith(
+          (ref) => const Stream<NotificationPrefs>.empty(),
         ),
       ]);
       await tester.pump();
@@ -277,6 +298,10 @@ void main() {
           now.add(const Duration(hours: 3)),
         ),
         lastClockFeedProvider.overrideWithValue(feed('second')),
+        hasAccountPrefsProvider.overrideWithValue(false),
+        notificationPrefsProvider.overrideWith(
+          (ref) => const Stream<NotificationPrefs>.empty(),
+        ),
       ]);
       await tester.pump();
 

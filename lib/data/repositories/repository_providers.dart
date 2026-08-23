@@ -263,6 +263,18 @@ final notificationPrefsProvider = StreamProvider<NotificationPrefs>((ref) {
   return repo.watch();
 });
 
+/// Whether [notificationPrefsProvider] is carrying the account's stored values
+/// rather than the signed-out defaults.
+///
+/// The two are indistinguishable from the outside — a caregiver who has never
+/// saved anything and a caregiver who is signed out both produce a default
+/// [NotificationPrefs] — so anything that treats the stream as the account
+/// speaking has to ask this first. Without it, signing out would look like the
+/// account asking for a 3-hour interval (#27).
+final hasAccountPrefsProvider = Provider<bool>(
+  (ref) => ref.watch(notificationPrefsRepositoryProvider) != null,
+);
+
 // --- Multi-caregiver (KAN-134) ---------------------------------------------
 
 /// Caregivers already on the current baby (from its members map).
