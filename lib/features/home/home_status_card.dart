@@ -286,32 +286,7 @@ class _StatusRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Label left, elapsed time hard right — matching the activity
-                // list below, where every row's "x ago" sits on the right
-                // edge. Pairing them on one line also buys back a line of
-                // height on what had become a four-line row.
-                //
-                // A Wrap rather than a Row so the pairing is a preference
-                // instead of a promise: at a large text size the two no
-                // longer fit across a phone, and a Row overflowed — visibly,
-                // from 150% up. Here the value drops to its own line instead,
-                // which costs a line of height only for the readers who need
-                // it. Neither Text is truncated, because the whole row is the
-                // answer to "when did they last eat".
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.end,
-                  spacing: 12,
-                  children: [
-                    Text(label, style: theme.textTheme.labelMedium),
-                    Text(
-                      value,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
+                _LabelAndValue(label: label, value: value),
                 if (detailText != null)
                   Text(
                     detailText,
@@ -329,6 +304,88 @@ class _StatusRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A row's label and its elapsed time: paired on one line when they fit,
+/// stacked when they do not, and right-aligned either way.
+///
+/// The elapsed time sits hard right to match the activity list below, where
+/// every row's "x ago" is on the right edge. Pairing the two on one line also
+/// buys back a line of height on what had become a four-line row.
+///
+/// This was a `Wrap` with `WrapAlignment.spaceBetween`, which never did
+/// anything: a `Wrap` inside a `Column` shrink-wraps to its children, so there
+/// is no free space for `spaceBetween` to distribute. The time simply trailed
+/// the label. Rows then disagreed with each other — on a 390pt phone "Last
+/// fed" left its time 25pt short of the edge while the longer "Last diaper
+/// changed" pushed its own onto a second line and against the *left* margin.
+///
+/// A plain `Row` is not the answer either: at a large text size the two no
+/// longer fit across a phone and it overflowed visibly from 150% up. Nor can
+/// a `Wrap` fix the stacked case, since it puts a lone child at the start of
+/// its run. So the fit is measured and the two layouts chosen between —
+/// neither string is ever truncated, because the whole row is the answer to
+/// "when did they last eat".
+class _LabelAndValue extends StatelessWidget {
+  const _LabelAndValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  /// The least space allowed between them before they stop sharing a line.
+  static const _gap = 12.0;
+
+  static double _widthOf(String text, TextStyle? style, TextScaler scaler) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelStyle = theme.textTheme.labelMedium;
+    final valueStyle = theme.textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+    );
+    final scaler = MediaQuery.textScalerOf(context);
+
+    final labelText = Text(label, style: labelStyle);
+    // Right-aligned in both branches: in the Row it is the last child, and in
+    // the stretched Column the alignment is what puts it against the edge.
+    final valueText = Text(
+      value,
+      style: valueStyle,
+      textAlign: TextAlign.right,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fits =
+            constraints.maxWidth.isFinite &&
+            _widthOf(label, labelStyle, scaler) +
+                    _gap +
+                    _widthOf(value, valueStyle, scaler) <=
+                constraints.maxWidth;
+
+        if (fits) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [labelText, const Spacer(), valueText],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [labelText, valueText],
+        );
+      },
     );
   }
 }
