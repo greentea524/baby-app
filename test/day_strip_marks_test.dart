@@ -11,10 +11,10 @@ import 'package:baby_app/features/insights/day_view_data.dart';
 
 /// What the day strip actually draws (#26).
 ///
-/// The three lanes of ticks became one row of ringed dots. Both halves of
-/// that are claims about pixels, so they are checked as pixels: that every
-/// kind lands on the same row, and that two events minutes apart are still
-/// two marks rather than one blob.
+/// Three lanes became one row of haloed lines. Both halves of that are claims
+/// about pixels, so they are checked as pixels: that every kind lands on the
+/// same row, and that two events minutes apart are still two marks rather
+/// than one blob.
 void main() {
   const width = 340.0;
 
@@ -107,8 +107,8 @@ void main() {
       centres.add(mean(pixels.map((p) => p.$2)));
     }
 
-    // Within a dot's diameter of each other, which they cannot be if any of
-    // them is in a lane of its own.
+    // Within a few points of each other, which they cannot be if any of them
+    // is in a lane of its own.
     expect(centres.reduce((a, b) => a > b ? a : b) - centres.reduce((a, b) => a < b ? a : b),
         lessThan(8));
   });
@@ -131,7 +131,7 @@ void main() {
     expect(xs[1], closeTo(width / 2, 6));
   });
 
-  testWidgets('a dot at midnight is not cut in half by the edge', (
+  testWidgets('a mark at midnight is not cut in half by the edge', (
     tester,
   ) async {
     final image = await paint(tester, const [
@@ -139,14 +139,14 @@ void main() {
     ]);
     final pixels = await pixelsOf(tester, image, colours.feed);
     expect(pixels, isNotEmpty);
-    // Fully inside the band: a dot centred on x=0 would lose its left half.
+    // Fully inside the band: a mark centred on x=0 would lose its left half.
     expect(pixels.map((p) => p.$1).reduce((a, b) => a < b ? a : b),
         greaterThan(0));
   });
 
   testWidgets('two events ten minutes apart stay two marks', (tester) async {
-    // The reason dots and not ticks. At this width the band is about 14pt an
-    // hour, so these two overlap — the ring is what keeps them legible.
+    // At this width the band is about 14pt an hour, so these two overlap —
+    // the halo, and the nudge behind it, are what keep them legible.
     final image = await paint(tester, const [
       (hour: 12, kind: DayMarkKind.feed),
       (hour: 12.17, kind: DayMarkKind.diaper),
@@ -154,11 +154,11 @@ void main() {
 
     final feed = await pixelsOf(tester, image, colours.feed);
     final diaper = await pixelsOf(tester, image, colours.diaper);
-    expect(feed, isNotEmpty, reason: 'the earlier dot was painted over');
+    expect(feed, isNotEmpty, reason: 'the earlier mark was painted over');
     expect(diaper, isNotEmpty);
 
-    // A gap of background between them on the row they share: that crescent
-    // is the whole mechanism.
+    // A gap of background between them on the row they share: that sliver of
+    // surface is the whole mechanism.
     final row = mean(diaper.map((p) => p.$2)).round();
     final feedRight =
         feed.where((p) => p.$2 == row).map((p) => p.$1).reduce((a, b) => a > b ? a : b);
@@ -169,24 +169,54 @@ void main() {
     expect(diaperLeft, greaterThan(feedRight + 1));
   });
 
-  testWidgets('a top-up is drawn hollow', (tester) async {
-    // Same colour as a feed by design, so the hole is the only thing telling
-    // them apart — and it has to actually be a hole.
-    final image = await paint(tester, const [
+  testWidgets('a top-up runs short', (tester) async {
+    // Same colour as a feed by design, so the height is the only thing
+    // telling them apart. It replaces the old hollow outline, which at 3pt
+    // wide left a hole barely wider than the antialiasing around it.
+    final full = await paint(tester, const [
+      (hour: 12, kind: DayMarkKind.feed),
+    ]);
+    final short = await paint(tester, const [
       (hour: 12, kind: DayMarkKind.snack),
     ]);
-    final pixels = await pixelsOf(tester, image, colours.feed);
-    expect(pixels, isNotEmpty);
 
-    final row = mean(pixels.map((p) => p.$2)).round();
-    final onRow = pixels.where((p) => p.$2 == row).map((p) => p.$1).toList()
-      ..sort();
-    // Two runs of colour with a gap, not one solid run.
-    final gaps = [
-      for (var i = 1; i < onRow.length; i++)
-        if (onRow[i] - onRow[i - 1] > 1) onRow[i] - onRow[i - 1],
-    ];
-    expect(gaps, isNotEmpty, reason: 'the top-up came out solid');
+    double heightOf(List<(int, int)> pixels) {
+      final ys = pixels.map((p) => p.$2);
+      return (ys.reduce((a, b) => a > b ? a : b) -
+              ys.reduce((a, b) => a < b ? a : b))
+          .toDouble();
+    }
+
+    final feedHeight = heightOf(await pixelsOf(tester, full, colours.feed));
+    final snackHeight = heightOf(await pixelsOf(tester, short, colours.feed));
+    expect(snackHeight, lessThan(feedHeight * 0.6));
+    expect(snackHeight, greaterThan(2), reason: 'too short to see');
+  });
+
+  testWidgets('a mark is narrow enough to point at a time', (tester) async {
+    // The reason lines and not dots. A mark this wide spans about 13 minutes
+    // on a phone; an 8pt dot spanned 35, on a chart that is nothing but when.
+    final image = await paint(tester, const [
+      (hour: 12, kind: DayMarkKind.feed),
+    ]);
+    final pixels = await pixelsOf(tester, image, colours.feed);
+    final xs = pixels.map((p) => p.$1);
+    final width =
+        xs.reduce((a, b) => a > b ? a : b) - xs.reduce((a, b) => a < b ? a : b);
+    expect(width, lessThan(5));
+  });
+
+  testWidgets('and tall enough to read as a mark on the band', (tester) async {
+    // The other half of that trade: a line has to span the band, or it is
+    // just a smaller dot.
+    final image = await paint(tester, const [
+      (hour: 12, kind: DayMarkKind.feed),
+    ]);
+    final pixels = await pixelsOf(tester, image, colours.feed);
+    final ys = pixels.map((p) => p.$2);
+    final height =
+        ys.reduce((a, b) => a > b ? a : b) - ys.reduce((a, b) => a < b ? a : b);
+    expect(height, greaterThan(12));
   });
 
   testWidgets('is shorter than the three lanes it replaced', (tester) async {
@@ -210,7 +240,7 @@ void main() {
     expect(tester.getSize(find.byType(DayTimelineStrip)).height, lessThan(75));
   });
 
-  testWidgets('two events at the same minute are still two dots', (
+  testWidgets('two events at the same minute are still two marks', (
     tester,
   ) async {
     // The worst case, and not a rare one: a nappy change logged at the same
@@ -225,7 +255,7 @@ void main() {
     expect(await pixelsOf(tester, image, colours.diaper), isNotEmpty);
   });
 
-  testWidgets('a nudged dot stays within the band', (tester) async {
+  testWidgets('a nudged mark stays within the band', (tester) async {
     // Pushing right has to stop at the edge rather than paint into the
     // legend or off the end.
     final image = await paint(tester, const [
