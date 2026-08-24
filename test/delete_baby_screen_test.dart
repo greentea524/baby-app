@@ -77,6 +77,23 @@ void main() {
     expect(export.top, lessThan(confirm.top));
   });
 
+  testWidgets('and says why it is worth taking', (tester) async {
+    // A bare "Export" button in front of a delete is one people tap past.
+    // The reason to tap it is that there is no second copy.
+    await pumpScreen(tester, baby: babyOwnedBy('alice'));
+
+    expect(find.textContaining('only copy'), findsOneWidget);
+    expect(find.textContaining('no undo'), findsOneWidget);
+    // Names what an export actually gets them, so it is a decision rather
+    // than a leap.
+    expect(find.textContaining('CSV'), findsOneWidget);
+    expect(find.textContaining('PDF'), findsOneWidget);
+
+    final reason = tester.getRect(find.textContaining('only copy'));
+    final button = tester.getRect(find.text('Export the data first'));
+    expect(reason.top, lessThan(button.top));
+  });
+
   testWidgets('will not delete until the name is typed', (tester) async {
     final data = await pumpScreen(tester, baby: babyOwnedBy('alice'));
 

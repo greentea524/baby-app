@@ -105,6 +105,18 @@ class _DeleteBabyScreenState extends ConsumerState<DeleteBabyScreen> {
           else ...[
             _Summary(baby: widget.baby, counts: _counts),
             const SizedBox(height: 20),
+            // Says why the button is there. A bare "Export" in front of a
+            // delete is a button someone taps past; the reason to tap it is
+            // that this is the only copy, and that is worth a sentence.
+            Text(
+              'This is the only copy — there is no undo, and nothing is kept '
+              'anywhere else. If you want the record, export it first: a CSV '
+              'log of every entry, or a PDF summary.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
             // Before the confirmation rather than after it: a way out offered
             // once the decision is made is not much of an offer.
             OutlinedButton.icon(
@@ -120,7 +132,7 @@ class _DeleteBabyScreenState extends ConsumerState<DeleteBabyScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'This cannot be undone. Type ${widget.baby.name} to confirm.',
+              'Type ${widget.baby.name} to confirm.',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 8),
