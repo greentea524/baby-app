@@ -68,7 +68,10 @@ class BabiesRepository {
   Future<void> updateBaby(Baby baby) =>
       _baby(baby.id).update(baby.toProfileMap());
 
-  Future<void> deleteBaby(String id) => _baby(id).delete();
+  // deleteBaby is deliberately absent. Deleting the profile document leaves
+  // every subcollection under it stored and — because the subcollection rules
+  // read the baby to check membership — unreachable by any client for good.
+  // Use `BabyData.deleteAll`, which goes children first (#28).
 
   // --- Caregiver membership (KAN-134) --------------------------------------
 
