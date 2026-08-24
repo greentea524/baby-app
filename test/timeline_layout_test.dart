@@ -93,6 +93,75 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Pumps the timeline the way Home reaches it — pushed over another
+  /// route — because that is what puts a back button in the app bar.
+  Future<void> pushTimeline(WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final stored = await SharedPreferences.getInstance();
+
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(stored),
+          authStateProvider.overrideWith((ref) => Stream.value(null)),
+          babiesStreamProvider.overrideWith((ref) => Stream.value([baby])),
+          feedingsForDayProvider.overrideWith((ref) => Stream.value(feeds)),
+          diapersForDayProvider.overrideWith((ref) => Stream.value(diapers)),
+          pumpingForDayProvider.overrideWith((ref) => Stream.value(pumps)),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const TimelineScreen(),
+                    ),
+                  ),
+                  child: const Text('open timeline'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open timeline'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('there is a way back out of it', (tester) async {
+    // The timeline is pushed over Home, so the app bar's leading slot holds
+    // the back button. Taking that slot for the previous-day chevron — which
+    // this bar briefly did — left the screen with no exit at all.
+    await pushTimeline(tester);
+    expect(find.byType(ActivityTile), findsWidgets);
+
+    expect(find.byType(BackButton), findsOneWidget);
+  });
+
+  testWidgets('and it actually goes back', (tester) async {
+    await pushTimeline(tester);
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('open timeline'), findsOneWidget);
+    expect(find.byType(TimelineScreen), findsNothing);
+  });
+
+  testWidgets('with both day controls still reachable', (tester) async {
+    // Moved to the actions side rather than dropped.
+    await pushTimeline(tester);
+
+    expect(find.byTooltip('Previous day'), findsOneWidget);
+    expect(find.byTooltip('Next day'), findsOneWidget);
+  });
+
   testWidgets('the busy-day fixture really is busy', (tester) async {
     // Guards the measurements below: they mean nothing against a day with
     // three chips and four rows.

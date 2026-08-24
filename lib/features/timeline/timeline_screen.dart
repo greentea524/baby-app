@@ -188,13 +188,10 @@ class _DayAppBar extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return AppBar(
-      // No back button to displace: the timeline is a tab, so the leading
-      // slot was empty and the title said only "Timeline".
-      leading: IconButton(
-        icon: const Icon(Icons.chevron_left),
-        onPressed: () => _shift(ref, -1),
-        tooltip: 'Previous day',
-      ),
+      // The leading slot is left to the framework on purpose. The timeline is
+      // pushed over Home rather than being a tab, so that slot holds the back
+      // button — and putting the previous-day chevron there, as this bar
+      // briefly did, left the screen with no way out of it.
       titleSpacing: 0,
       title: TextButton.icon(
         icon: const Icon(Icons.calendar_today, size: 18),
@@ -204,7 +201,16 @@ class _DayAppBar extends ConsumerWidget implements PreferredSizeWidget {
         ),
         onPressed: () => _pick(context, ref),
       ),
+      // Both day controls together on the right. Paired is how they read —
+      // and it keeps a second left-pointing chevron away from the back
+      // button, where the two would be one glance apart and mean different
+      // things.
       actions: [
+        IconButton(
+          icon: const Icon(Icons.chevron_left),
+          onPressed: () => _shift(ref, -1),
+          tooltip: 'Previous day',
+        ),
         IconButton(
           icon: const Icon(Icons.chevron_right),
           onPressed: _isToday ? null : () => _shift(ref, 1),
