@@ -10,6 +10,7 @@ import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/home_screen.dart';
+import 'package:baby_app/features/home/home_status_card.dart';
 
 /// Where the "x ago" sits on the Home status rows.
 ///
@@ -35,11 +36,15 @@ void main() {
   /// that matters: "2 hr ago" fits beside its short label and "40 min ago"
   /// cannot fit beside the longest one, so the two rows exercise both
   /// branches at once.
-  Future<void> pumpHome(WidgetTester tester, {double textScale = 1.0}) async {
+  Future<void> pumpHome(
+    WidgetTester tester, {
+    double textScale = 1.0,
+    Size size = const Size(390, 844),
+  }) async {
     SharedPreferences.setMockInitialValues({'reminder_mode': 'fixedInterval'});
     final stored = await SharedPreferences.getInstance();
 
-    tester.view.physicalSize = const Size(390, 844);
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -133,5 +138,44 @@ void main() {
     final fed = tester.getRect(find.text('2 hr ago'));
     final changed = tester.getRect(find.text('40 min ago'));
     expect(changed.right, moreOrLessEquals(fed.right, epsilon: 0.5));
+  });
+
+  testWidgets('the next-feed chip sits on the same right edge', (
+    tester,
+  ) async {
+    // The elapsed time and the countdown answer the same question from both
+    // ends — when they last ate, when they next need to — so reading down
+    // the right edge should get you both.
+    await pumpHome(tester);
+
+    // Anchored on the elapsed time rather than the detail line: the detail
+    // is a plain Text that stops at its own width once the screen is wide
+    // enough not to clip it, so it is only the content edge by accident.
+    final chip = tester.getRect(find.byType(NextFeedChip));
+    expect(
+      tester.getRect(find.text('2 hr ago')).right,
+      moreOrLessEquals(chip.right, epsilon: 0.5),
+    );
+  });
+
+  testWidgets('and moves right on a wide screen rather than stretching', (
+    tester,
+  ) async {
+    // Where the change is actually visible. On a phone the chip already
+    // spans the whole content width, so aligning it looks like nothing; it
+    // was on a desktop that it sat left with a gap beside it.
+    //
+    // Align fills the width it is handed, so the guard is that the chip
+    // inside it did not come along for the ride.
+    await pumpHome(tester, size: const Size(900, 900));
+
+    final chip = tester.getRect(find.byType(NextFeedChip));
+    expect(
+      chip.right,
+      moreOrLessEquals(tester.getRect(find.text('2 hr ago')).right, epsilon: 0.5),
+    );
+    // Clear of the left edge the label sits on, so it is a pill that moved
+    // rather than a bar that grew.
+    expect(chip.left, greaterThan(tester.getRect(find.text('Last fed')).left));
   });
 }

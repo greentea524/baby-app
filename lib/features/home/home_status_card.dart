@@ -263,6 +263,10 @@ class _StatusRow extends StatelessWidget {
 
   /// An extra line below the detail, given as a widget so it can carry its
   /// own emphasis — the next-feed chip needs to outweigh the detail text.
+  ///
+  /// Aligned right, with the elapsed time above it. The two are the row's
+  /// answers to the same question — when they last ate, when they next need
+  /// to — and reading down the right edge is how you get both.
   final Widget? footer;
 
   @override
@@ -298,7 +302,8 @@ class _StatusRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                ?footer,
+                if (footer case final it?)
+                  Align(alignment: Alignment.centerRight, child: it),
               ],
             ),
           ),
