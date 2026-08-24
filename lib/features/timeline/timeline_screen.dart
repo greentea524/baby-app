@@ -45,7 +45,11 @@ class TimelineScreen extends ConsumerWidget {
     final stats = DayStats.from(feeds, diapers, pumps: pumps);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Timeline')),
+      // The day navigation lives in the app bar rather than in a row of its
+      // own beneath it. The bar was showing the word "Timeline" — which the
+      // tab underneath already says — and spending a whole row to do it,
+      // while the list below fought for what was left.
+      appBar: _DayAppBar(day: day),
       body: baby == null
           ? const Center(
               child: Padding(
@@ -53,59 +57,111 @@ class TimelineScreen extends ConsumerWidget {
                 child: Text('Add a baby on the Home tab to see the timeline.'),
               ),
             )
-          : Column(
-              children: [
-                _DayNavBar(day: day),
-                if (loading)
-                  const Expanded(
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else ...[
-                  _StatsCard(stats: stats),
-                  const Divider(height: 1),
-                  const ActivityFilterBar(),
-                  Expanded(
-                    child: entries.isEmpty
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Text('No events on this day.'),
-                            ),
-                          )
-                        // Distinct from an empty day: there *is* activity, just
-                        // none of this kind, and saying so points at the filter.
-                        : visible.isEmpty
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Text(
-                                'No ${filter.label.toLowerCase()} on this day.',
-                              ),
-                            ),
-                          )
-                        : ListView.separated(
-                            itemCount: visible.length,
-                            separatorBuilder: (_, _) =>
-                                const Divider(height: 1),
-                            itemBuilder: (context, i) => ActivityTile(
-                              entry: visible[i],
-                              // The day is already in the nav bar above, so
-                              // the bare clock time is enough here.
-                              timeDisplay: ActivityTimeDisplay.clock,
-                            ),
-                          ),
+          : loading
+          ? const Center(child: CircularProgressIndicator())
+          // One scroll view, so the stats can move out of the way. They were
+          // fixed above an Expanded list: seven chips wrapping to three rows
+          // on a phone took most of the screen and left the list reading
+          // through a slot, on exactly the busy days with most to read.
+          : CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(child: _StatsCard(stats: stats)),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _PinnedFilterBar(
+                    height: ActivityFilterBar.barHeight(context) + 1,
+                    background: Theme.of(context).colorScheme.surface,
                   ),
-                ],
+                ),
+                if (entries.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('No events on this day.'),
+                      ),
+                    ),
+                  )
+                // Distinct from an empty day: there *is* activity, just none
+                // of this kind, and saying so points at the filter.
+                else if (visible.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'No ${filter.label.toLowerCase()} on this day.',
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverList.separated(
+                    itemCount: visible.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, i) => ActivityTile(
+                      entry: visible[i],
+                      // The day is already in the app bar above, so the bare
+                      // clock time is enough here.
+                      timeDisplay: ActivityTimeDisplay.clock,
+                    ),
+                  ),
               ],
             ),
     );
   }
 }
 
-class _DayNavBar extends ConsumerWidget {
-  const _DayNavBar({required this.day});
+/// Keeps the kind filter reachable once the stats have scrolled away.
+///
+/// The list is the reason to be on this screen, so everything above it earns
+/// its place: the stats are read once and go, the filter has to stay.
+class _PinnedFilterBar extends SliverPersistentHeaderDelegate {
+  const _PinnedFilterBar({required this.height, required this.background});
+
+  final double height;
+  final Color background;
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlaps) {
+    // Opaque, or the rows scroll visibly through it. Sized explicitly because
+    // a child shorter than the extent trips "layoutExtent exceeds
+    // paintExtent"; the divider takes up the spare point.
+    return SizedBox(
+      height: height,
+      child: ColoredBox(
+        color: background,
+        child: const Column(
+          children: [
+            Expanded(child: ActivityFilterBar()),
+            Divider(height: 1),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(_PinnedFilterBar old) =>
+      old.height != height || old.background != background;
+}
+
+/// The app bar, carrying the day and the way to move between days.
+class _DayAppBar extends ConsumerWidget implements PreferredSizeWidget {
+  const _DayAppBar({required this.day});
 
   final DateTime day;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   bool get _isToday {
     final now = DateTime.now();
@@ -131,29 +187,30 @@ class _DayNavBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () => _shift(ref, -1),
-            tooltip: 'Previous day',
-          ),
-          Expanded(
-            child: TextButton.icon(
-              icon: const Icon(Icons.calendar_today, size: 18),
-              label: Text(TimelineFormat.dayLabel(day)),
-              onPressed: () => _pick(context, ref),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            onPressed: _isToday ? null : () => _shift(ref, 1),
-            tooltip: 'Next day',
-          ),
-        ],
+    return AppBar(
+      // No back button to displace: the timeline is a tab, so the leading
+      // slot was empty and the title said only "Timeline".
+      leading: IconButton(
+        icon: const Icon(Icons.chevron_left),
+        onPressed: () => _shift(ref, -1),
+        tooltip: 'Previous day',
       ),
+      titleSpacing: 0,
+      title: TextButton.icon(
+        icon: const Icon(Icons.calendar_today, size: 18),
+        label: Text(
+          TimelineFormat.dayLabel(day),
+          overflow: TextOverflow.ellipsis,
+        ),
+        onPressed: () => _pick(context, ref),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.chevron_right),
+          onPressed: _isToday ? null : () => _shift(ref, 1),
+          tooltip: 'Next day',
+        ),
+      ],
     );
   }
 }
@@ -250,7 +307,7 @@ class _StatChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
@@ -259,16 +316,47 @@ class _StatChip extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // One line, and min width. Stacked over three lines each, at full
+          // width apiece, seven chips came to 518pt of summary above a list
+          // with nowhere left to go: the Row defaulted to MainAxisSize.max,
+          // so every chip filled the Wrap and took a row to itself.
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 16, color: theme.colorScheme.primary),
               const SizedBox(width: 6),
-              Text(label, style: theme.textTheme.labelSmall),
+              Text(
+                value,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 5),
+              // Flexible, because putting the label beside the value rather
+              // than above it means the pair has to fit across a chip: at
+              // 200% on a narrow phone "3h 10m Avg interval" ran 77pt past
+              // the edge. It wraps rather than truncates — the label is the
+              // half that says what the number is.
+              Flexible(
+                child: Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 2),
-          Text(value, style: theme.textTheme.titleMedium),
-          if (detail != null) Text(detail!, style: theme.textTheme.bodySmall),
+          // Kept on its own line rather than run into the one above: only
+          // three of the chips have one, and inline it would widen those
+          // enough to cost a row of its own.
+          if (detail != null)
+            Text(
+              detail!,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
         ],
       ),
     );

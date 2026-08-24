@@ -37,6 +37,20 @@ void main() {
   // itself. A fixed date drifts into "overdue" the day after it is written,
   // which changes the wording the chip uses.
   final now = DateTime.now();
+  final midnight = DateTime(now.year, now.month, now.day);
+
+  /// [hours] before now, pulled forward if that would land before midnight.
+  ///
+  /// The Today charts drop anything outside the calendar day, so a fixture
+  /// built from a flat "two hours ago" draws an empty chart at 1am — and this
+  /// test then quietly measures a Home that is not the one it describes.
+  /// Spreading what there is of the day keeps the ordering when the day is
+  /// younger than the offsets.
+  DateTime earlierToday(int hours) {
+    final target = now.subtract(Duration(hours: hours));
+    if (!target.isBefore(midnight)) return target;
+    return midnight.add(now.difference(midnight) ~/ (hours + 1));
+  }
 
   /// A Home with something on every row: a bottle, solids, a diaper and a
   /// pump. The empty state is the small one — this is the tall one, and the
@@ -45,13 +59,13 @@ void main() {
     FeedingEvent(
       id: 'f1',
       type: FeedingType.bottle,
-      startTime: now.subtract(const Duration(hours: 2)),
+      startTime: earlierToday(2),
       amountMl: 150,
     ),
     FeedingEvent(
       id: 'f2',
       type: FeedingType.solids,
-      startTime: now.subtract(const Duration(hours: 4)),
+      startTime: earlierToday(4),
       notes: 'Sweet potato',
     ),
   ];
