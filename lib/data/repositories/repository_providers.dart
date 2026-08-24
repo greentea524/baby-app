@@ -13,6 +13,7 @@ import '../models/growth_measurement.dart';
 import '../models/notification_prefs.dart';
 import '../models/pumping_event.dart';
 import 'appointments_repository.dart';
+import 'baby_data.dart';
 import 'babies_repository.dart';
 import 'diaper_repository.dart';
 import 'feeding_repository.dart';
@@ -262,6 +263,14 @@ final notificationPrefsProvider = StreamProvider<NotificationPrefs>((ref) {
   if (repo == null) return Stream.value(const NotificationPrefs());
   return repo.watch();
 });
+
+/// Counting and deleting everything under a baby (#28).
+///
+/// Not tied to a baby the way the event repositories are: the screen that
+/// uses it is given the baby to delete, which may not be the current one.
+final babyDataProvider = Provider<BabyData>(
+  (ref) => BabyData(ref.watch(firestoreProvider)),
+);
 
 /// Whether [notificationPrefsProvider] is carrying the account's stored values
 /// rather than the signed-out defaults.

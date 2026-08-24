@@ -16,3 +16,12 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges();
 });
+
+/// Just the signed-in uid, or null.
+///
+/// Split from [authStateProvider] because a `User` cannot be constructed
+/// without Firebase, so anything that only needs the uid was untestable
+/// while it had to go through one. Ownership checks are exactly that (#28).
+final currentUidProvider = Provider<String?>(
+  (ref) => ref.watch(authStateProvider).value?.uid,
+);

@@ -9,6 +9,7 @@ import '../../data/models/notification_prefs.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../caregivers/caregivers_screen.dart';
 import '../export/export_screen.dart';
+import 'delete_baby_screen.dart';
 import '../home/companion_art.dart';
 import '../home/home_prefs.dart';
 import '../notifications/push_service.dart';
@@ -82,6 +83,8 @@ class SettingsScreen extends ConsumerWidget {
               MaterialPageRoute<void>(builder: (_) => const ExportScreen()),
             ),
           ),
+          const Divider(),
+          const _DeleteDataTile(),
           const Divider(),
           ListTile(
             leading: Icon(
@@ -574,6 +577,39 @@ class _PushToggle extends ConsumerWidget {
           );
         }
       },
+    );
+  }
+}
+
+/// The way to delete a baby and everything logged under it (#28).
+///
+/// Beside Export deliberately. They are the two halves of owning the data —
+/// take it out, or take it away — and a delete offered on its own is only
+/// the half that cannot be undone.
+class _DeleteDataTile extends ConsumerWidget {
+  const _DeleteDataTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final baby = ref.watch(currentBabyProvider);
+    final error = Theme.of(context).colorScheme.error;
+
+    return ListTile(
+      leading: Icon(Icons.delete_forever_outlined, color: error),
+      title: Text('Delete data', style: TextStyle(color: error)),
+      subtitle: Text(
+        baby == null
+            ? 'No baby selected'
+            : 'Permanently remove ${baby.name} and every entry',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: baby == null
+          ? null
+          : () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => DeleteBabyScreen(baby: baby),
+              ),
+            ),
     );
   }
 }

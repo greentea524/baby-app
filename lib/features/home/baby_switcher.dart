@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/baby.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../settings/delete_baby_screen.dart';
 import 'add_baby_dialog.dart';
 import 'baby_age.dart';
 
@@ -76,33 +77,25 @@ Future<void> _showBabyPicker(BuildContext context) {
 class _BabyPickerSheet extends ConsumerWidget {
   const _BabyPickerSheet();
 
+  /// Opens the delete flow rather than asking here.
+  ///
+  /// This used to be a two-button dialog over a one-line delete that removed
+  /// the profile and left every logged entry behind — the dialog even said
+  /// so, in as many words: "Logged entries are no longer shown." Deleting
+  /// the data needs a screen, because it has to count what is about to go,
+  /// offer the export, and be typed to confirm (#28).
   Future<void> _confirmDelete(
     BuildContext context,
     WidgetRef ref,
     Baby baby,
   ) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Delete ${baby.name}?'),
-        content: const Text(
-          'The profile is removed. Logged entries are no longer shown.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final navigator = Navigator.of(context);
+    // Closes the picker sheet first: the delete screen is a destination, not
+    // something to read through a bottom sheet.
+    navigator.pop();
+    await navigator.push(
+      MaterialPageRoute<void>(builder: (_) => DeleteBabyScreen(baby: baby)),
     );
-    if (ok == true) {
-      await ref.read(babiesRepositoryProvider)?.deleteBaby(baby.id);
-    }
   }
 
   @override

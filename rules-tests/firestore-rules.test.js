@@ -1,5 +1,6 @@
 import { after, before, beforeEach, describe, it } from "node:test";
 import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
 
 import {
   assertFails,
@@ -734,5 +735,89 @@ describe("fcm tokens", () => {
     });
     await assertFails(getDoc(doc(asMallory(), "fcmTokens", "token-a")));
     await assertSucceeds(getDoc(doc(asAlice(), "fcmTokens", "token-a")));
+  });
+});
+
+// --- Deleting a baby and everything under it (#28) -------------------------
+//
+// Firestore does not delete subcollections with their parent, and every
+// subcollection rule here reads the baby document to check membership. So the
+// order is not a preference: parent-first strands the data behind rules that
+// can no longer resolve, for good.
+describe("deleting a baby's data", () => {
+  const seed = async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "babies/del1"), {
+        name: "Ada",
+        ownerUid: "alice",
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+      });
+      await setDoc(doc(db, "babies/del1/feedings/f1"), {
+        type: "bottle", startTime: new Date(), createdBy: "alice",
+      });
+      await setDoc(doc(db, "babies/del1/diapers/d1"), {
+        type: "wet", time: new Date(), createdBy: "alice",
+      });
+      await setDoc(doc(db, "babies/del1/invites/x@y.com"), {
+        email: "x@y.com", role: "editor", invitedByUid: "alice",
+      });
+    });
+  };
+
+  it("lets the owner clear the children while the baby still exists", async () => {
+    await seed();
+    const owner = asAlice();
+
+    await assertSucceeds(deleteDoc(doc(owner, "babies/del1/feedings/f1")));
+    await assertSucceeds(deleteDoc(doc(owner, "babies/del1/diapers/d1")));
+    await assertSucceeds(deleteDoc(doc(owner, "babies/del1/invites/x@y.com")));
+    await assertSucceeds(deleteDoc(doc(owner, "babies/del1")));
+
+    // Nothing left anywhere, which is the whole claim.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      for (const path of [
+        "babies/del1",
+        "babies/del1/feedings/f1",
+        "babies/del1/diapers/d1",
+        "babies/del1/invites/x@y.com",
+      ]) {
+        const snap = await getDoc(doc(db, path));
+        assert.equal(snap.exists(), false, `${path} survived`);
+      }
+    });
+  });
+
+  it("strands the children if the baby goes first", async () => {
+    // The bug this replaces, kept as a test because it is the reason the
+    // order exists. Delete the parent and the feeding is still stored and no
+    // longer reachable by anyone — not readable, not deletable, for good.
+    await seed();
+    const owner = asAlice();
+
+    await assertSucceeds(deleteDoc(doc(owner, "babies/del1")));
+
+    let survived = false;
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      survived = (
+        await getDoc(doc(ctx.firestore(), "babies/del1/feedings/f1"))
+      ).exists();
+    });
+    assert.equal(survived, true, "the feeding should still be stored");
+
+    await assertFails(getDoc(doc(owner, "babies/del1/feedings/f1")));
+    await assertFails(deleteDoc(doc(owner, "babies/del1/feedings/f1")));
+  });
+
+  it("does not let a member delete the baby, only the owner", async () => {
+    await seed();
+    await assertFails(deleteDoc(doc(asBob(), "babies/del1")));
+  });
+
+  it("but a member may clear the entries, so the sweep is not owner-gated", async () => {
+    await seed();
+    await assertSucceeds(deleteDoc(doc(asBob(), "babies/del1/feedings/f1")));
   });
 });
