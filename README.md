@@ -252,6 +252,37 @@ The reverse order is safe only when a rules change is purely a loosening.
 job is to fail if a rule stops accepting a payload the client still sends —
 run `npm test` in `rules-tests/` before deploying either half.
 
+### Why `authDomain` follows the page rather than the project
+
+`sameOriginAuth` in `lib/core/auth/auth_domain.dart` rewrites the generated
+`authDomain` to whatever host is serving the page, and `main.dart` passes every
+`FirebaseOptions` through it. This is deliberate — do not "fix" it back to the
+value `flutterfire configure` writes.
+
+Firebase Auth does its browser work through a helper served at `/__/auth/` on
+the `authDomain`. Generated, that is `<project>.firebaseapp.com`, which is a
+*third party* to a page served from `<project>.web.app` or a custom domain — and
+Safari will not give a third party IndexedDB, where Firebase Auth keeps the
+session. Signing in on an iPhone failed with `An unknown error occurred: Error:
+Database is closing/hidden [unknown]` on exactly that.
+
+Firebase Hosting serves `/__/auth/` on every site in the project, so following
+the page's own host makes the helper same-origin whatever domain is in use.
+`localhost` is excluded: a dev server is not Hosting and serves no helper, so it
+keeps the generated domain.
+
+Any host the app is served from must be listed under **Authentication →
+Settings → Authorized domains**. `web.app` and `firebaseapp.com` are there by
+default; a custom domain has to be added, and forgetting shows up as
+`unauthorized-domain`.
+
+Mobile browsers also sign in by redirect rather than popup
+(`AuthRepository.redirectSignIn`): a popup backgrounds the page that opened it,
+and iOS closes a hidden page's IndexedDB connections. The two changes go
+together and in that order — `signInWithRedirect` is *more* dependent on a
+same-origin helper than the popup was, so redirecting without the domain fix
+would make an iPhone worse rather than better.
+
 ### Why hosting sends `Cache-Control: no-cache`
 
 `firebase.json` sets `no-cache` on every hosted file. Without it, Hosting

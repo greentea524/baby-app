@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/auth/auth_domain.dart';
 import 'core/launch_action.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_accent.dart';
@@ -15,7 +16,9 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(
+    options: sameOriginAuth(DefaultFirebaseOptions.currentPlatform),
+  );
 
   // Offline persistence: caches Firestore data locally (IndexedDB on web)
   // so the PWA works offline and syncs on reconnect.

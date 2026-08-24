@@ -3,10 +3,10 @@ import 'package:flutter/foundation.dart';
 
 /// Thin wrapper over [FirebaseAuth] exposing just what the app needs.
 ///
-/// Web uses `signInWithPopup`; Android/iOS use `signInWithProvider`, which
-/// firebase_auth backs with the platform's own OAuth flow. Neither needs the
-/// `google_sign_in` plugin — that would only buy a more native-looking
-/// account picker. What native builds *do* need is a real
+/// Web signs in through the browser; Android/iOS use `signInWithProvider`,
+/// which firebase_auth backs with the platform's own OAuth flow. Neither
+/// needs the `google_sign_in` plugin — that would only buy a more
+/// native-looking account picker. What native builds *do* need is a real
 /// `firebase_options.dart` plus the platform config files; see the
 /// "Native mobile builds" section of the README.
 class AuthRepository {
@@ -18,13 +18,46 @@ class AuthRepository {
 
   User? get currentUser => _auth.currentUser;
 
+  /// Whether a browser should redirect rather than open a popup.
+  ///
+  /// A popup backgrounds the page that opened it, and iOS closes a hidden
+  /// page's IndexedDB connections. So on an iPhone the popup would complete,
+  /// come back, and fail writing the session to a database that was already
+  /// closing — reported as "Database is closing/hidden" under the catch-all
+  /// `unknown` code, which named neither the cause nor the cure.
+  ///
+  /// Desktop keeps the popup: it does not have the backgrounding problem,
+  /// and a popup leaves the app's own page standing rather than reloading it.
+  static bool get redirectSignIn =>
+      kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.android);
+
+  /// Completes when signed in — or, on the redirect path, never: the browser
+  /// leaves the page and the result arrives through [authStateChanges] after
+  /// it comes back.
   Future<void> signInWithGoogle() async {
     final provider = GoogleAuthProvider();
-    if (kIsWeb) {
-      await _auth.signInWithPopup(provider);
-    } else {
+    if (!kIsWeb) {
       await _auth.signInWithProvider(provider);
+      return;
     }
+    if (redirectSignIn) {
+      await _auth.signInWithRedirect(provider);
+      return;
+    }
+    await _auth.signInWithPopup(provider);
+  }
+
+  /// Surfaces a failure from a redirect that has already come back.
+  ///
+  /// Without this a redirect that Google or Firebase rejected returns to a
+  /// login screen with no error on it, which reads as the button having done
+  /// nothing. Throws what the sign-in would have thrown; returns normally
+  /// when there was no redirect, which is the ordinary case.
+  Future<void> completeRedirectSignIn() async {
+    if (!kIsWeb) return;
+    await _auth.getRedirectResult();
   }
 
   Future<void> signOut() => _auth.signOut();
