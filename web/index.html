@@ -41,7 +41,29 @@
   -->
   <style>
     html { background: #7E9BD0; }
-    body { margin: 0; }
+
+    /* The document must not scroll.
+     *
+     * Flutter draws into a canvas sized to the viewport and scrolls its own
+     * content, so nothing here ever needs a scrollbar. But iOS Safari scrolls
+     * the *document* to reveal a focused input, and Flutter's text entry is a
+     * hidden DOM input positioned over that canvas — so with the document
+     * free to move, tapping the bottle amount slid the whole app up and
+     * carried the field off the top of the screen.
+     *
+     * position:fixed rather than overflow:hidden alone, which iOS honours for
+     * touch scrolling but not for the scroll it performs itself on focus. */
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
+    body {
+      margin: 0;
+      position: fixed;
+      width: 100%;
+    }
 
     #app-loading {
       position: fixed;
