@@ -271,10 +271,35 @@ the page's own host makes the helper same-origin whatever domain is in use.
 `localhost` is excluded: a dev server is not Hosting and serves no helper, so it
 keeps the generated domain.
 
-Any host the app is served from must be listed under **Authentication →
-Settings → Authorized domains**. `web.app` and `firebaseapp.com` are there by
-default; a custom domain has to be added, and forgetting shows up as
-`unauthorized-domain`.
+Two separate lists have to know about every host the app is served from, and
+they live in different consoles:
+
+1. **Firebase → Authentication → Settings → Authorized domains.** `web.app` and
+   `firebaseapp.com` are there by default; a custom domain has to be added.
+   Forgetting shows up as `unauthorized-domain`.
+2. **Google Cloud Console → APIs & Services → Credentials → the OAuth 2.0
+   client** ("Web client (auto created by Google Service)"). Its *Authorized
+   redirect URIs* must contain `https://<host>/__/auth/handler`, and its
+   *Authorized JavaScript origins* `https://<host>`.
+
+The second is the one that catches people, because moving `authDomain` moves
+the redirect URI with it. Firebase registers only the `firebaseapp.com` handler
+when it creates the OAuth client — never the `web.app` twin — so an app served
+from `web.app` gets:
+
+```
+Error 400: redirect_uri_mismatch
+redirect_uri=https://<project>.web.app/__/auth/handler
+```
+
+Add that exact URI to the OAuth client. Google's propagation is not instant; a
+few minutes of the same error afterwards is expected rather than a sign it did
+not take.
+
+Serving the app from `<project>.firebaseapp.com` instead avoids the console
+step entirely — both domains serve the same Hosting site, so the helper is
+still same-origin and that handler is already registered. It costs a permanent
+URL change, including any installed PWA, which is usually the worse trade.
 
 Mobile browsers also sign in by redirect rather than popup
 (`AuthRepository.redirectSignIn`): a popup backgrounds the page that opened it,
