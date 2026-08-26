@@ -11,6 +11,7 @@ import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_filter.dart';
 import '../appointments/next_appointment_button.dart';
 import '../caregivers/incoming_invites.dart';
+import '../common/day_time_label.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../insights/day_timeline_strip.dart';
@@ -110,6 +111,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : CustomScrollView(
                 slivers: [
                   const SliverToBoxAdapter(child: IncomingInvitesBanner()),
+                  // The time, as nursery mode shows it. In the body rather
+                  // than the app bar, which already carries the companion,
+                  // the baby switcher and the next appointment — and quieter
+                  // than in nursery mode, where it is the centrepiece and
+                  // here it is a detail on a screen with a status bar of its
+                  // own above it.
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: DayTimeLabel(
+                        clock: _now,
+                        timeStyle: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                        dayStyle: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+                  ),
                   // Logging is what the app is opened for, so by default it
                   // is the first thing under the app bar rather than a third
                   // of the way down the screen.
