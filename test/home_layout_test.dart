@@ -391,19 +391,51 @@ void main() {
     });
   });
 
-  testWidgets('Home shows the time and the day too', (tester) async {
-    // Same widget as nursery mode, quieter: this screen has a status bar of
-    // its own above it, so the clock is a detail rather than a centrepiece.
-    await pumpHome(tester);
+  group('the clock in the corner', () {
+    testWidgets('is in the app bar, where the companion used to be', (
+      tester,
+    ) async {
+      await pumpHome(tester);
 
-    expect(find.byType(DayTimeLabel), findsOneWidget);
-    // Concrete, never "Today" — a clock has no use for that.
-    expect(
-      find.descendant(
-        of: find.byType(DayTimeLabel),
-        matching: find.text('Today'),
-      ),
-      findsNothing,
-    );
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byType(DayTimeLabel),
+        ),
+        findsOneWidget,
+      );
+      // Concrete, never "Today" — a clock has no use for that.
+      expect(
+        find.descendant(
+          of: find.byType(DayTimeLabel),
+          matching: find.text('Today'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('stays inside a bar whose height does not scale', (
+      tester,
+    ) async {
+      // The risk in the move. An AppBar is kToolbarHeight whatever the
+      // reader's text size, and this is two lines of text in it — so it is
+      // scaled down to fit rather than allowed to overflow.
+      for (final scale in [1.0, 1.5, 2.0]) {
+        await pumpHome(tester, textScale: scale);
+        expect(tester.takeException(), isNull, reason: 'at $scale');
+
+        final bar = tester.getRect(find.byType(AppBar));
+        final clock = tester.getRect(find.byType(DayTimeLabel));
+        expect(clock.height, lessThanOrEqualTo(bar.height), reason: 'at $scale');
+      }
+    });
+
+    testWidgets('leaves the baby switcher its room', (tester) async {
+      // The leading slot is wider than the 48pt the companion needed, so the
+      // title had to be checked rather than assumed.
+      await pumpHome(tester);
+      expect(find.text('Ada'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

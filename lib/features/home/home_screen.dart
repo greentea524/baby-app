@@ -21,7 +21,6 @@ import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
-import 'feed_companion.dart';
 import 'home_access.dart';
 import 'home_prefs.dart';
 import 'home_status_card.dart';
@@ -87,10 +86,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        // Decorative, so it takes the corner nothing else wanted rather than
-        // a row from the things you can act on. Fits the default leading
-        // width, which keeps the baby switcher's space unchanged.
-        leading: baby == null ? null : FeedCompanion(now: _now),
+        // The time, in the corner the companion used to decorate. Wider than
+        // the default leading slot, which was sized for a 48pt drawing —
+        // and scaled down to fit rather than allowed to overflow, since the
+        // bar's height is fixed and the reader's text size is not.
+        leadingWidth: baby == null ? null : 112,
+        leading: baby == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: DayTimeLabel(
+                    clock: _now,
+                    timeStyle: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                    dayStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
         title: baby == null ? const Text('Home') : const BabySwitcher(),
         // The next visit lives in the corner rather than in the status card:
         // it is the one thing on Home you cannot act on today, so it wants to
@@ -111,28 +128,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : CustomScrollView(
                 slivers: [
                   const SliverToBoxAdapter(child: IncomingInvitesBanner()),
-                  // The time, as nursery mode shows it. In the body rather
-                  // than the app bar, which already carries the companion,
-                  // the baby switcher and the next appointment — and quieter
-                  // than in nursery mode, where it is the centrepiece and
-                  // here it is a detail on a screen with a status bar of its
-                  // own above it.
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: DayTimeLabel(
-                        clock: _now,
-                        timeStyle: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                        dayStyle: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                      ),
-                    ),
-                  ),
                   // Logging is what the app is opened for, so by default it
                   // is the first thing under the app bar rather than a third
                   // of the way down the screen.
