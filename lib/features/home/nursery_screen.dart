@@ -374,10 +374,20 @@ class _BigButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Size and weight only, with no colour of its own.
+    //
+    // Passing `textTheme.titleMedium` here carried the theme's colour with
+    // it — a near-black `onSurface` — which overrode the button's own
+    // foreground and put black text on a filled blue button. Leaving colour
+    // null lets it inherit from the button, which is right in both themes and
+    // stays right if the button's colours ever change.
     final text = Flexible(
       child: Text(
         label,
-        style: Theme.of(context).textTheme.titleMedium,
+        style: TextStyle(
+          fontSize: Theme.of(context).textTheme.titleMedium?.fontSize,
+          fontWeight: FontWeight.w600,
+        ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),

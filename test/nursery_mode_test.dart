@@ -307,4 +307,23 @@ void main() {
       expect(find.byTooltip('Nursery mode'), findsOneWidget);
     });
   });
+
+  testWidgets('the button labels take the button\'s own colour', (
+    tester,
+  ) async {
+    // Passing textTheme.titleMedium carried the theme's near-black onSurface
+    // with it and overrode the button's foreground, which put black text on a
+    // filled blue button. The label has to inherit instead.
+    await pumpNursery(tester);
+
+    final label = tester.element(find.text('Bottle'));
+    final inherited = DefaultTextStyle.of(label).style.color;
+    final scheme = Theme.of(label).colorScheme;
+
+    expect(inherited, scheme.onPrimary);
+    expect(inherited, isNot(scheme.onSurface));
+
+    // And the Text does not carry a colour of its own to override it with.
+    expect(tester.widget<Text>(find.text('Bottle')).style?.color, isNull);
+  });
 }
