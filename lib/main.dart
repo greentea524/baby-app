@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/auth/auth_domain.dart';
 import 'core/launch_action.dart';
+import 'core/layout/content_width.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_accent.dart';
 import 'core/theme/app_theme.dart';
@@ -68,6 +69,8 @@ class BabyApp extends ConsumerWidget {
       darkTheme: AppTheme.dark(seed),
       themeMode: themeMode,
       routerConfig: router,
+      // Every route, and every sheet and dialog opened inside one.
+      builder: (context, child) => ContentWidth(child: child ?? const SizedBox()),
     );
   }
 }
