@@ -15,6 +15,7 @@ import 'package:baby_app/features/home/home_prefs.dart';
 import 'package:baby_app/features/home/recent_activity_list.dart';
 import 'package:baby_app/features/insights/day_timeline_strip.dart';
 import 'package:baby_app/features/insights/diaper_mix_bar.dart';
+import 'package:baby_app/features/common/day_time_label.dart';
 import 'package:baby_app/features/home/home_screen.dart';
 
 /// Home has to survive a small screen at a large text size (#—).
@@ -388,5 +389,21 @@ void main() {
       expect(find.byType(ActivityFilterBar), findsNothing);
       expect(tester.takeException(), isNull);
     });
+  });
+
+  testWidgets('Home shows the time and the day too', (tester) async {
+    // Same widget as nursery mode, quieter: this screen has a status bar of
+    // its own above it, so the clock is a detail rather than a centrepiece.
+    await pumpHome(tester);
+
+    expect(find.byType(DayTimeLabel), findsOneWidget);
+    // Concrete, never "Today" — a clock has no use for that.
+    expect(
+      find.descendant(
+        of: find.byType(DayTimeLabel),
+        matching: find.text('Today'),
+      ),
+      findsNothing,
+    );
   });
 }

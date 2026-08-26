@@ -9,9 +9,10 @@ import '../../data/repositories/repository_providers.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
+import '../pumping/pumping_quick_log.dart';
 import '../reminders/feed_prediction.dart';
+import '../common/day_time_label.dart';
 import '../reminders/reminder_providers.dart';
-import '../timeline/timeline_format.dart';
 import 'baby_age.dart';
 import 'home_prefs.dart';
 import 'home_status_card.dart';
@@ -111,6 +112,12 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         event: ref.watch(lastMilkFeedProvider),
                         timeOf: (e) => e.startTime,
                         now: clock,
+                        // Inside the card it belongs to. Loose underneath, it
+                        // was a chip floating between two cards with nothing
+                        // saying which one it was about — and it is about
+                        // this one: when they last ate, when they next need
+                        // to, one thing to read.
+                        footer: _nextFeed(context, ref, clock),
                       );
                       final changed = _Readout(
                         icon: Icons.baby_changing_station,
@@ -167,11 +174,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
-                                    children: [
-                                      cards,
-                                      const SizedBox(height: 16),
-                                      ?_nextFeed(context, ref, clock),
-                                    ],
+                                    children: [cards],
                                   ),
                                 ),
                               ),
@@ -202,14 +205,11 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
       now: clock,
       within: ref.watch(reminderSettingsProvider).headsUp,
     );
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: NextFeedChip(
-        state: state,
-        text: state == FeedDueState.overdue
-            ? 'Feed ${countdownLabel(due, now: clock)} · due $at'
-            : 'Next feed ${countdownLabel(due, now: clock)} · $at',
-      ),
+    return NextFeedChip(
+      state: state,
+      text: state == FeedDueState.overdue
+          ? 'Feed ${countdownLabel(due, now: clock)} · due $at'
+          : 'Next feed ${countdownLabel(due, now: clock)} · $at',
     );
   }
 }
@@ -254,26 +254,7 @@ class _Header extends ConsumerWidget {
         // the two sides are equal-flex Expandeds, so whatever space is left
         // after this block is split evenly and it lands in the middle. The
         // name gives way first, which is the right one to lose.
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              TimeOfDay.fromDateTime(clock).format(context),
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 1,
-            ),
-            Text(
-              // Never "Today", which a clock has no use for.
-              TimelineFormat.weekdayDate(clock),
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              maxLines: 1,
-            ),
-          ],
-        ),
+        DayTimeLabel(clock: clock),
         // The only way out. The navigation bar is hidden in this mode, so
         // without this the device is stuck here and Settings is unreachable.
         Expanded(
@@ -306,6 +287,7 @@ class _Readout<T> extends StatelessWidget {
     required this.event,
     required this.timeOf,
     required this.now,
+    this.footer,
   });
 
   final IconData icon;
@@ -313,6 +295,10 @@ class _Readout<T> extends StatelessWidget {
   final T? event;
   final DateTime Function(T) timeOf;
   final DateTime now;
+
+  /// Sits under the times, inside the card. The next-feed chip belongs to the
+  /// feed card rather than floating between the two.
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -381,6 +367,10 @@ class _Readout<T> extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
+                if (footer case final it?) ...[
+                  const SizedBox(height: 10),
+                  Align(alignment: Alignment.centerLeft, child: it),
+                ],
               ],
             ),
           ),
@@ -398,17 +388,19 @@ class _Readout<T> extends StatelessWidget {
 bool _twoAcross(BoxConstraints c) =>
     c.maxWidth > c.maxHeight && c.maxWidth >= 620;
 
-/// Bottle and diaper — each straight into its sheet with the kind already
-/// chosen, so there is no chooser step asking again.
+/// Bottle, diaper and pumping — each straight into its sheet with the kind
+/// already chosen, so there is no chooser step asking again.
 ///
-/// Two, not three. Breast was here and is not any more: anything this screen
-/// does not carry is still a tap away through the full app, and two buttons
-/// across a nursery screen are bigger targets than three.
-class _LogButtons extends StatelessWidget {
+/// Breast is deliberately absent: anything this screen does not carry is
+/// still a tap away through the full app.
+///
+/// Pumping follows the same preference the Home button does, so a household
+/// that has turned it off does not meet it again here.
+class _LogButtons extends ConsumerWidget {
   const _LogButtons();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final buttons = [
       _BigButton(
         icon: FeedingFormat.typeIcon(FeedingType.bottle),
@@ -420,6 +412,12 @@ class _LogButtons extends StatelessWidget {
         label: 'Diaper',
         onPressed: () => showDiaperQuickLog(context),
       ),
+      if (ref.watch(showPumpingActionProvider))
+        _BigButton(
+          icon: Icons.opacity,
+          label: 'Pump',
+          onPressed: () => showPumpingQuickLog(context),
+        ),
     ];
 
     return Row(

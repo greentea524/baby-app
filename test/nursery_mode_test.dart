@@ -10,6 +10,7 @@ import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
+import 'package:baby_app/features/home/home_status_card.dart';
 import 'package:baby_app/features/home/home_screen.dart';
 import 'package:baby_app/features/home/nursery_screen.dart';
 
@@ -34,8 +35,12 @@ void main() {
     double textScale = 1.0,
     Size size = const Size(834, 1194),
     bool withData = true,
+    Map<String, Object> prefs = const {},
   }) async {
-    SharedPreferences.setMockInitialValues({'display_mode': 'nursery'});
+    SharedPreferences.setMockInitialValues({
+      'display_mode': 'nursery',
+      ...prefs,
+    });
     final stored = await SharedPreferences.getInstance();
 
     tester.view.physicalSize = size;
@@ -112,16 +117,44 @@ void main() {
     expect(find.byType(CustomPaint).evaluate().length, lessThan(20));
   });
 
-  testWidgets('offers exactly bottle and diaper', (tester) async {
+  testWidgets('offers bottle, diaper and pumping', (tester) async {
     await pumpNursery(tester);
 
     expect(find.text('Bottle'), findsOneWidget);
     expect(find.text('Diaper'), findsOneWidget);
-    // Everything else is a tap away through the full app, and two buttons
-    // across a nursery screen are bigger targets than three.
+    expect(find.text('Pump'), findsOneWidget);
+    // Everything else is a tap away through the full app.
     expect(find.text('Breast'), findsNothing);
     expect(find.text('Solids'), findsNothing);
-    expect(find.text('Pumping'), findsNothing);
+  });
+
+  testWidgets('and drops pumping for a household that has turned it off', (
+    tester,
+  ) async {
+    // The same preference the Home button follows. Meeting it again here
+    // would make the setting a half-truth.
+    await pumpNursery(tester, prefs: {'show_pumping_action': false});
+
+    expect(find.text('Pump'), findsNothing);
+    expect(find.text('Bottle'), findsOneWidget);
+  });
+
+  testWidgets('puts the next feed inside the card it is about', (
+    tester,
+  ) async {
+    // Loose underneath, the chip floated between two cards with nothing
+    // saying which one it belonged to.
+    await pumpNursery(tester, prefs: {'reminder_mode': 'fixedInterval'});
+
+    final chip = find.byType(NextFeedChip);
+    expect(chip, findsOneWidget);
+
+    final fed = tester.getRect(find.text('Last fed'));
+    final changed = tester.getRect(find.text('Last changed'));
+    final rect = tester.getRect(chip);
+    // Below the feed label and above where the other card begins.
+    expect(rect.top, greaterThan(fed.bottom));
+    expect(rect.bottom, lessThanOrEqualTo(changed.top));
   });
 
   testWidgets('a button opens its sheet with the kind already chosen', (
