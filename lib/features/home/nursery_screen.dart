@@ -11,6 +11,7 @@ import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
+import '../timeline/timeline_format.dart';
 import 'baby_age.dart';
 import 'home_prefs.dart';
 import 'home_status_card.dart';
@@ -224,7 +225,7 @@ class _Header extends ConsumerWidget {
     final theme = Theme.of(context);
     return Row(
       children: [
-        Flexible(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -247,24 +248,45 @@ class _Header extends ConsumerWidget {
         ),
         // A tablet on a nursery shelf is the nearest clock at 3am, and the
         // screen has to tick anyway to keep the elapsed times honest — so
-        // this costs a line and answers the other question being asked.
-        Text(
-          TimeOfDay.fromDateTime(clock).format(context),
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          maxLines: 1,
+        // this costs two lines and answers the other question being asked.
+        //
+        // Centred on the screen, not merely placed between its neighbours:
+        // the two sides are equal-flex Expandeds, so whatever space is left
+        // after this block is split evenly and it lands in the middle. The
+        // name gives way first, which is the right one to lose.
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              TimeOfDay.fromDateTime(clock).format(context),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+            ),
+            Text(
+              // Never "Today", which a clock has no use for.
+              TimelineFormat.weekdayDate(clock),
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              maxLines: 1,
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
         // The only way out. The navigation bar is hidden in this mode, so
         // without this the device is stuck here and Settings is unreachable.
-        IconButton(
-          icon: const Icon(Icons.close_fullscreen),
-          tooltip: 'Leave nursery mode',
-          onPressed: () => ref
-              .read(displayModeProvider.notifier)
-              .setMode(DisplayMode.normal),
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
+              icon: const Icon(Icons.close_fullscreen),
+              tooltip: 'Leave nursery mode',
+              onPressed: () => ref
+                  .read(displayModeProvider.notifier)
+                  .setMode(DisplayMode.normal),
+            ),
+          ),
         ),
       ],
     );

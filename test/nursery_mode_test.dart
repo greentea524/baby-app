@@ -328,10 +328,31 @@ void main() {
   });
 
   group('the clock', () {
-    testWidgets('is on screen', (tester) async {
+    testWidgets('is on screen, with the day under it', (tester) async {
       // A tablet on a nursery shelf is the nearest clock at 3am.
       await pumpNursery(tester);
+
       expect(find.text('2:00 PM'), findsOneWidget);
+      expect(find.text('Mon, Aug 24'), findsOneWidget);
+      // Never "Today", which a clock has no use for.
+      expect(find.text('Today'), findsNothing);
+    });
+
+    testWidgets('sits in the middle of the screen', (tester) async {
+      // Centred on the screen rather than merely placed between its
+      // neighbours, which is what equal-flex sides buy.
+      await pumpNursery(tester, size: const Size(834, 1194));
+
+      final time = tester.getRect(find.text('2:00 PM'));
+      expect(time.center.dx, moreOrLessEquals(834 / 2, epsilon: 1));
+    });
+
+    testWidgets('and stays centred when the name is long', (tester) async {
+      // The name gives way first, which is the right one to lose.
+      await pumpNursery(tester, size: const Size(390, 844));
+
+      final time = tester.getRect(find.text('2:00 PM'));
+      expect(time.center.dx, moreOrLessEquals(390 / 2, epsilon: 1));
     });
 
     testWidgets('keeps the header to one line at a large text size', (
