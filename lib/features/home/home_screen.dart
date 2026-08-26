@@ -202,6 +202,21 @@ class _RecentHeader extends ConsumerWidget {
             icon: const Icon(Icons.timeline),
             tooltip: 'Full timeline',
           ),
+          // Beside the timeline link rather than buried in Settings. Both are
+          // ways of changing what the screen is for, and this is the one you
+          // reach for when the device is being put down rather than held.
+          //
+          // An icon, like its neighbour, and for the same reason: this header
+          // is pinned, and a pinned header has to be told its height before it
+          // lays anything out. An IconButton is 48 high at every text size,
+          // which is what [headerHeight] already assumes.
+          IconButton(
+            onPressed: () => ref
+                .read(displayModeProvider.notifier)
+                .setMode(DisplayMode.nursery),
+            icon: const Icon(Icons.crib_outlined),
+            tooltip: 'Nursery mode',
+          ),
         ],
       ),
     );
