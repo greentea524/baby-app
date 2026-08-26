@@ -88,9 +88,16 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
-          home: MediaQuery(
-            data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
-            child: NurseryScreen(now: now),
+          home: Builder(
+            // copyWith, not a fresh MediaQueryData: building one from scratch
+            // throws away `size`, and anything that lays out from the screen
+            // width then sees zero.
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: NurseryScreen(now: now),
+            ),
           ),
         ),
       ),

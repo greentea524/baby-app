@@ -11,6 +11,7 @@ import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_filter.dart';
 import '../appointments/next_appointment_button.dart';
 import '../caregivers/incoming_invites.dart';
+import '../../core/layout/app_bar_room.dart';
 import '../common/day_time_label.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_quick_log.dart';
@@ -84,14 +85,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ref.watch(homeActivityScopeProvider) == HomeActivityScope.recent;
     _maybeHandleLaunchAction(baby != null);
 
+    // Three things want this bar and only the name is flexible, so without
+    // this it absorbed every shortfall — down to 10pt on a 390pt phone (#29).
+    final showClock = baby != null && AppBarRoom.of(context).showsClock;
+
     return Scaffold(
       appBar: AppBar(
         // The time, in the corner the companion used to decorate. Wider than
         // the default leading slot, which was sized for a 48pt drawing —
         // and scaled down to fit rather than allowed to overflow, since the
         // bar's height is fixed and the reader's text size is not.
-        leadingWidth: baby == null ? null : 112,
-        leading: baby == null
+        //
+        // Only where there is room for the name as well. On a phone there is
+        // not, and dropping it there is right twice over: the name needs the
+        // width, and iOS is already showing the time a few points above.
+        leadingWidth: showClock ? AppBarRoom.clockWidth : null,
+        leading: !showClock
             ? null
             : Padding(
                 padding: const EdgeInsets.only(left: 12),
