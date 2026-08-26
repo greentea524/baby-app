@@ -17,24 +17,30 @@ import 'feeding_format.dart';
 Future<void> showFeedingQuickLog(
   BuildContext context, {
   FeedingEvent? existing,
+  FeedingType? type,
 }) {
   return showAppSheet<void>(
     context,
-    builder: (_) => _QuickLogSheet(existing: existing),
+    builder: (_) => _QuickLogSheet(existing: existing, type: type),
   );
 }
 
 class _QuickLogSheet extends StatefulWidget {
-  const _QuickLogSheet({this.existing});
+  const _QuickLogSheet({this.existing, this.type});
 
   final FeedingEvent? existing;
+
+  /// Opens straight onto this kind's form, skipping the chooser. Nursery mode
+  /// has a button per kind, so the chooser there would be a step that asks
+  /// again for something already said (#29).
+  final FeedingType? type;
 
   @override
   State<_QuickLogSheet> createState() => _QuickLogSheetState();
 }
 
 class _QuickLogSheetState extends State<_QuickLogSheet> {
-  late FeedingType? _mode = widget.existing?.type;
+  late FeedingType? _mode = widget.existing?.type ?? widget.type;
 
   @override
   Widget build(BuildContext context) {

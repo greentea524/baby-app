@@ -6,7 +6,9 @@ import '../auth/auth_providers.dart';
 import '../../features/appointments/appointments_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/growth/growth_screen.dart';
+import '../../features/home/home_prefs.dart';
 import '../../features/home/home_screen.dart';
+import '../../features/home/nursery_screen.dart';
 import '../../features/insights/insights_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/timeline/timeline_screen.dart';
@@ -122,13 +124,21 @@ class _AuthRefresh extends ChangeNotifier {
   }
 }
 
-class _NavigationShell extends StatelessWidget {
+class _NavigationShell extends ConsumerWidget {
   const _NavigationShell({required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Nursery mode replaces the whole shell rather than living inside it: the
+    // navigation bar is one of the things it exists to remove (#29). Done
+    // here rather than as a route so the branches keep their state — leaving
+    // the mode puts you back on the tab you left from.
+    if (ref.watch(displayModeProvider) == DisplayMode.nursery) {
+      return const NurseryScreen();
+    }
+
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
