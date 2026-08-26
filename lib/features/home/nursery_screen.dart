@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,9 +25,11 @@ import 'home_status_card.dart';
 /// The text is scaled inside this screen rather than app-wide, because the
 /// screens that live in the full app want density. Insights charts and the
 /// timeline list both read worse enlarged.
-class NurseryScreen extends ConsumerWidget {
+class NurseryScreen extends ConsumerStatefulWidget {
   const NurseryScreen({super.key, this.now});
 
+  /// A fixed clock, for tests. When given, the screen does not tick — a live
+  /// timer in a widget test is a pending-timer failure at teardown.
   final DateTime? now;
 
   /// How much larger than usual this screen reads.
@@ -38,18 +42,52 @@ class NurseryScreen extends ConsumerWidget {
   /// boost is a floor to reach, not a factor to stack.
   static const maxTextScale = 1.6;
 
+  /// How often the screen catches up with the clock.
+  ///
+  /// This mode is left running on a shelf, so nothing else ever rebuilds it.
+  /// Without a tick the elapsed times froze at whatever they said when the
+  /// mode was entered — on the one screen whose whole content is how long it
+  /// has been. Short enough that the displayed minute is never far wrong.
+  static const tick = Duration(seconds: 15);
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final clock = now ?? DateTime.now();
+  ConsumerState<NurseryScreen> createState() => _NurseryScreenState();
+}
+
+class _NurseryScreenState extends ConsumerState<NurseryScreen> {
+  Timer? _ticker;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.now != null) return;
+    _ticker = Timer.periodic(
+      NurseryScreen.tick,
+      (_) => setState(() => _now = DateTime.now()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final clock = widget.now ?? _now;
     final baby = ref.watch(currentBabyProvider);
     final scaler = MediaQuery.textScalerOf(context);
 
     // Whichever is larger, capped: a reader who has already asked for big
     // text keeps it, and nobody is scaled past what the layout survives.
     final boosted = TextScaler.linear(
-      scaler.scale(1) < textBoost
-          ? textBoost
-          : (scaler.scale(1) > maxTextScale ? maxTextScale : scaler.scale(1)),
+      scaler.scale(1) < NurseryScreen.textBoost
+          ? NurseryScreen.textBoost
+          : (scaler.scale(1) > NurseryScreen.maxTextScale
+                ? NurseryScreen.maxTextScale
+                : scaler.scale(1)),
     );
 
     return MediaQuery(
@@ -61,7 +99,7 @@ class NurseryScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(baby: baby),
+                _Header(baby: baby, clock: clock),
                 const SizedBox(height: 12),
                 Expanded(
                   child: LayoutBuilder(
@@ -176,16 +214,17 @@ class NurseryScreen extends ConsumerWidget {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.baby});
+  const _Header({required this.baby, required this.clock});
 
   final Baby? baby;
+  final DateTime clock;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return Row(
       children: [
-        Expanded(
+        Flexible(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -206,6 +245,18 @@ class _Header extends ConsumerWidget {
             ],
           ),
         ),
+        // A tablet on a nursery shelf is the nearest clock at 3am, and the
+        // screen has to tick anyway to keep the elapsed times honest — so
+        // this costs a line and answers the other question being asked.
+        Text(
+          TimeOfDay.fromDateTime(clock).format(context),
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          maxLines: 1,
+        ),
+        const SizedBox(width: 8),
         // The only way out. The navigation bar is hidden in this mode, so
         // without this the device is stuck here and Settings is unreachable.
         IconButton(

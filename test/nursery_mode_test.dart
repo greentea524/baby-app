@@ -326,4 +326,72 @@ void main() {
     // And the Text does not carry a colour of its own to override it with.
     expect(tester.widget<Text>(find.text('Bottle')).style?.color, isNull);
   });
+
+  group('the clock', () {
+    testWidgets('is on screen', (tester) async {
+      // A tablet on a nursery shelf is the nearest clock at 3am.
+      await pumpNursery(tester);
+      expect(find.text('2:00 PM'), findsOneWidget);
+    });
+
+    testWidgets('keeps the header to one line at a large text size', (
+      tester,
+    ) async {
+      // The header carries a name, an age, a time and the way out, on a
+      // screen that has already scaled its text up by a third.
+      await pumpNursery(tester, textScale: 2.0, size: const Size(390, 844));
+      expect(tester.takeException(), isNull);
+      expect(find.byTooltip('Leave nursery mode'), findsOneWidget);
+    });
+
+    testWidgets('runs a ticker, and stops it on the way out', (tester) async {
+      // The bug this fixes: nothing else rebuilds this screen — it is meant
+      // to be left running on a shelf — so without a ticker the elapsed
+      // times froze at whatever they said when the mode was entered.
+      //
+      // That the *label* refreshes is not asserted here, and deliberately.
+      // A widget test advances fake-async time while the ticker reads the
+      // real DateTime.now(), so the two never move together; a test that
+      // waited for real seconds to pass would be slow and flaky. What is
+      // checked is that a periodic timer exists at all and is cancelled —
+      // the framework fails the test at teardown on either count.
+      SharedPreferences.setMockInitialValues({});
+      final stored = await SharedPreferences.getInstance();
+      tester.view.physicalSize = const Size(834, 1194);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(stored),
+            authStateProvider.overrideWith((ref) => Stream.value(null)),
+            babiesStreamProvider.overrideWith((ref) => Stream.value([baby])),
+            recentFeedingsProvider.overrideWith((ref) => Stream.value(const [])),
+            recentDiapersProvider.overrideWith((ref) => Stream.value(const [])),
+            recentPumpingProvider.overrideWith((ref) => Stream.value(const [])),
+          ],
+          // No fixed clock, which is what starts the ticker.
+          child: const MaterialApp(home: NurseryScreen()),
+        ),
+      );
+      await tester.pump();
+
+      // Firing it must not throw — it calls setState on a live widget.
+      await tester.pump(NurseryScreen.tick * 3);
+      expect(tester.takeException(), isNull);
+
+      // And leaving the screen cancels it. A leaked periodic timer fails the
+      // test here rather than quietly running for the life of the process.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(NurseryScreen.tick * 3);
+    });
+
+    testWidgets('does not tick when handed a fixed clock', (tester) async {
+      // What keeps every other test in this file free of pending timers.
+      await pumpNursery(tester);
+      await tester.pump(const Duration(minutes: 5));
+      expect(find.text('2:00 PM'), findsOneWidget);
+    });
+  });
 }
