@@ -199,3 +199,50 @@ class ShowPumpingActionNotifier extends Notifier<bool> {
     await ref.read(sharedPreferencesProvider).setBool(_showPumpingKey, value);
   }
 }
+
+const _displayModeKey = 'display_mode';
+
+/// Whether the app is being held or propped up (#29).
+///
+/// An iPad on a nursery shelf is read from across the room and tapped while
+/// holding a baby; a phone is held at arm's length and read closely. Those
+/// want different amounts on screen, and no default can tell which one a
+/// device is — which is exactly what a preference is for.
+///
+/// Per-device on purpose, and here that is right: the iPad wants nursery mode
+/// and the phone does not. The feed interval was the opposite case and had to
+/// follow the account instead (#27).
+enum DisplayMode {
+  /// The whole app: five tabs, lists, charts.
+  normal('Normal', 'The full app'),
+
+  /// Last fed, last changed, and three big buttons. Nothing else.
+  nursery('Nursery', 'Big text and three buttons, for a propped-up tablet');
+
+  const DisplayMode(this.label, this.description);
+
+  final String label;
+  final String description;
+
+  static DisplayMode fromName(String? name) =>
+      values.asNameMap()[name] ?? DisplayMode.normal;
+}
+
+final displayModeProvider = NotifierProvider<DisplayModeNotifier, DisplayMode>(
+  DisplayModeNotifier.new,
+);
+
+class DisplayModeNotifier extends Notifier<DisplayMode> {
+  @override
+  DisplayMode build() => DisplayMode.fromName(
+    ref.read(sharedPreferencesProvider).getString(_displayModeKey),
+  );
+
+  Future<void> setMode(DisplayMode mode) async {
+    state = mode;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setString(_displayModeKey, mode.name);
+  }
+}
+
