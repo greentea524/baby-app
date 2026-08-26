@@ -10,7 +10,6 @@ import '../../data/repositories/repository_providers.dart';
 import '../caregivers/caregivers_screen.dart';
 import '../export/export_screen.dart';
 import 'delete_baby_screen.dart';
-import '../home/companion_art.dart';
 import '../home/home_prefs.dart';
 import '../notifications/push_service.dart';
 import '../pumping/pumping_format.dart';
@@ -60,7 +59,6 @@ class SettingsScreen extends ConsumerWidget {
           const _HomeLayoutPicker(),
           const _UnitsPicker(),
           const _PumpingActionToggle(),
-          const _CompanionPicker(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.group_outlined),
@@ -270,38 +268,7 @@ class _PumpingActionToggle extends ConsumerWidget {
   }
 }
 
-/// The companion in Home's app bar corner (#14, #16). Purely decorative, so
-/// the tile describes what it does rather than arguing for it.
-///
-/// One control rather than a switch and a picker stacked: "none" is a choice
-/// about the same thing as "which one".
-class _CompanionPicker extends ConsumerWidget {
-  const _CompanionPicker();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(companionStyleProvider);
-    return ListTile(
-      leading: Icon(
-        selected.art?.icon(CompanionPhase.easy) ?? Icons.flight_outlined,
-      ),
-      title: const Text('Home companion'),
-      subtitle: Text(selected.description),
-      trailing: DropdownButton<CompanionStyle>(
-        value: selected,
-        items: [
-          for (final s in CompanionStyle.values)
-            DropdownMenuItem(value: s, child: Text(s.label)),
-        ],
-        onChanged: (s) {
-          if (s != null) ref.read(companionStyleProvider.notifier).setStyle(s);
-        },
-      ),
-    );
-  }
-}
-
-/// Feed reminder configuration (KAN-133): predicted from recent intervals,
+//// Feed reminder configuration (KAN-133): predicted from recent intervals,
 /// a fixed gap, or off.
 class _ReminderSection extends ConsumerWidget {
   const _ReminderSection();

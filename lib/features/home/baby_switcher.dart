@@ -31,7 +31,7 @@ class BabySwitcher extends ConsumerWidget {
               const SizedBox(width: 8),
             ],
             // The age goes under the name rather than beside it: the app bar
-            // already shares its width with the companion and the next
+            // already shares its width with the clock and the next
             // appointment, and a second line costs none of it.
             Flexible(
               child: Column(

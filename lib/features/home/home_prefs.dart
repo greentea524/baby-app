@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/theme_mode_provider.dart';
-import 'companion_art.dart';
 
 /// How the Home status rows are grouped (KAN-180).
 ///
@@ -133,45 +132,6 @@ class HomeLayoutNotifier extends Notifier<HomeLayout> {
     await ref
         .read(sharedPreferencesProvider)
         .setString(_homeLayoutKey, layout.name);
-  }
-}
-
-const _companionStyleKey = 'home_companion_style';
-
-/// The key this setting used while it was a plain on/off switch for the
-/// plane. Read once, to carry an existing choice across (#16).
-const _legacyShowPlaneKey = 'show_feed_plane';
-
-/// Which companion Home flies in the app bar corner (#14, #16).
-///
-/// Defaults to the plane rather than to off: it is a decoration nobody has to
-/// interact with, and one that hides behind a setting before it has ever been
-/// seen is one nobody finds.
-final companionStyleProvider =
-    NotifierProvider<CompanionStyleNotifier, CompanionStyle>(
-      CompanionStyleNotifier.new,
-    );
-
-class CompanionStyleNotifier extends Notifier<CompanionStyle> {
-  @override
-  CompanionStyle build() {
-    final prefs = ref.read(sharedPreferencesProvider);
-    final stored = prefs.getString(_companionStyleKey);
-    if (stored != null) return CompanionStyle.fromName(stored);
-
-    // No style stored yet, so this is either a fresh install or someone
-    // upgrading from the switch. Reading the old key keeps a caregiver who
-    // turned the plane off from having it handed back to them.
-    return prefs.getBool(_legacyShowPlaneKey) == false
-        ? CompanionStyle.off
-        : CompanionStyle.plane;
-  }
-
-  Future<void> setStyle(CompanionStyle style) async {
-    state = style;
-    await ref
-        .read(sharedPreferencesProvider)
-        .setString(_companionStyleKey, style.name);
   }
 }
 
