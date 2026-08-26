@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/layout/app_bar_room.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -56,6 +58,10 @@ class NextAppointmentLabel extends StatelessWidget {
   ///
   /// Stacking day/time over the name keeps this narrow enough to sit beside
   /// the baby switcher on a phone, which a single line could not.
+  ///
+  /// A ceiling now rather than the width: [AppBarRoom.appointmentWidth] hands
+  /// down a share of the bar on a narrow screen, so the name keeps a floor
+  /// instead of being the only thing in the bar that gives way (#29).
   static const maxWidth = 220.0;
 
   /// "Today" / "Tomorrow" / "Aug 6".
@@ -98,7 +104,9 @@ class NextAppointmentLabel extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: maxWidth),
+        constraints: BoxConstraints(
+          maxWidth: AppBarRoom.of(context).appointmentWidth,
+        ),
         // A filled pill with a chevron, rather than bare text: in an app bar a
         // plain label reads as a heading, and nothing about it invites a tap.
         child: Material(

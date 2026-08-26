@@ -15,7 +15,9 @@ import 'package:baby_app/features/home/home_prefs.dart';
 import 'package:baby_app/features/home/recent_activity_list.dart';
 import 'package:baby_app/features/insights/day_timeline_strip.dart';
 import 'package:baby_app/features/insights/diaper_mix_bar.dart';
+import 'package:baby_app/core/layout/app_bar_room.dart';
 import 'package:baby_app/features/common/day_time_label.dart';
+import 'package:baby_app/features/home/baby_switcher.dart';
 import 'package:baby_app/features/home/home_screen.dart';
 
 /// Home has to survive a small screen at a large text size (#—).
@@ -121,9 +123,16 @@ void main() {
           ),
         ],
         child: MaterialApp(
-          home: MediaQuery(
-            data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
-            child: const HomeScreen(),
+          home: Builder(
+            // copyWith, not a fresh MediaQueryData: building one from scratch
+            // throws away `size`, and anything that lays out from the screen
+            // width then sees zero.
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: const HomeScreen(),
+            ),
           ),
         ),
       ),
@@ -395,7 +404,9 @@ void main() {
     testWidgets('is in the app bar, where the companion used to be', (
       tester,
     ) async {
-      await pumpHome(tester);
+      // Wide enough to have room for it — a phone does not, and there is a
+      // test for that below.
+      await pumpHome(tester, size: const Size(834, 1194));
 
       expect(
         find.descendant(
@@ -414,6 +425,22 @@ void main() {
       );
     });
 
+    testWidgets('gives way on a phone, so the name is readable', (
+      tester,
+    ) async {
+      // What the report showed: three things wanted the bar, only the name
+      // was flexible, and it was down to 10pt with "Jonathan" rendering as
+      // "J…". The clock goes, and it is the right one to lose — iOS shows
+      // the time a few points above the bar anyway.
+      await pumpHome(tester, size: const Size(390, 844));
+
+      expect(find.byType(DayTimeLabel), findsNothing);
+      expect(
+        tester.getRect(find.byType(BabySwitcher)).width,
+        greaterThan(AppBarRoom.nameFloor),
+      );
+    });
+
     testWidgets('stays inside a bar whose height does not scale', (
       tester,
     ) async {
@@ -421,7 +448,7 @@ void main() {
       // reader's text size, and this is two lines of text in it — so it is
       // scaled down to fit rather than allowed to overflow.
       for (final scale in [1.0, 1.5, 2.0]) {
-        await pumpHome(tester, textScale: scale);
+        await pumpHome(tester, textScale: scale, size: const Size(834, 1194));
         expect(tester.takeException(), isNull, reason: 'at $scale');
 
         final bar = tester.getRect(find.byType(AppBar));
@@ -433,7 +460,7 @@ void main() {
     testWidgets('leaves the baby switcher its room', (tester) async {
       // The leading slot is wider than the 48pt the companion needed, so the
       // title had to be checked rather than assumed.
-      await pumpHome(tester);
+      await pumpHome(tester, size: const Size(834, 1194));
       expect(find.text('Ada'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
