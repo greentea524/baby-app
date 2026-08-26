@@ -6,7 +6,7 @@
     "background_color": "#7E9BD0",
     "theme_color": "#7E9BD0",
     "description": "Track feeding, diaper changes, and growth across caregivers.",
-    "orientation": "portrait-primary",
+    "orientation": "any",
     "prefer_related_applications": false,
     "shortcuts": [
         {
