@@ -66,49 +66,78 @@ class NurseryScreen extends ConsumerWidget {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final readouts = SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _Readout(
-                              label: 'Last fed',
-                              event: ref.watch(lastMilkFeedProvider),
-                              timeOf: (e) => e.startTime,
-                              now: clock,
-                            ),
-                            const SizedBox(height: 16),
-                            ?_nextFeed(context, ref, clock),
-                            const SizedBox(height: 16),
-                            _Readout(
-                              label: 'Last changed',
-                              event: ref.watch(lastDiaperProvider),
-                              timeOf: (e) => e.time,
-                              now: clock,
-                            ),
-                          ],
-                        ),
+                      final fed = _Readout(
+                        icon: Icons.local_drink_outlined,
+                        label: 'Last fed',
+                        event: ref.watch(lastMilkFeedProvider),
+                        timeOf: (e) => e.startTime,
+                        now: clock,
+                      );
+                      final changed = _Readout(
+                        icon: Icons.baby_changing_station,
+                        label: 'Last changed',
+                        event: ref.watch(lastDiaperProvider),
+                        timeOf: (e) => e.time,
+                        now: clock,
                       );
 
-                      // Side by side once the space is wider than it is tall
-                      // and has room for both. A tablet on a stand is usually
-                      // landscape, and stacked there the buttons are squeezed
-                      // into a strip along the bottom of a mostly empty
-                      // screen. Beside the readouts they keep their height.
-                      if (_sideBySide(constraints)) {
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(child: readouts),
-                            const SizedBox(width: 24),
-                            const Expanded(child: _LogButtons(vertical: true)),
-                          ],
-                        );
-                      }
+                      // Side by side when the space is wider than it is
+                      // tall. The buttons stay along the bottom either way,
+                      // so in landscape the cards get the whole width rather
+                      // than half of it, which is the room they needed.
+                      final cards = _twoAcross(constraints)
+                          // IntrinsicHeight so the pair matches the taller of
+                          // them. Stretching instead asks for infinite height
+                          // inside the scroll view below, which is an
+                          // assertion rather than a layout.
+                          ? IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(child: fed),
+                                  const SizedBox(width: 16),
+                                  Expanded(child: changed),
+                                ],
+                              ),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                fed,
+                                const SizedBox(height: 16),
+                                changed,
+                              ],
+                            );
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: readouts),
+                          Expanded(
+                            // Centred in whatever is left, and scrollable if
+                            // that is not enough. With the buttons pinned to
+                            // the bottom, top-aligned cards leave a hole in
+                            // the middle of a landscape screen — which is the
+                            // shape this mode is most often seen in.
+                            child: LayoutBuilder(
+                              builder: (context, space) => SingleChildScrollView(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: space.maxHeight,
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      cards,
+                                      const SizedBox(height: 16),
+                                      ?_nextFeed(context, ref, clock),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                           const SizedBox(height: 16),
                           const _LogButtons(),
                         ],
@@ -191,15 +220,22 @@ class _Header extends ConsumerWidget {
   }
 }
 
-/// One large "how long ago" line.
+/// One "how long ago" card.
+///
+/// A card rather than bare text: on a screen with only two readings on it,
+/// each needs an edge of its own or the pair reads as one paragraph. The
+/// icon carries which is which at a glance, so the label does not have to be
+/// read from across the room to tell them apart.
 class _Readout<T> extends StatelessWidget {
   const _Readout({
+    required this.icon,
     required this.label,
     required this.event,
     required this.timeOf,
     required this.now,
   });
 
+  final IconData icon;
   final String label;
   final T? event;
   final DateTime Function(T) timeOf;
@@ -208,58 +244,91 @@ class _Readout<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final e = event;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 2),
-        if (e == null)
-          Text('Nothing logged yet', style: theme.textTheme.headlineSmall)
-        else ...[
-          // The elapsed time is the headline: at a glance across a room it is
-          // the only number that matters.
-          Text(
-            FeedingFormat.timeAgo(timeOf(e), now: now),
-            style: theme.textTheme.displaySmall?.copyWith(
-              fontWeight: FontWeight.w600,
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              shape: BoxShape.circle,
             ),
+            child: Icon(icon, size: 26, color: scheme.onPrimaryContainer),
           ),
-          Text(
-            FeedingFormat.clockStamp(context, timeOf(e), now: now),
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                if (e == null)
+                  Text(
+                    'Nothing logged yet',
+                    style: theme.textTheme.titleLarge,
+                  )
+                else ...[
+                  // The elapsed time is the headline: from across a room it
+                  // is the only number that matters.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      FeedingFormat.timeAgo(timeOf(e), now: now),
+                      style: theme.textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ),
+                  Text(
+                    FeedingFormat.clockStamp(context, timeOf(e), now: now),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
             ),
           ),
         ],
-      ],
+      ),
     );
   }
 }
 
-/// Whether the buttons should sit beside the readouts rather than under them.
+/// Whether the two cards should sit beside each other rather than stacked.
 ///
-/// Wider than tall, with enough width to give each side something worth
-/// having. The threshold is on the *available* width, after the nursery cap,
-/// so it does not depend on the size of the screen behind it.
-bool _sideBySide(BoxConstraints c) =>
+/// Wider than tall, with enough width for each to be worth having. Measured
+/// on the *available* width, after the nursery cap, so it does not depend on
+/// the size of the screen behind it.
+bool _twoAcross(BoxConstraints c) =>
     c.maxWidth > c.maxHeight && c.maxWidth >= 620;
 
 /// Bottle, breast, diaper — each straight into its sheet with the kind
 /// already chosen, so there is no chooser step asking again.
 class _LogButtons extends StatelessWidget {
-  const _LogButtons({this.vertical = false});
-
-  /// Stacked rather than in a row, for the side-by-side layout where the
-  /// buttons own a column of their own.
-  final bool vertical;
+  const _LogButtons();
 
   @override
   Widget build(BuildContext context) {
@@ -267,34 +336,19 @@ class _LogButtons extends StatelessWidget {
       _BigButton(
         icon: FeedingFormat.typeIcon(FeedingType.bottle),
         label: 'Bottle',
-        wide: vertical,
         onPressed: () => showFeedingQuickLog(context, type: FeedingType.bottle),
       ),
       _BigButton(
         icon: FeedingFormat.typeIcon(FeedingType.breast),
         label: 'Breast',
-        wide: vertical,
         onPressed: () => showFeedingQuickLog(context, type: FeedingType.breast),
       ),
       _BigButton(
         icon: Icons.baby_changing_station,
         label: 'Diaper',
-        wide: vertical,
         onPressed: () => showDiaperQuickLog(context),
       ),
     ];
-
-    if (vertical) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < buttons.length; i++) ...[
-            if (i > 0) const SizedBox(height: 12),
-            Expanded(child: buttons[i]),
-          ],
-        ],
-      );
-    }
 
     return Row(
       children: [
@@ -312,20 +366,11 @@ class _BigButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
-    this.wide = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
-
-  /// Icon beside the label rather than above it.
-  ///
-  /// Stacked in a column of three, each button is wide and short, and the
-  /// icon-over-label arrangement does not fit — a phone on its side gave each
-  /// one about 90pt and it overflowed by 23. Side by side is the shape that
-  /// suits a wide button anyway.
-  final bool wide;
 
   @override
   Widget build(BuildContext context) {
@@ -341,26 +386,16 @@ class _BigButton extends StatelessWidget {
     return FilledButton(
       onPressed: onPressed,
       style: FilledButton.styleFrom(
-        padding: EdgeInsets.symmetric(vertical: wide ? 12 : 22),
+        padding: const EdgeInsets.symmetric(vertical: 20),
       ),
-      child: wide
-          ? Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 28),
-                const SizedBox(width: 10),
-                text,
-              ],
-            )
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 30),
-                const SizedBox(height: 6),
-                text,
-              ],
-            ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 30),
+          const SizedBox(height: 6),
+          text,
+        ],
+      ),
     );
   }
 }

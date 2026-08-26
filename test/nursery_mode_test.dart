@@ -188,24 +188,32 @@ void main() {
   });
 
   group('landscape, which is how a tablet on a stand usually sits', () {
-    testWidgets('puts the buttons beside the readouts, not under them', (
-      tester,
-    ) async {
-      // Stacked in landscape the buttons are squeezed into a strip along the
-      // bottom of a mostly empty screen.
+    testWidgets('puts the two cards side by side', (tester) async {
+      // Where the width goes in landscape. Stacked, each card gets half the
+      // height it could have and the screen is mostly empty beside them.
       await pumpNursery(tester, size: const Size(900, 600));
 
-      final readout = tester.getRect(find.text('Last fed'));
-      final button = tester.getRect(find.text('Bottle'));
-      expect(button.left, greaterThan(readout.right));
+      final fed = tester.getRect(find.text('Last fed'));
+      final changed = tester.getRect(find.text('Last changed'));
+      expect(changed.left, greaterThan(fed.right));
     });
 
-    testWidgets('and stacks them again in portrait', (tester) async {
+    testWidgets('and keeps the buttons along the bottom', (tester) async {
+      // Under the cards in both orientations, so the cards always have the
+      // full width to themselves.
+      await pumpNursery(tester, size: const Size(900, 600));
+
+      final card = tester.getRect(find.text('Last fed'));
+      final button = tester.getRect(find.text('Bottle'));
+      expect(button.top, greaterThan(card.bottom));
+    });
+
+    testWidgets('and stacks the cards again in portrait', (tester) async {
       await pumpNursery(tester, size: const Size(834, 1194));
 
-      final readout = tester.getRect(find.text('Last fed'));
-      final button = tester.getRect(find.text('Bottle'));
-      expect(button.top, greaterThan(readout.bottom));
+      final fed = tester.getRect(find.text('Last fed'));
+      final changed = tester.getRect(find.text('Last changed'));
+      expect(changed.top, greaterThan(fed.bottom));
     });
 
     testWidgets('a phone on its side still fits everything', (tester) async {
