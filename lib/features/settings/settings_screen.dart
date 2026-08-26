@@ -61,7 +61,6 @@ class SettingsScreen extends ConsumerWidget {
           const _UnitsPicker(),
           const _PumpingActionToggle(),
           const _CompanionPicker(),
-          const _DisplayModePicker(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.group_outlined),
@@ -611,40 +610,6 @@ class _DeleteDataTile extends ConsumerWidget {
                 builder: (_) => DeleteBabyScreen(baby: baby),
               ),
             ),
-    );
-  }
-}
-
-/// Nursery mode (#29).
-///
-/// Sits with the other layout preferences rather than off on its own: it is
-/// the same kind of choice, about a device rather than about the data.
-class _DisplayModePicker extends ConsumerWidget {
-  const _DisplayModePicker();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(displayModeProvider);
-
-    return ListTile(
-      leading: const Icon(Icons.crib_outlined),
-      title: const Text('Display'),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(selected.description),
-          const SizedBox(height: 8),
-          SegmentedButton<DisplayMode>(
-            segments: [
-              for (final mode in DisplayMode.values)
-                ButtonSegment(value: mode, label: Text(mode.label)),
-            ],
-            selected: {selected},
-            onSelectionChanged: (s) =>
-                ref.read(displayModeProvider.notifier).setMode(s.first),
-          ),
-        ],
-      ),
     );
   }
 }

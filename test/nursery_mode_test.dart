@@ -10,6 +10,7 @@ import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
+import 'package:baby_app/features/home/home_screen.dart';
 import 'package:baby_app/features/home/nursery_screen.dart';
 
 /// The screen for a tablet propped on a shelf (#29).
@@ -187,24 +188,32 @@ void main() {
   });
 
   group('landscape, which is how a tablet on a stand usually sits', () {
-    testWidgets('puts the buttons beside the readouts, not under them', (
-      tester,
-    ) async {
-      // Stacked in landscape the buttons are squeezed into a strip along the
-      // bottom of a mostly empty screen.
+    testWidgets('puts the two cards side by side', (tester) async {
+      // Where the width goes in landscape. Stacked, each card gets half the
+      // height it could have and the screen is mostly empty beside them.
       await pumpNursery(tester, size: const Size(900, 600));
 
-      final readout = tester.getRect(find.text('Last fed'));
-      final button = tester.getRect(find.text('Bottle'));
-      expect(button.left, greaterThan(readout.right));
+      final fed = tester.getRect(find.text('Last fed'));
+      final changed = tester.getRect(find.text('Last changed'));
+      expect(changed.left, greaterThan(fed.right));
     });
 
-    testWidgets('and stacks them again in portrait', (tester) async {
+    testWidgets('and keeps the buttons along the bottom', (tester) async {
+      // Under the cards in both orientations, so the cards always have the
+      // full width to themselves.
+      await pumpNursery(tester, size: const Size(900, 600));
+
+      final card = tester.getRect(find.text('Last fed'));
+      final button = tester.getRect(find.text('Bottle'));
+      expect(button.top, greaterThan(card.bottom));
+    });
+
+    testWidgets('and stacks the cards again in portrait', (tester) async {
       await pumpNursery(tester, size: const Size(834, 1194));
 
-      final readout = tester.getRect(find.text('Last fed'));
-      final button = tester.getRect(find.text('Bottle'));
-      expect(button.top, greaterThan(readout.bottom));
+      final fed = tester.getRect(find.text('Last fed'));
+      final changed = tester.getRect(find.text('Last changed'));
+      expect(changed.top, greaterThan(fed.bottom));
     });
 
     testWidgets('a phone on its side still fits everything', (tester) async {
@@ -222,6 +231,80 @@ void main() {
     testWidgets('and survives it at the largest text size', (tester) async {
       await pumpNursery(tester, size: const Size(844, 390), textScale: 2.0);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('getting into it', () {
+    testWidgets('from Home, beside the full-timeline link', (tester) async {
+      // Not Settings: this is the control you reach for as the device is
+      // being put down, and both buttons change what the screen is for.
+      SharedPreferences.setMockInitialValues({});
+      final stored = await SharedPreferences.getInstance();
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(stored),
+          authStateProvider.overrideWith((ref) => Stream.value(null)),
+          babiesStreamProvider.overrideWith((ref) => Stream.value([baby])),
+          recentFeedingsProvider.overrideWith((ref) => Stream.value(const [])),
+          recentDiapersProvider.overrideWith((ref) => Stream.value(const [])),
+          recentPumpingProvider.overrideWith((ref) => Stream.value(const [])),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: HomeScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Full timeline'), findsOneWidget);
+      expect(container.read(displayModeProvider), DisplayMode.normal);
+
+      await tester.tap(find.byTooltip('Nursery mode'));
+      await tester.pumpAndSettle();
+
+      expect(container.read(displayModeProvider), DisplayMode.nursery);
+    });
+
+    testWidgets('without making the pinned header any taller', (tester) async {
+      // The header is pinned, and a pinned header must be told its height in
+      // advance. An IconButton is 48 high at every text size, which is what
+      // headerHeight already assumes — so a second one changes nothing.
+      SharedPreferences.setMockInitialValues({});
+      final stored = await SharedPreferences.getInstance();
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(stored),
+            authStateProvider.overrideWith((ref) => Stream.value(null)),
+            babiesStreamProvider.overrideWith((ref) => Stream.value([baby])),
+            recentFeedingsProvider.overrideWith((ref) => Stream.value(const [])),
+            recentDiapersProvider.overrideWith((ref) => Stream.value(const [])),
+            recentPumpingProvider.overrideWith((ref) => Stream.value(const [])),
+          ],
+          child: const MaterialApp(
+            home: MediaQuery(
+              data: MediaQueryData(textScaler: TextScaler.linear(2)),
+              child: HomeScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byTooltip('Nursery mode'), findsOneWidget);
     });
   });
 }
