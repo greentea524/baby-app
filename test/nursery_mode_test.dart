@@ -112,13 +112,14 @@ void main() {
     expect(find.byType(CustomPaint).evaluate().length, lessThan(20));
   });
 
-  testWidgets('offers exactly bottle, breast and diaper', (tester) async {
+  testWidgets('offers exactly bottle and diaper', (tester) async {
     await pumpNursery(tester);
 
     expect(find.text('Bottle'), findsOneWidget);
-    expect(find.text('Breast'), findsOneWidget);
     expect(find.text('Diaper'), findsOneWidget);
-    // Solids and pumping are not nursery-at-3am things.
+    // Everything else is a tap away through the full app, and two buttons
+    // across a nursery screen are bigger targets than three.
+    expect(find.text('Breast'), findsNothing);
     expect(find.text('Solids'), findsNothing);
     expect(find.text('Pumping'), findsNothing);
   });
@@ -223,7 +224,6 @@ void main() {
       expect(tester.takeException(), isNull);
 
       expect(find.text('Bottle'), findsOneWidget);
-      expect(find.text('Breast'), findsOneWidget);
       expect(find.text('Diaper'), findsOneWidget);
       expect(find.text('Last fed'), findsOneWidget);
     });

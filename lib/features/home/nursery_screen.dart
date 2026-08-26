@@ -325,8 +325,12 @@ class _Readout<T> extends StatelessWidget {
 bool _twoAcross(BoxConstraints c) =>
     c.maxWidth > c.maxHeight && c.maxWidth >= 620;
 
-/// Bottle, breast, diaper — each straight into its sheet with the kind
-/// already chosen, so there is no chooser step asking again.
+/// Bottle and diaper — each straight into its sheet with the kind already
+/// chosen, so there is no chooser step asking again.
+///
+/// Two, not three. Breast was here and is not any more: anything this screen
+/// does not carry is still a tap away through the full app, and two buttons
+/// across a nursery screen are bigger targets than three.
 class _LogButtons extends StatelessWidget {
   const _LogButtons();
 
@@ -337,11 +341,6 @@ class _LogButtons extends StatelessWidget {
         icon: FeedingFormat.typeIcon(FeedingType.bottle),
         label: 'Bottle',
         onPressed: () => showFeedingQuickLog(context, type: FeedingType.bottle),
-      ),
-      _BigButton(
-        icon: FeedingFormat.typeIcon(FeedingType.breast),
-        label: 'Breast',
-        onPressed: () => showFeedingQuickLog(context, type: FeedingType.breast),
       ),
       _BigButton(
         icon: Icons.baby_changing_station,
