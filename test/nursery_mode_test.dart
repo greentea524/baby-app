@@ -112,13 +112,14 @@ void main() {
     expect(find.byType(CustomPaint).evaluate().length, lessThan(20));
   });
 
-  testWidgets('offers exactly bottle, breast and diaper', (tester) async {
+  testWidgets('offers exactly bottle and diaper', (tester) async {
     await pumpNursery(tester);
 
     expect(find.text('Bottle'), findsOneWidget);
-    expect(find.text('Breast'), findsOneWidget);
     expect(find.text('Diaper'), findsOneWidget);
-    // Solids and pumping are not nursery-at-3am things.
+    // Everything else is a tap away through the full app, and two buttons
+    // across a nursery screen are bigger targets than three.
+    expect(find.text('Breast'), findsNothing);
     expect(find.text('Solids'), findsNothing);
     expect(find.text('Pumping'), findsNothing);
   });
@@ -223,7 +224,6 @@ void main() {
       expect(tester.takeException(), isNull);
 
       expect(find.text('Bottle'), findsOneWidget);
-      expect(find.text('Breast'), findsOneWidget);
       expect(find.text('Diaper'), findsOneWidget);
       expect(find.text('Last fed'), findsOneWidget);
     });
@@ -306,5 +306,24 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byTooltip('Nursery mode'), findsOneWidget);
     });
+  });
+
+  testWidgets('the button labels take the button\'s own colour', (
+    tester,
+  ) async {
+    // Passing textTheme.titleMedium carried the theme's near-black onSurface
+    // with it and overrode the button's foreground, which put black text on a
+    // filled blue button. The label has to inherit instead.
+    await pumpNursery(tester);
+
+    final label = tester.element(find.text('Bottle'));
+    final inherited = DefaultTextStyle.of(label).style.color;
+    final scheme = Theme.of(label).colorScheme;
+
+    expect(inherited, scheme.onPrimary);
+    expect(inherited, isNot(scheme.onSurface));
+
+    // And the Text does not carry a colour of its own to override it with.
+    expect(tester.widget<Text>(find.text('Bottle')).style?.color, isNull);
   });
 }

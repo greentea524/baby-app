@@ -325,8 +325,12 @@ class _Readout<T> extends StatelessWidget {
 bool _twoAcross(BoxConstraints c) =>
     c.maxWidth > c.maxHeight && c.maxWidth >= 620;
 
-/// Bottle, breast, diaper — each straight into its sheet with the kind
-/// already chosen, so there is no chooser step asking again.
+/// Bottle and diaper — each straight into its sheet with the kind already
+/// chosen, so there is no chooser step asking again.
+///
+/// Two, not three. Breast was here and is not any more: anything this screen
+/// does not carry is still a tap away through the full app, and two buttons
+/// across a nursery screen are bigger targets than three.
 class _LogButtons extends StatelessWidget {
   const _LogButtons();
 
@@ -337,11 +341,6 @@ class _LogButtons extends StatelessWidget {
         icon: FeedingFormat.typeIcon(FeedingType.bottle),
         label: 'Bottle',
         onPressed: () => showFeedingQuickLog(context, type: FeedingType.bottle),
-      ),
-      _BigButton(
-        icon: FeedingFormat.typeIcon(FeedingType.breast),
-        label: 'Breast',
-        onPressed: () => showFeedingQuickLog(context, type: FeedingType.breast),
       ),
       _BigButton(
         icon: Icons.baby_changing_station,
@@ -374,10 +373,20 @@ class _BigButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Size and weight only, with no colour of its own.
+    //
+    // Passing `textTheme.titleMedium` here carried the theme's colour with
+    // it — a near-black `onSurface` — which overrode the button's own
+    // foreground and put black text on a filled blue button. Leaving colour
+    // null lets it inherit from the button, which is right in both themes and
+    // stays right if the button's colours ever change.
     final text = Flexible(
       child: Text(
         label,
-        style: Theme.of(context).textTheme.titleMedium,
+        style: TextStyle(
+          fontSize: Theme.of(context).textTheme.titleMedium?.fontSize,
+          fontWeight: FontWeight.w600,
+        ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
