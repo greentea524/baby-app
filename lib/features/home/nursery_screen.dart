@@ -64,31 +64,58 @@ class NurseryScreen extends ConsumerWidget {
                 _Header(baby: baby),
                 const SizedBox(height: 12),
                 Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _Readout(
-                          label: 'Last fed',
-                          event: ref.watch(lastMilkFeedProvider),
-                          timeOf: (e) => e.startTime,
-                          now: clock,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final readouts = SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _Readout(
+                              label: 'Last fed',
+                              event: ref.watch(lastMilkFeedProvider),
+                              timeOf: (e) => e.startTime,
+                              now: clock,
+                            ),
+                            const SizedBox(height: 16),
+                            ?_nextFeed(context, ref, clock),
+                            const SizedBox(height: 16),
+                            _Readout(
+                              label: 'Last changed',
+                              event: ref.watch(lastDiaperProvider),
+                              timeOf: (e) => e.time,
+                              now: clock,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        ?_nextFeed(context, ref, clock),
-                        const SizedBox(height: 16),
-                        _Readout(
-                          label: 'Last changed',
-                          event: ref.watch(lastDiaperProvider),
-                          timeOf: (e) => e.time,
-                          now: clock,
-                        ),
-                      ],
-                    ),
+                      );
+
+                      // Side by side once the space is wider than it is tall
+                      // and has room for both. A tablet on a stand is usually
+                      // landscape, and stacked there the buttons are squeezed
+                      // into a strip along the bottom of a mostly empty
+                      // screen. Beside the readouts they keep their height.
+                      if (_sideBySide(constraints)) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: readouts),
+                            const SizedBox(width: 24),
+                            const Expanded(child: _LogButtons(vertical: true)),
+                          ],
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: readouts),
+                          const SizedBox(height: 16),
+                          const _LogButtons(),
+                        ],
+                      );
+                    },
                   ),
                 ),
-                const SizedBox(height: 16),
-                const _LogButtons(),
               ],
             ),
           ),
@@ -217,40 +244,64 @@ class _Readout<T> extends StatelessWidget {
   }
 }
 
+/// Whether the buttons should sit beside the readouts rather than under them.
+///
+/// Wider than tall, with enough width to give each side something worth
+/// having. The threshold is on the *available* width, after the nursery cap,
+/// so it does not depend on the size of the screen behind it.
+bool _sideBySide(BoxConstraints c) =>
+    c.maxWidth > c.maxHeight && c.maxWidth >= 620;
+
 /// Bottle, breast, diaper — each straight into its sheet with the kind
 /// already chosen, so there is no chooser step asking again.
 class _LogButtons extends StatelessWidget {
-  const _LogButtons();
+  const _LogButtons({this.vertical = false});
+
+  /// Stacked rather than in a row, for the side-by-side layout where the
+  /// buttons own a column of their own.
+  final bool vertical;
 
   @override
   Widget build(BuildContext context) {
+    final buttons = [
+      _BigButton(
+        icon: FeedingFormat.typeIcon(FeedingType.bottle),
+        label: 'Bottle',
+        wide: vertical,
+        onPressed: () => showFeedingQuickLog(context, type: FeedingType.bottle),
+      ),
+      _BigButton(
+        icon: FeedingFormat.typeIcon(FeedingType.breast),
+        label: 'Breast',
+        wide: vertical,
+        onPressed: () => showFeedingQuickLog(context, type: FeedingType.breast),
+      ),
+      _BigButton(
+        icon: Icons.baby_changing_station,
+        label: 'Diaper',
+        wide: vertical,
+        onPressed: () => showDiaperQuickLog(context),
+      ),
+    ];
+
+    if (vertical) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < buttons.length; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            Expanded(child: buttons[i]),
+          ],
+        ],
+      );
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: _BigButton(
-            icon: FeedingFormat.typeIcon(FeedingType.bottle),
-            label: 'Bottle',
-            onPressed: () =>
-                showFeedingQuickLog(context, type: FeedingType.bottle),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _BigButton(
-            icon: FeedingFormat.typeIcon(FeedingType.breast),
-            label: 'Breast',
-            onPressed: () =>
-                showFeedingQuickLog(context, type: FeedingType.breast),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _BigButton(
-            icon: Icons.baby_changing_station,
-            label: 'Diaper',
-            onPressed: () => showDiaperQuickLog(context),
-          ),
-        ),
+        for (var i = 0; i < buttons.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          Expanded(child: buttons[i]),
+        ],
       ],
     );
   }
@@ -261,32 +312,55 @@ class _BigButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.wide = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
 
+  /// Icon beside the label rather than above it.
+  ///
+  /// Stacked in a column of three, each button is wide and short, and the
+  /// icon-over-label arrangement does not fit — a phone on its side gave each
+  /// one about 90pt and it overflowed by 23. Side by side is the shape that
+  /// suits a wide button anyway.
+  final bool wide;
+
   @override
   Widget build(BuildContext context) {
+    final text = Flexible(
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.titleMedium,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+
     return FilledButton(
       onPressed: onPressed,
       style: FilledButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 22),
+        padding: EdgeInsets.symmetric(vertical: wide ? 12 : 22),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 30),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.titleMedium,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
+      child: wide
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 28),
+                const SizedBox(width: 10),
+                text,
+              ],
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 30),
+                const SizedBox(height: 6),
+                text,
+              ],
+            ),
     );
   }
 }

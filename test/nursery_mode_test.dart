@@ -185,4 +185,43 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('landscape, which is how a tablet on a stand usually sits', () {
+    testWidgets('puts the buttons beside the readouts, not under them', (
+      tester,
+    ) async {
+      // Stacked in landscape the buttons are squeezed into a strip along the
+      // bottom of a mostly empty screen.
+      await pumpNursery(tester, size: const Size(900, 600));
+
+      final readout = tester.getRect(find.text('Last fed'));
+      final button = tester.getRect(find.text('Bottle'));
+      expect(button.left, greaterThan(readout.right));
+    });
+
+    testWidgets('and stacks them again in portrait', (tester) async {
+      await pumpNursery(tester, size: const Size(834, 1194));
+
+      final readout = tester.getRect(find.text('Last fed'));
+      final button = tester.getRect(find.text('Bottle'));
+      expect(button.top, greaterThan(readout.bottom));
+    });
+
+    testWidgets('a phone on its side still fits everything', (tester) async {
+      // The tightest case there is: 390pt of height for two readouts and
+      // three buttons.
+      await pumpNursery(tester, size: const Size(844, 390));
+      expect(tester.takeException(), isNull);
+
+      expect(find.text('Bottle'), findsOneWidget);
+      expect(find.text('Breast'), findsOneWidget);
+      expect(find.text('Diaper'), findsOneWidget);
+      expect(find.text('Last fed'), findsOneWidget);
+    });
+
+    testWidgets('and survives it at the largest text size', (tester) async {
+      await pumpNursery(tester, size: const Size(844, 390), textScale: 2.0);
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
