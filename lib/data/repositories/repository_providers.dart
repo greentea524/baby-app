@@ -13,6 +13,7 @@ import '../models/growth_measurement.dart';
 import '../models/notification_prefs.dart';
 import '../models/pumping_event.dart';
 import 'appointments_repository.dart';
+import 'account_data.dart';
 import 'baby_data.dart';
 import 'babies_repository.dart';
 import 'diaper_repository.dart';
@@ -270,6 +271,11 @@ final notificationPrefsProvider = StreamProvider<NotificationPrefs>((ref) {
 /// uses it is given the baby to delete, which may not be the current one.
 final babyDataProvider = Provider<BabyData>(
   (ref) => BabyData(ref.watch(firestoreProvider)),
+);
+
+/// Deleting the account itself, and everything under it (#28, scope B).
+final accountDataProvider = Provider<AccountData>(
+  (ref) => AccountData(ref.watch(firestoreProvider), ref.watch(babyDataProvider)),
 );
 
 /// Whether [notificationPrefsProvider] is carrying the account's stored values
