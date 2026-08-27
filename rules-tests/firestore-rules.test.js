@@ -821,3 +821,48 @@ describe("deleting a baby's data", () => {
     await assertSucceeds(deleteDoc(doc(asBob(), "babies/del1/feedings/f1")));
   });
 });
+
+// --- Leaving the allowlist (#28) -------------------------------------------
+//
+// Deleting an account has to take the address with it, or the deletion keeps
+// the one piece of it that identifies a person.
+describe("removing your own allowlist entry", () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, "allowedUsers", ALICE_EMAIL), { note: "owner" });
+      await setDoc(doc(db, "allowedUsers", BOB_EMAIL), { note: "invited" });
+    });
+  });
+
+  it("lets you delete your own", async () => {
+    await assertSucceeds(deleteDoc(doc(asAlice(), "allowedUsers", ALICE_EMAIL)));
+  });
+
+  it("does not let you delete anybody else's", async () => {
+    // The whole risk in loosening this rule: the allowlist is what keeps the
+    // app private, so one caregiver must not be able to evict another.
+    await assertFails(deleteDoc(doc(asAlice(), "allowedUsers", BOB_EMAIL)));
+    await assertFails(deleteDoc(doc(asMallory(), "allowedUsers", ALICE_EMAIL)));
+  });
+
+  it("matches the address case-insensitively, as the read does", async () => {
+    const shouting = testEnv
+      .authenticatedContext("alice", { email: "Alice@Example.COM" })
+      .firestore();
+    await assertSucceeds(deleteDoc(doc(shouting, "allowedUsers", ALICE_EMAIL)));
+  });
+
+  it("still refuses a signed-out caller", async () => {
+    await assertFails(deleteDoc(doc(asAnon(), "allowedUsers", ALICE_EMAIL)));
+  });
+
+  it("does not open the door to writing one", async () => {
+    // There is no create rule, so leaving is one-way: coming back means
+    // someone adding the address again by hand.
+    await assertFails(
+      setDoc(doc(asAlice(), "allowedUsers", "newcomer@example.com"), {}),
+    );
+    await assertFails(setDoc(doc(asAlice(), "allowedUsers", ALICE_EMAIL), {}));
+  });
+});

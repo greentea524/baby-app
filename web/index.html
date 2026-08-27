@@ -45,14 +45,20 @@
     /* The document must not scroll.
      *
      * Flutter draws into a canvas sized to the viewport and scrolls its own
-     * content, so nothing here ever needs a scrollbar. But iOS Safari scrolls
-     * the *document* to reveal a focused input, and Flutter's text entry is a
-     * hidden DOM input positioned over that canvas — so with the document
-     * free to move, tapping the bottle amount slid the whole app up and
-     * carried the field off the top of the screen.
+     * content, so nothing here ever needs a scrollbar. iOS Safari, though,
+     * scrolls the *document* to reveal a focused input, and Flutter's text
+     * entry is a hidden DOM input positioned over that canvas — so a free
+     * document can be dragged out from under the whole app.
      *
      * position:fixed rather than overflow:hidden alone, which iOS honours for
-     * touch scrolling but not for the scroll it performs itself on focus. */
+     * touch scrolling but not for the scroll it performs itself on focus.
+     *
+     * Precautionary, and honestly so. It was added while chasing a keyboard
+     * bug on an iPhone and did not turn out to be the cause — that was the
+     * sheet counting the keyboard inset twice, on a viewport the browser had
+     * already shrunk (see app_sheet.dart). Kept because the behaviour it
+     * guards against is real and this is what standard practice is for; not
+     * kept because it fixed anything we saw. */
     html, body {
       height: 100%;
       overflow: hidden;

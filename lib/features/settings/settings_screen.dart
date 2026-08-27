@@ -9,6 +9,7 @@ import '../../data/models/notification_prefs.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../caregivers/caregivers_screen.dart';
 import '../export/export_screen.dart';
+import 'delete_account_screen.dart';
 import 'delete_baby_screen.dart';
 import '../home/home_prefs.dart';
 import '../notifications/push_service.dart';
@@ -83,6 +84,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const Divider(),
           const _DeleteDataTile(),
+          const _DeleteAccountTile(),
           const Divider(),
           ListTile(
             leading: Icon(
@@ -577,6 +579,32 @@ class _DeleteDataTile extends ConsumerWidget {
                 builder: (_) => DeleteBabyScreen(baby: baby),
               ),
             ),
+    );
+  }
+}
+
+/// Deleting the account itself (#28, scope B).
+///
+/// A second row rather than a choice inside the first: deleting one baby and
+/// closing the account are different enough that being asked which one you
+/// meant, after arriving, is worse than being asked before.
+class _DeleteAccountTile extends StatelessWidget {
+  const _DeleteAccountTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final error = Theme.of(context).colorScheme.error;
+
+    return ListTile(
+      leading: Icon(Icons.person_off_outlined, color: error),
+      title: Text('Delete account', style: TextStyle(color: error)),
+      subtitle: const Text(
+        'Everything you own, your settings, and your sign-in',
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const DeleteAccountScreen()),
+      ),
     );
   }
 }

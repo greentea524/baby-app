@@ -60,5 +60,39 @@ class AuthRepository {
     await _auth.getRedirectResult();
   }
 
+  /// Proves the session is fresh before something irreversible.
+  ///
+  /// `User.delete()` refuses with `requires-recent-login` on a session more
+  /// than a few minutes old, so this has to happen first — and *before* any
+  /// data is deleted rather than after. On a mobile browser it redirects,
+  /// which leaves the page and comes back: done first, that costs a second
+  /// tap; done in the middle, it would abandon a half-finished deletion.
+  Future<void> reauthenticate() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'no-current-user',
+        message: 'Not signed in.',
+      );
+    }
+    final provider = GoogleAuthProvider();
+    if (!kIsWeb) {
+      await user.reauthenticateWithProvider(provider);
+      return;
+    }
+    if (redirectSignIn) {
+      await user.reauthenticateWithRedirect(provider);
+      return;
+    }
+    await user.reauthenticateWithPopup(provider);
+  }
+
+  /// Removes the account itself. Everything it owns must be gone first.
+  Future<void> deleteAccount() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    await user.delete();
+  }
+
   Future<void> signOut() => _auth.signOut();
 }

@@ -66,6 +66,16 @@ service cloud.firestore {
     // list nobody needs to be able to enumerate.
     match /allowedUsers/{email} {
       allow get: if signedIn() && email == myEmail();
+
+      // Your own entry, and only your own — the document id is the address,
+      // so this cannot reach anyone else's (#28).
+      //
+      // Deliberately one-way: deleting it is part of deleting your account,
+      // and there is no create here, so coming back means someone adding the
+      // address again by hand in the console. That is the point. Removing
+      // the account while leaving the address on the allowlist would be a
+      // deletion that kept the one piece of it that identifies a person.
+      allow delete: if signedIn() && email == myEmail();
     }
 
     // Lowercased, because the document id has to be unambiguous: providers
