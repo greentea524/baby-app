@@ -103,9 +103,21 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
           selected: {_type},
           onSelectionChanged: (s) => setState(() {
             _type = s.first;
-            // A wet-only change has nothing to size, so a size picked before
-            // the type was changed goes with it.
-            if (_type == DiaperType.wet) _size = null;
+            if (_type == DiaperType.wet) {
+              // A wet-only change has nothing to size, so a size picked
+              // before the type was changed goes with it.
+              _size = null;
+            } else {
+              // Small is the common one, so choosing "dirty" chooses it too
+              // and the usual log is one tap rather than two. Still not
+              // required: tapping it again clears it.
+              //
+              // Only on a change made here, never on opening an existing
+              // entry — a dirty diaper logged without a size was logged
+              // that way on purpose, and saving it back with one invents a
+              // measurement nobody took.
+              _size ??= PoopSize.small;
+            }
           }),
         ),
         // Only where there is something to measure, and never required —
