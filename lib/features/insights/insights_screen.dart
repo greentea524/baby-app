@@ -12,6 +12,7 @@ import 'diaper_mix_bar.dart';
 import 'feed_pattern_data.dart';
 import 'insights_providers.dart';
 import 'range_stats.dart';
+import 'report_tables.dart';
 import 'trend_chart.dart';
 
 /// Trends over a week or a month (KAN-166): how feeding, diapers, and
@@ -26,6 +27,10 @@ class InsightsScreen extends ConsumerStatefulWidget {
 
 class _InsightsScreenState extends ConsumerState<InsightsScreen> {
   InsightsRange _range = InsightsRange.week;
+
+  /// Charts or the report tables. Two ways of reading the same window, so
+  /// this sits beside the range picker rather than replacing it (#30).
+  bool _asTable = false;
 
   @override
   Widget build(BuildContext context) {
@@ -57,14 +62,42 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
           : Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: SegmentedButton<InsightsRange>(
-                    segments: [
-                      for (final r in InsightsRange.values)
-                        ButtonSegment(value: r, label: Text(r.label)),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 4, 16),
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: SegmentedButton<InsightsRange>(
+                          segments: [
+                            for (final r in InsightsRange.values)
+                              ButtonSegment(value: r, label: Text(r.label)),
+                          ],
+                          selected: {_range},
+                          onSelectionChanged: (s) =>
+                              setState(() => _range = s.first),
+                        ),
+                      ),
+                      // Icons rather than a second segmented row: three
+                      // ranges leave room beside them, and this is the same
+                      // trade _RecentHeader makes on Home.
+                      //
+                      // Hidden for a single day, where the table would be one
+                      // row and the screen shows a different set of charts
+                      // anyway.
+                      if (!_range.isSingleDay) ...[
+                        IconButton(
+                          icon: const Icon(Icons.insights),
+                          tooltip: 'Charts',
+                          isSelected: !_asTable,
+                          onPressed: () => setState(() => _asTable = false),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.table_rows_outlined),
+                          tooltip: 'Table',
+                          isSelected: _asTable,
+                          onPressed: () => setState(() => _asTable = true),
+                        ),
+                      ],
                     ],
-                    selected: {_range},
-                    onSelectionChanged: (s) => setState(() => _range = s.first),
                   ),
                 ),
                 Expanded(
@@ -82,6 +115,18 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
                             // ones with one bar in them.
                             child: _range.isSingleDay
                                 ? _Today(data: data)
+                                : _asTable
+                                // The same stats the charts are drawn from,
+                                // so switching costs no fetch and no
+                                // recompute.
+                                ? ListView(
+                                    children: [
+                                      ReportTables(
+                                        stats: data.stats,
+                                        units: ref.watch(unitSystemProvider),
+                                      ),
+                                    ],
+                                  )
                                 : _Trends(
                                     stats: data.stats,
                                     feedings: data.feedings,

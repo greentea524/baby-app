@@ -20,6 +20,8 @@ class RangeStats {
     required this.totalBottleMl,
     required this.totalBreastMinutes,
     required this.totalPumpedMl,
+    required this.totalSnacks,
+    required this.totalPumps,
     required this.avgFeedIntervalMinutes,
     required this.feedsPerDay,
     required this.diapersPerDay,
@@ -34,6 +36,14 @@ class RangeStats {
   final int totalBreastMinutes;
   final double totalPumpedMl;
 
+  /// Top-ups, kept out of [totalFeeds] and counted here instead — the same
+  /// distinction the export makes, so a feeds-per-day figure is not quietly
+  /// inflated by them. Their volume still counts toward [totalBottleMl].
+  final int totalSnacks;
+
+  /// How many pump sessions, as against how much came out of them.
+  final int totalPumps;
+
   /// Mean of each day's average feed interval; days with fewer than two
   /// feeds contribute nothing. Null when no day qualifies.
   final int? avgFeedIntervalMinutes;
@@ -45,6 +55,22 @@ class RangeStats {
 
   bool get isEmpty =>
       totalFeeds == 0 && totalDiapers == 0 && totalPumpedMl == 0;
+
+  /// How many days in the window had anything on them.
+  ///
+  /// Counted rather than taken from [days].length, which is every day in the
+  /// window whether or not anything happened. The export gets this for free
+  /// because its list is sparse; this one is dense on purpose, so the charts
+  /// show a quiet day as a gap instead of closing it up.
+  int get activeDays => days
+      .where(
+        (d) =>
+            d.stats.feedCount > 0 ||
+            d.stats.snackCount > 0 ||
+            d.stats.diaperCount > 0 ||
+            d.stats.pumpCount > 0,
+      )
+      .length;
 
   /// Builds the series for `[start, end)`, both normalised to local midnight.
   factory RangeStats.from({
@@ -90,6 +116,8 @@ class RangeStats {
     var pumpedMl = 0.0;
     var feedCount = 0;
     var diaperCount = 0;
+    var snackCount = 0;
+    var pumpCount = 0;
     final intervals = <int>[];
     for (final row in days) {
       bottleMl += row.stats.bottleMl;
@@ -97,6 +125,8 @@ class RangeStats {
       pumpedMl += row.stats.pumpedMl;
       feedCount += row.stats.feedCount;
       diaperCount += row.stats.diaperCount;
+      snackCount += row.stats.snackCount;
+      pumpCount += row.stats.pumpCount;
       final interval = row.stats.avgFeedIntervalMinutes;
       if (interval != null) intervals.add(interval);
     }
@@ -112,6 +142,8 @@ class RangeStats {
       totalBottleMl: bottleMl,
       totalBreastMinutes: breastMinutes,
       totalPumpedMl: pumpedMl,
+      totalSnacks: snackCount,
+      totalPumps: pumpCount,
       avgFeedIntervalMinutes: avgInterval,
       feedsPerDay: days.isEmpty ? 0 : feedCount / days.length,
       diapersPerDay: days.isEmpty ? 0 : diaperCount / days.length,
