@@ -124,6 +124,45 @@ void main() {
       expect(find.text('Days with activity'), findsOneWidget);
     });
 
+    testWidgets('put the days first and the summary under them', (
+      tester,
+    ) async {
+      // A summary reads as a summary when it comes after the thing it
+      // summarises; the table is what the view is for.
+      await pump(tester, statsFor(feedings: [bottle(20)]));
+
+      final days = tester.getRect(find.text('Day by day'));
+      final overview = tester.getRect(find.text('Overview'));
+      expect(overview.top, greaterThan(days.top));
+    });
+
+    testWidgets('leave breast minutes out of the per-day columns', (
+      tester,
+    ) async {
+      // Carried over from the printed report, where a page is read whole. On
+      // screen it was a column of zeros for a bottle-fed baby and one more
+      // thing to scroll past for everyone else.
+      await pump(
+        tester,
+        statsFor(
+          feedings: [
+            FeedingEvent(
+              id: 'b1',
+              type: FeedingType.breast,
+              startTime: DateTime(2026, 8, 20, 9),
+              durationMinutes: 18,
+            ),
+          ],
+        ),
+      );
+
+      expect(find.text('Breast (min)'), findsNothing);
+      // The range total stays, which is where a figure nobody reads per-day
+      // belongs.
+      expect(find.text('Breastfeeding total'), findsOneWidget);
+      expect(find.text('18 min'), findsOneWidget);
+    });
+
     testWidgets('leave out the rows that would read zero for everyone', (
       tester,
     ) async {

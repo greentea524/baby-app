@@ -26,13 +26,16 @@ class ReportTables extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SectionTitle('Overview'),
-          const SizedBox(height: 8),
-          _Overview(stats: stats, units: units),
-          const SizedBox(height: 24),
           _SectionTitle('Day by day'),
           const SizedBox(height: 8),
           _DailyTable(stats: stats, units: units),
+          const SizedBox(height: 24),
+          // Under the days rather than over them: the table is what the view
+          // is for, and a summary reads as a summary when it comes after the
+          // thing it summarises.
+          _SectionTitle('Overview'),
+          const SizedBox(height: 8),
+          _Overview(stats: stats, units: units),
         ],
       ),
     );
@@ -129,9 +132,15 @@ class _Overview extends StatelessWidget {
 
 /// One row per day, scrolling sideways.
 ///
-/// Up to seven columns, which a phone will not take. Given its own horizontal
-/// scroll rather than being allowed to squeeze or overflow — the discipline
-/// the charts already follow.
+/// Breast minutes are deliberately absent. The column was carried over from
+/// the printed report, where a paediatrician reading a page wants it; on
+/// screen it was a column of zeros for a bottle-fed baby and one more thing
+/// to scroll past for everyone else. The range total is still in the overview
+/// below, which is where a figure nobody reads per-day belongs.
+///
+/// Still wider than a phone, so it keeps its own horizontal scroll rather
+/// than being allowed to squeeze or overflow — the discipline the charts
+/// already follow.
 class _DailyTable extends StatelessWidget {
   const _DailyTable({required this.stats, required this.units});
 
@@ -158,7 +167,6 @@ class _DailyTable extends StatelessWidget {
           const DataColumn(label: Text('Bottle (ml)'), numeric: true),
           if (!units.isMetric)
             const DataColumn(label: Text('Bottle (fl oz)'), numeric: true),
-          const DataColumn(label: Text('Breast (min)'), numeric: true),
           if (pumped)
             const DataColumn(label: Text('Pumped (ml)'), numeric: true),
           const DataColumn(label: Text('Diapers'), numeric: true),
@@ -180,7 +188,6 @@ class _DailyTable extends StatelessWidget {
                           : formatFlOz(row.stats.bottleMl),
                     ),
                   ),
-                DataCell(Text('${row.stats.breastMinutes}')),
                 if (pumped)
                   DataCell(Text(TimelineFormat.ml(row.stats.pumpedMl))),
                 DataCell(Text('${row.stats.diaperCount}')),
