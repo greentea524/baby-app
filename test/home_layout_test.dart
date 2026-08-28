@@ -367,12 +367,21 @@ void main() {
 
     testWidgets('the rows underneath still scroll', (tester) async {
       await pumpHome(tester, feedings: manyFeeds(), withData: false);
-      expect(find.text('129 ml (4.4 fl oz)'), findsNothing);
+      final last = find.text('129 ml (4.4 fl oz)');
+      expect(last, findsNothing);
 
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -3000));
+      // Scrolled until it appears rather than dragged a fixed distance. The
+      // list is lazy, so whether one particular row has been built depends on
+      // the height of everything above it — and a fixed 3000 quietly stopped
+      // reaching the bottom row when that height changed.
+      await tester.scrollUntilVisible(
+        last,
+        400,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.pumpAndSettle();
 
-      expect(find.text('129 ml (4.4 fl oz)'), findsOneWidget);
+      expect(last, findsOneWidget);
     });
 
     testWidgets('the pinned block fits its own height at every text size', (
