@@ -10,6 +10,7 @@ import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
+import 'amount_suggestion_chips.dart';
 import 'feeding_format.dart';
 
 /// Opens the feeding quick-log sheet. Pass [existing] to edit an entry
@@ -301,13 +302,11 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
   bool _isSnack = false;
 
   /// What was stored, and whether the field has actually been typed in.
+  /// Read together by [resolveAmountMl], which explains why.
   ///
-  /// Editing an entry without touching the amount must store the amount
-  /// unchanged. Re-parsing the field would round-trip it through the display
-  /// unit — 150 ml shown as 5.1 fl oz, saved back as 150.8 — so correcting a
-  /// note would quietly rewrite a number nobody touched. It settles there
-  /// rather than walking further on each edit, which makes it a wrong value
-  /// rather than a runaway one; still not ours to write.
+  /// Tapping a suggestion sets both: the chip's exact millilitres, and
+  /// [_amountEdited] back to false, so what gets saved is the amount the chip
+  /// stands for rather than what its label re-parses to.
   double? _storedMl;
   bool _amountEdited = false;
 
@@ -332,6 +331,20 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
     super.dispose();
   }
 
+  /// Fills the field from a suggestion chip (#31).
+  ///
+  /// Stores the chip's millilitres rather than letting the field's text speak
+  /// for it. In fluid ounces a 120 ml chip is labelled "4.1", and reading
+  /// that back would save 121.3 — see [resolveAmountMl].
+  void _useSuggestion(double millilitres) {
+    setState(() {
+      _amountController.text = _unit.fieldText(millilitres);
+      _storedMl = millilitres;
+      _amountEdited = false;
+      _amountError = null;
+    });
+  }
+
   FeedingEvent? _build() {
     final typed = double.tryParse(_amountController.text.trim());
     if (typed == null || typed <= 0) {
@@ -339,9 +352,12 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
       return null;
     }
     // Only re-derive what was actually retyped; see [_storedMl].
-    final millilitres = _amountEdited || _storedMl == null
-        ? _unit.toMl(typed)
-        : _storedMl!;
+    final millilitres = resolveAmountMl(
+      typed: typed,
+      unit: _unit,
+      storedMl: _storedMl,
+      edited: _amountEdited,
+    )!;
     return FeedingEvent(
       id: widget.existing?.id ?? '',
       type: FeedingType.bottle,
@@ -376,6 +392,7 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
             if (_amountError != null) setState(() => _amountError = null);
           },
         ),
+        AmountSuggestionChips(unit: _unit, onPick: _useSuggestion),
         const SizedBox(height: 12),
         EventTimeRow(time: _time, onChanged: (t) => setState(() => _time = t)),
         const SizedBox(height: 12),
