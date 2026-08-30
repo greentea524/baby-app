@@ -68,32 +68,41 @@ void main() {
     });
 
     test('breaks a tie towards the more recent', () {
-      // One each. A rhythm that is changing should move the chips rather
-      // than be outvoted by history.
+      // One each, and one more than fits. A rhythm that is changing should
+      // move the chips rather than be outvoted by history, so the 30 poured
+      // first is the one that drops.
       final feeds = [
-        bottle(60, atHour: 0),
-        bottle(90, atHour: 1),
-        bottle(120, atHour: 2),
-        bottle(150, atHour: 3),
+        bottle(30, atHour: 0),
+        bottle(60, atHour: 1),
+        bottle(90, atHour: 2),
+        bottle(120, atHour: 3),
+        bottle(150, atHour: 4),
+        bottle(180, atHour: 5),
       ];
       expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [
+        60,
         90,
         120,
         150,
+        180,
       ]);
     });
 
     test('handles unsorted input', () {
       final feeds = [
-        bottle(150, atHour: 3),
-        bottle(60, atHour: 0),
-        bottle(120, atHour: 2),
-        bottle(90, atHour: 1),
+        bottle(150, atHour: 4),
+        bottle(30, atHour: 0),
+        bottle(120, atHour: 3),
+        bottle(180, atHour: 5),
+        bottle(60, atHour: 1),
+        bottle(90, atHour: 2),
       ];
       expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [
+        60,
         90,
         120,
         150,
+        180,
       ]);
     });
 
@@ -127,6 +136,13 @@ void main() {
         suggestedAmounts(feeds: [bottle(120)], pumps: const []),
         hasLength(1),
       );
+    });
+
+    test('offers five by default', () {
+      final feeds = [
+        for (var i = 0; i < 8; i++) bottle(30.0 * (i + 1), atHour: i),
+      ];
+      expect(suggestedAmounts(feeds: feeds, pumps: const []), hasLength(5));
     });
 
     test('honours max', () {
