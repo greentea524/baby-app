@@ -25,8 +25,7 @@ enum VolumeUnit {
   static const initial = VolumeUnit.ml;
 
   /// A typed amount, in millilitres.
-  double toMl(double typed) =>
-      this == VolumeUnit.ml ? typed : flOzToMl(typed);
+  double toMl(double typed) => this == VolumeUnit.ml ? typed : flOzToMl(typed);
 
   /// A stored amount, in this unit.
   double fromMl(double millilitres) =>
@@ -43,4 +42,29 @@ enum VolumeUnit {
         ? rounded.toStringAsFixed(0)
         : rounded.toStringAsFixed(1);
   }
+}
+
+/// The millilitres an amount field should store.
+///
+/// [typed] is what the field currently holds, parsed, or null when it is
+/// empty or unparseable. [storedMl] is what the entry already had, and
+/// [edited] says whether the field has actually been typed in since.
+///
+/// An amount nobody retyped is stored back untouched. Re-parsing it would
+/// round-trip through the display unit — 150 ml shown as 5.1 fl oz, read back
+/// as 150.8 — so correcting a note would quietly rewrite a number nobody
+/// touched. It settles there rather than walking further on each edit, which
+/// makes it a wrong value rather than a runaway one; still not ours to write.
+///
+/// The same escape hatch lets a form set an exact amount that its own field
+/// cannot spell: a suggested 120 ml chip reads "4.1" in fluid ounces, and
+/// storing what that parses back to would save 121.3 (#31).
+double? resolveAmountMl({
+  required double? typed,
+  required VolumeUnit unit,
+  required double? storedMl,
+  required bool edited,
+}) {
+  if (!edited && storedMl != null) return storedMl;
+  return typed == null ? null : unit.toMl(typed);
 }
