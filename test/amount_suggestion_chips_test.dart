@@ -81,6 +81,42 @@ void main() {
       expect(find.byIcon(PumpingFormat.icon), findsOneWidget);
     });
 
+    testWidgets('wrap onto a second line rather than overflowing a phone', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      // Fluid ounces make the widest labels.
+      await pumpChips(
+        tester,
+        unit: VolumeUnit.flOz,
+        offered: const [
+          AmountSuggestion(60, AmountSource.bottle),
+          AmountSuggestion(90, AmountSource.bottle),
+          AmountSuggestion(120, AmountSource.bottle),
+          AmountSuggestion(150, AmountSource.bottle),
+          AmountSuggestion(180, AmountSource.pump),
+        ],
+      );
+
+      expect(find.byType(ActionChip), findsNWidgets(5));
+      final rects = tester
+          .widgetList<ActionChip>(find.byType(ActionChip))
+          .map((c) => tester.getRect(find.byWidget(c)))
+          .toList();
+      expect(
+        rects.every((r) => r.left >= 0 && r.right <= 390),
+        isTrue,
+        reason: 'every chip stays on screen',
+      );
+      expect(
+        rects.map((r) => r.top).toSet().length,
+        greaterThan(1),
+        reason: 'five of them need a second line',
+      );
+    });
+
     testWidgets('render nothing at all when there is nothing to suggest', (
       tester,
     ) async {

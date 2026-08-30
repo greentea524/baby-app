@@ -54,11 +54,16 @@ double _bin(double ml) => (ml / _binMl).round() * _binMl;
 /// bottles loses every frequency contest, so a single pot would always drop
 /// the freshest number. The pump gets a reserved place instead.
 ///
+/// At most [max] of them. Five rather than three: a baby's day is rarely one
+/// volume, and the chips are only worth having when the amount you want is
+/// already on the row. They wrap onto a second line on a narrow sheet, which
+/// costs less than typing.
+///
 /// Handles unsorted input; [feeds] and [pumps] need not be in any order.
 List<AmountSuggestion> suggestedAmounts({
   required List<FeedingEvent> feeds,
   required List<PumpingEvent> pumps,
-  int max = 3,
+  int max = 5,
 }) {
   if (max <= 0) return const [];
 
