@@ -102,12 +102,12 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
 
   /// The amount to store: what was typed, converted, or the stored value
   /// untouched when the field was never edited.
-  double? _amountMl() {
-    final typed = double.tryParse(_amount.text.trim());
-    if (typed == null) return _amountEdited ? null : _storedMl;
-    if (!_amountEdited && _storedMl != null) return _storedMl;
-    return _unit.toMl(typed);
-  }
+  double? _amountMl() => resolveAmountMl(
+    typed: double.tryParse(_amount.text.trim()),
+    unit: _unit,
+    storedMl: _storedMl,
+    edited: _amountEdited,
+  );
 
   @override
   Widget build(BuildContext context) {

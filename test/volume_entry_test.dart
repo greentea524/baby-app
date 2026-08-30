@@ -101,4 +101,90 @@ void main() {
       expect(steps.first, isNot(closeTo(150, 0.05)));
     });
   });
+
+  group('resolveAmountMl', () {
+    test('keeps an untouched amount exactly as it was stored', () {
+      // The whole point: 150 ml is showing as "5.1" fl oz, and nobody has
+      // typed. Re-parsing the field would save 150.8 back.
+      expect(
+        resolveAmountMl(
+          typed: 5.1,
+          unit: VolumeUnit.flOz,
+          storedMl: 150,
+          edited: false,
+        ),
+        150,
+      );
+    });
+
+    test('re-derives once the field has actually been typed in', () {
+      expect(
+        resolveAmountMl(
+          typed: 5,
+          unit: VolumeUnit.flOz,
+          storedMl: 150,
+          edited: true,
+        ),
+        closeTo(147.87, 0.01),
+      );
+    });
+
+    test('converts when there is nothing stored to preserve', () {
+      expect(
+        resolveAmountMl(
+          typed: 120,
+          unit: VolumeUnit.ml,
+          storedMl: null,
+          edited: false,
+        ),
+        120,
+      );
+    });
+
+    test('an empty field with nothing stored resolves to nothing', () {
+      expect(
+        resolveAmountMl(
+          typed: null,
+          unit: VolumeUnit.ml,
+          storedMl: null,
+          edited: false,
+        ),
+        isNull,
+      );
+    });
+
+    test(
+      'clearing an edited field drops the amount rather than reviving it',
+      () {
+        // Pumping allows an amount-less session, and someone who deletes what
+        // they typed means it.
+        expect(
+          resolveAmountMl(
+            typed: null,
+            unit: VolumeUnit.ml,
+            storedMl: 120,
+            edited: true,
+          ),
+          isNull,
+        );
+      },
+    );
+
+    test('a suggested amount survives being shown in fluid ounces (#31)', () {
+      // A 120 ml chip is labelled "4.1". Storing what that re-parses to
+      // would save 121.3, so the chip sets the amount directly and leaves
+      // the field unedited.
+      const chip = 120.0;
+      expect(VolumeUnit.flOz.fieldText(chip), '4.1');
+      expect(
+        resolveAmountMl(
+          typed: double.parse(VolumeUnit.flOz.fieldText(chip)),
+          unit: VolumeUnit.flOz,
+          storedMl: chip,
+          edited: false,
+        ),
+        chip,
+      );
+    });
+  });
 }
