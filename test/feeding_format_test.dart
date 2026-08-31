@@ -189,4 +189,64 @@ void main() {
       );
     });
   });
+
+  group('measure', () {
+    test('is the volume when there is one', () {
+      expect(
+        FeedingFormat.measure(
+          FeedingEvent(
+            id: 'f',
+            type: FeedingType.bottle,
+            startTime: DateTime(2026, 8, 24),
+            amountMl: 150,
+          ),
+          UnitSystem.metric,
+        ),
+        '150 ml',
+      );
+    });
+
+    test('is the time at the breast when there is no volume', () {
+      expect(
+        FeedingFormat.measure(
+          FeedingEvent(
+            id: 'f',
+            type: FeedingType.breast,
+            startTime: DateTime(2026, 8, 24),
+            durationMinutes: 18,
+          ),
+          UnitSystem.metric,
+        ),
+        '18 min',
+      );
+    });
+
+    test('leaves the notes out, unlike details', () {
+      // Nursery mode reads this from across a room. A note is a sentence,
+      // and a sentence there pushes the number off the card.
+      final e = FeedingEvent(
+        id: 'f',
+        type: FeedingType.bottle,
+        startTime: DateTime(2026, 8, 24),
+        amountMl: 150,
+        notes: 'took it slowly, seemed sleepy',
+      );
+      expect(FeedingFormat.measure(e, UnitSystem.metric), '150 ml');
+      expect(FeedingFormat.details(e, UnitSystem.metric), contains('sleepy'));
+    });
+
+    test('is nothing when the feed was never measured', () {
+      expect(
+        FeedingFormat.measure(
+          FeedingEvent(
+            id: 'f',
+            type: FeedingType.breast,
+            startTime: DateTime(2026, 8, 24),
+          ),
+          UnitSystem.metric,
+        ),
+        isNull,
+      );
+    });
+  });
 }

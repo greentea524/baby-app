@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/format/unit_system.dart';
 import '../../data/models/baby.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -106,12 +107,22 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
+                      final lastFed = ref.watch(lastMilkFeedProvider);
                       final fed = _Readout(
                         icon: Icons.local_drink_outlined,
                         label: 'Last fed',
-                        event: ref.watch(lastMilkFeedProvider),
+                        event: lastFed,
                         timeOf: (e) => e.startTime,
                         now: clock,
+                        // How much, not just how long ago. Home has carried
+                        // it all along; standing at the cot is exactly where
+                        // the question gets asked.
+                        detail: lastFed == null
+                            ? null
+                            : FeedingFormat.measure(
+                                lastFed,
+                                ref.watch(unitSystemProvider),
+                              ),
                         // Inside the card it belongs to. Loose underneath, it
                         // was a chip floating between two cards with nothing
                         // saying which one it was about — and it is about
@@ -287,6 +298,7 @@ class _Readout<T> extends StatelessWidget {
     required this.event,
     required this.timeOf,
     required this.now,
+    this.detail,
     this.footer,
   });
 
@@ -295,6 +307,14 @@ class _Readout<T> extends StatelessWidget {
   final T? event;
   final DateTime Function(T) timeOf;
   final DateTime now;
+
+  /// The measurement that goes with the reading — how much was fed — on its
+  /// own line under the clock.
+  ///
+  /// Not appended to the clock stamp: in US units a volume reads "120 ml
+  /// (4.1 fl oz)", and on the end of a line that already ellipsises, the
+  /// number would be the first thing to disappear.
+  final String? detail;
 
   /// Sits under the times, inside the card. The next-feed chip belongs to the
   /// feed card rather than floating between the two.
@@ -366,6 +386,28 @@ class _Readout<T> extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (detail case final it?)
+                    // Scaled down rather than clipped, like the headline
+                    // above it. In US units a volume reads "150 ml (5.1 fl
+                    // oz)", which does not fit a phone-width card at the
+                    // boost this mode applies — and an amount that trails
+                    // off into an ellipsis is the one thing this line exists
+                    // to avoid.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        it,
+                        // Carried at full strength rather than the clock's
+                        // muted grey: it is the thing being asked for, not a
+                        // timestamp's footnote.
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: scheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                      ),
+                    ),
                 ],
                 if (footer case final it?) ...[
                   const SizedBox(height: 10),
