@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,6 +36,7 @@ void main() {
     double textScale = 1.0,
     Size size = const Size(834, 1194),
     bool withData = true,
+    List<FeedingEvent>? feeds,
     Map<String, Object> prefs = const {},
   }) async {
     SharedPreferences.setMockInitialValues({
@@ -54,16 +56,17 @@ void main() {
         babiesStreamProvider.overrideWith((ref) => Stream.value([baby])),
         recentFeedingsProvider.overrideWith(
           (ref) => Stream.value(
-            withData
-                ? [
-                    FeedingEvent(
-                      id: 'f1',
-                      type: FeedingType.bottle,
-                      startTime: now.subtract(const Duration(hours: 2)),
-                      amountMl: 150,
-                    ),
-                  ]
-                : const [],
+            feeds ??
+                (withData
+                    ? [
+                        FeedingEvent(
+                          id: 'f1',
+                          type: FeedingType.bottle,
+                          startTime: now.subtract(const Duration(hours: 2)),
+                          amountMl: 150,
+                        ),
+                      ]
+                    : const []),
           ),
         ),
         recentDiapersProvider.overrideWith(
@@ -113,6 +116,76 @@ void main() {
     expect(find.text('2 hr ago'), findsOneWidget);
     expect(find.text('Last changed'), findsOneWidget);
     expect(find.text('40 min ago'), findsOneWidget);
+  });
+
+  group('the last feed says how much', () {
+    testWidgets('in the caregiver\'s units, beside how long ago', (
+      tester,
+    ) async {
+      await pumpNursery(tester);
+
+      expect(find.text('2 hr ago'), findsOneWidget);
+      expect(find.text('150 ml (5.1 fl oz)'), findsOneWidget);
+    });
+
+    testWidgets('metric when that is what they use', (tester) async {
+      await pumpNursery(tester, prefs: {'unit_system': 'metric'});
+
+      expect(find.text('150 ml'), findsOneWidget);
+    });
+
+    testWidgets('and fits, rather than trailing off', (tester) async {
+      // The longest form, at the boost nursery mode applies, on a phone
+      // rather than the tablet this mode is aimed at. The number is the
+      // thing being asked for, so it losing its tail is the failure.
+      await pumpNursery(tester, size: const Size(390, 844));
+
+      final amount = find.text('150 ml (5.1 fl oz)');
+      expect(amount, findsOneWidget);
+      expect(
+        tester.renderObject<RenderParagraph>(amount).didExceedMaxLines,
+        isFalse,
+      );
+    });
+
+    testWidgets('minutes at the breast when there is no volume', (
+      tester,
+    ) async {
+      await pumpNursery(
+        tester,
+        feeds: [
+          FeedingEvent(
+            id: 'f1',
+            type: FeedingType.breast,
+            startTime: now.subtract(const Duration(hours: 2)),
+            durationMinutes: 18,
+          ),
+        ],
+      );
+
+      expect(find.text('18 min'), findsOneWidget);
+    });
+
+    testWidgets('and nothing at all when the feed was never measured', (
+      tester,
+    ) async {
+      await pumpNursery(
+        tester,
+        feeds: [
+          FeedingEvent(
+            id: 'f1',
+            type: FeedingType.breast,
+            startTime: now.subtract(const Duration(hours: 2)),
+          ),
+        ],
+      );
+
+      // The card still reads; it just has one line fewer. Scoped to a bare
+      // measurement, since the diaper card's "40 min ago" is on screen too.
+      expect(find.text('2 hr ago'), findsOneWidget);
+      expect(find.textContaining('ml'), findsNothing);
+      expect(find.textContaining(RegExp(r'^\d+ min$')), findsNothing);
+    });
   });
 
   testWidgets('and nothing else — no lists, no charts', (tester) async {
