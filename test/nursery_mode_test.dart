@@ -125,13 +125,16 @@ void main() {
       await pumpNursery(tester);
 
       expect(find.text('2 hr ago'), findsOneWidget);
-      expect(find.text('150 ml (5.1 fl oz)'), findsOneWidget);
+      // One supporting line: when, then what.
+      expect(find.textContaining('12:00 PM · 150 ml (5.1 fl oz)'),
+          findsOneWidget);
     });
 
     testWidgets('metric when that is what they use', (tester) async {
       await pumpNursery(tester, prefs: {'unit_system': 'metric'});
 
-      expect(find.text('150 ml'), findsOneWidget);
+      expect(find.textContaining('150 ml'), findsOneWidget);
+      expect(find.textContaining('fl oz'), findsNothing);
     });
 
     testWidgets('and fits, rather than trailing off', (tester) async {
@@ -140,7 +143,7 @@ void main() {
       // thing being asked for, so it losing its tail is the failure.
       await pumpNursery(tester, size: const Size(390, 844));
 
-      final amount = find.text('150 ml (5.1 fl oz)');
+      final amount = find.textContaining('150 ml (5.1 fl oz)');
       expect(amount, findsOneWidget);
       expect(
         tester.renderObject<RenderParagraph>(amount).didExceedMaxLines,
@@ -163,7 +166,16 @@ void main() {
         ],
       );
 
-      expect(find.text('18 min'), findsOneWidget);
+      expect(find.textContaining('18 min'), findsOneWidget);
+    });
+
+    testWidgets('and the diaper card is built the same way', (tester) async {
+      // The pair has to read as one design. Left at two lines against the
+      // feed card's four, at the matched heights these cards are given, the
+      // emptiness was the loudest thing on screen.
+      await pumpNursery(tester);
+
+      expect(find.textContaining('1:20 PM · Wet'), findsOneWidget);
     });
 
     testWidgets('and nothing at all when the feed was never measured', (
