@@ -220,6 +220,46 @@ void main() {
     });
   });
 
+  group('the pumping action', () {
+    testWidgets('is a button, the size of the two above it', (tester) async {
+      // It used to be a bare text link under two proper buttons — smaller to
+      // hit, and not obviously a thing to press at all.
+      await pumpHome(tester);
+
+      final pumping = find.widgetWithText(OutlinedButton, 'Log pumping');
+      expect(pumping, findsOneWidget);
+      expect(
+        tester.getSize(pumping).height,
+        tester.getSize(find.widgetWithText(FilledButton, 'Log diaper')).height,
+      );
+    });
+
+    testWidgets('spans the pair above it, edge to edge', (tester) async {
+      await pumpHome(tester);
+
+      final pumping = tester.getRect(
+        find.widgetWithText(OutlinedButton, 'Log pumping'),
+      );
+      final feed = tester.getRect(
+        find.widgetWithText(FilledButton, 'Log feed'),
+      );
+      final diaper = tester.getRect(
+        find.widgetWithText(FilledButton, 'Log diaper'),
+      );
+
+      expect(pumping.left, feed.left);
+      expect(pumping.right, diaper.right);
+      expect(pumping.top, greaterThan(feed.bottom));
+    });
+
+    testWidgets('and is still hidden when pumping is switched off', (
+      tester,
+    ) async {
+      await pumpHome(tester, prefs: {'show_pumping_action': false});
+      expect(find.text('Log pumping'), findsNothing);
+    });
+  });
+
   group('the stored placement', () {
     test('defaults to the top', () {
       expect(HomeActions.fromName(null), HomeActions.top);
