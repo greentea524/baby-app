@@ -376,12 +376,25 @@ class _QuickActions extends ConsumerWidget {
               ),
             ],
           ),
-          if (showPumping)
-            TextButton.icon(
-              onPressed: () => showPumpingQuickLog(context),
-              icon: const Icon(PumpingFormat.icon, size: 18),
-              label: const Text('Log pumping'),
+          if (showPumping) ...[
+            const SizedBox(height: 12),
+            // A button, like the two above it, rather than the text link it
+            // used to be: same height, same hit area, so all three read as
+            // things to press.
+            //
+            // Outlined rather than tonal keeps the rank the text link was
+            // carrying — feed and diaper are what most people open the app
+            // for, and pumping is opt-in. On its own full-width row it would
+            // otherwise be the largest button on the screen.
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => showPumpingQuickLog(context),
+                icon: const Icon(PumpingFormat.icon),
+                label: const Text('Log pumping'),
+              ),
             ),
+          ],
         ],
       ),
     );

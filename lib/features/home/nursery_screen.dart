@@ -7,6 +7,7 @@ import '../../core/format/unit_system.dart';
 import '../../data/models/baby.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
@@ -130,12 +131,20 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         // to, one thing to read.
                         footer: _nextFeed(context, ref, clock),
                       );
+                      final lastChanged = ref.watch(lastDiaperProvider);
                       final changed = _Readout(
                         icon: Icons.baby_changing_station,
                         label: 'Last changed',
-                        event: ref.watch(lastDiaperProvider),
+                        event: lastChanged,
                         timeOf: (e) => e.time,
                         now: clock,
+                        // So the pair reads as one design. Without it this
+                        // card was two lines against the feed card's four,
+                        // and side by side at matched heights the emptiness
+                        // was the loudest thing on the screen.
+                        detail: lastChanged == null
+                            ? null
+                            : DiaperFormat.summary(lastChanged),
                       );
 
                       // Side by side when the space is wider than it is
@@ -285,6 +294,17 @@ class _Header extends ConsumerWidget {
   }
 }
 
+/// The card's vertical rhythm: related lines close together, the footer
+/// clearly apart from them.
+///
+/// Written down as three constants rather than sprinkled through the build,
+/// because the previous values were 4, nothing, nothing and 10 — three lines
+/// jammed flush and then a hole, which is what a card with no rhythm looks
+/// like.
+const double _gapLabel = 6;
+const double _gapHeadline = 4;
+const double _gapFooter = 14;
+
 /// One "how long ago" card.
 ///
 /// A card rather than bare text: on a screen with only two readings on it,
@@ -357,7 +377,7 @@ class _Readout<T> extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: _gapLabel),
                 if (e == null)
                   Text(
                     'Nothing logged yet',
@@ -378,39 +398,54 @@ class _Readout<T> extends StatelessWidget {
                       maxLines: 1,
                     ),
                   ),
-                  Text(
-                    FeedingFormat.clockStamp(context, timeOf(e), now: now),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (detail case final it?)
-                    // Scaled down rather than clipped, like the headline
-                    // above it. In US units a volume reads "150 ml (5.1 fl
-                    // oz)", which does not fit a phone-width card at the
-                    // boost this mode applies — and an amount that trails
-                    // off into an ellipsis is the one thing this line exists
-                    // to avoid.
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        it,
-                        // Carried at full strength rather than the clock's
-                        // muted grey: it is the thing being asked for, not a
-                        // timestamp's footnote.
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: scheme.onSurface,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
+                  const SizedBox(height: _gapHeadline),
+                  // One supporting line, not two. As separate lines the
+                  // clock and the measurement were the same size and only a
+                  // shade apart, so neither claimed the rank — they read as
+                  // two labels rather than a fact and its footnote. Together
+                  // the card is four things: what it is, how long ago, the
+                  // detail, what happens next.
+                  //
+                  // Scaled down rather than clipped, like the headline. In
+                  // US units a volume reads "150 ml (5.1 fl oz)", which does
+                  // not fit a phone-width card at the boost this mode
+                  // applies, and an amount trailing off into an ellipsis is
+                  // the one thing this line exists to avoid.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: FeedingFormat.clockStamp(
+                              context,
+                              timeOf(e),
+                              now: now,
+                            ),
+                          ),
+                          if (detail case final it?)
+                            TextSpan(
+                              text: ' · $it',
+                              // Carried at full strength: the clock says
+                              // when, this says what, and what is the part
+                              // being asked for.
+                              style: TextStyle(
+                                color: scheme.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                        ],
                       ),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
                     ),
+                  ),
                 ],
                 if (footer case final it?) ...[
-                  const SizedBox(height: 10),
+                  const SizedBox(height: _gapFooter),
                   Align(alignment: Alignment.centerLeft, child: it),
                 ],
               ],
