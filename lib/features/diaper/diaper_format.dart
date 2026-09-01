@@ -16,6 +16,16 @@ abstract final class DiaperFormat {
     DiaperType.both => Icons.change_circle,
   };
 
+  /// What the change was, and how big — without the notes [details] carries.
+  ///
+  /// The counterpart of `FeedingFormat.measure`, and for the same reason:
+  /// nursery mode reads this from across a room, where a note is a sentence
+  /// and a sentence pushes everything else off the card.
+  static String summary(DiaperEvent e) => [
+    typeLabel(e.type),
+    if (e.poopSize != null) e.poopSize!.label,
+  ].join(' · ');
+
   /// Size then notes, joined so a row reads as one thing — "Large · green,
   /// runny" — rather than as two fields competing for the same line
   /// (#20, KAN-149).
