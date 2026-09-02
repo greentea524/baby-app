@@ -43,16 +43,32 @@ void main() {
       final feeds = [
         bottle(118),
         bottle(120, atHour: 1),
-        bottle(123, atHour: 2),
+        bottle(122, atHour: 2),
       ];
       expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [120]);
     });
 
     test('a value on the boundary goes up, and stays its own amount', () {
-      // 125 is genuinely between two bins, and any binning has to break that
-      // somewhere. Pinned so the choice is visible rather than surprising.
-      final feeds = [bottle(120), bottle(125, atHour: 1)];
-      expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [120, 130]);
+      // Any binning has to break the midpoint somewhere: 122 falls back to
+      // 120, 123 goes up to 125. Pinned so the choice is visible rather than
+      // surprising.
+      final feeds = [bottle(122), bottle(123, atHour: 1)];
+      expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [120, 125]);
+    });
+
+    test('keeps the fives a household actually pours', () {
+      // The reason the bins are five wide. At ten, every one of these moves
+      // to a number nobody measured.
+      final feeds = [
+        bottle(105),
+        bottle(75, atHour: 1),
+        bottle(45, atHour: 2),
+      ];
+      expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [
+        45,
+        75,
+        105,
+      ]);
     });
 
     test('offers the most often poured first', () {
@@ -125,9 +141,9 @@ void main() {
     });
 
     test('drops an amount that rounds away to nothing', () {
-      // A 4 ml entry snaps to 0, and a chip reading 0 is worse than one chip
+      // A 2 ml entry snaps to 0, and a chip reading 0 is worse than one chip
       // fewer.
-      final feeds = [bottle(4), bottle(120, atHour: 1)];
+      final feeds = [bottle(2), bottle(120, atHour: 1)];
       expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [120]);
     });
 
@@ -174,6 +190,17 @@ void main() {
         picked.singleWhere((s) => s.millilitres == 130).source,
         AmountSource.pump,
       );
+    });
+
+    test('is offered at the amount actually pumped', () {
+      // Reported: a 105 ml session came back as a 110 ml chip. The pump slot
+      // is the one number that is a measurement rather than a habit, so
+      // moving it offers milk that was never in the bottle.
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: [pump(105, atHour: 1)],
+      );
+      expect(mlOf(picked), [105]);
     });
 
     test('is dropped once a bottle is logged after it', () {
