@@ -1,6 +1,21 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+/// The OAuth parameters for a Google sign-in attempt.
+///
+/// Empty by default, which is what makes the ordinary case one tap: with a
+/// single account signed into the browser, Google skips its chooser and
+/// returns straight away. That is the right default for a household app on a
+/// shared tablet — and the reason signing out and back in never asks for
+/// anything.
+///
+/// `prompt=select_account` opts out of that, forcing the chooser so a second
+/// person can reach their own account. Google's own parameter name, and the
+/// only thing that reopens the picker: signing out of the app clears the
+/// Firebase session, not the browser's Google session (#—).
+Map<String, String> googleSignInParameters({required bool chooseAccount}) =>
+    chooseAccount ? const {'prompt': 'select_account'} : const {};
+
 /// Thin wrapper over [FirebaseAuth] exposing just what the app needs.
 ///
 /// Web signs in through the browser; Android/iOS use `signInWithProvider`,
@@ -36,8 +51,13 @@ class AuthRepository {
   /// Completes when signed in — or, on the redirect path, never: the browser
   /// leaves the page and the result arrives through [authStateChanges] after
   /// it comes back.
-  Future<void> signInWithGoogle() async {
-    final provider = GoogleAuthProvider();
+  /// Pass [chooseAccount] to make Google offer its account picker rather
+  /// than returning whoever the browser already has signed in.
+  Future<void> signInWithGoogle({bool chooseAccount = false}) async {
+    final provider = GoogleAuthProvider()
+      ..setCustomParameters(
+        googleSignInParameters(chooseAccount: chooseAccount),
+      );
     if (!kIsWeb) {
       await _auth.signInWithProvider(provider);
       return;
