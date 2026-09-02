@@ -35,13 +35,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _signIn() async {
+  Future<void> _signIn({bool chooseAccount = false}) async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await ref.read(authRepositoryProvider).signInWithGoogle();
+      await ref
+          .read(authRepositoryProvider)
+          .signInWithGoogle(chooseAccount: chooseAccount);
       // The router redirect reacts to auth state; no manual navigation.
     } on FirebaseAuthException catch (e) {
       if (mounted) setState(() => _error = signInMessage(e));
@@ -99,6 +101,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         )
                       : const Icon(Icons.login),
                   label: const Text('Continue with Google'),
+                ),
+                const SizedBox(height: 4),
+                // Signing out of the app ends the Firebase session, not the
+                // browser's Google one — so the button above takes the one
+                // account already signed in and never asks. That is the
+                // right default on a shared tablet, and a dead end for the
+                // second person in the house.
+                TextButton(
+                  onPressed: _busy ? null : () => _signIn(chooseAccount: true),
+                  child: const Text('Use a different account'),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 16),
