@@ -32,14 +32,20 @@ class AmountSuggestion {
 
 /// Amounts are grouped to the nearest [_binMl] before being counted.
 ///
-/// Real entries scatter: 118, 120 and 125 are one habit typed three ways, and
+/// Real entries scatter: 118, 120 and 122 are one habit typed three ways, and
 /// counted apart they offer the same feed three times over.
+///
+/// Five rather than ten, because ten cannot say 105. Bottles are marked in
+/// fives and pumps come back on those markings, so a bin that only lands on
+/// tens has to move a real 105 ml session to 110 — offering a number nobody
+/// measured, in the one place the chip is meant to be exact. Five costs a
+/// little grouping and buys back every amount a household actually pours.
 ///
 /// Millilitres even when the field is showing fluid ounces. The bins have to
 /// land on the numbers actually poured — snapping to the nearest half ounce
 /// would read more tidily but store 118.3 where the household means 120, and
 /// that drift lands in every daily total on the insights table.
-const double _binMl = 10;
+const double _binMl = 5;
 
 double _bin(double ml) => (ml / _binMl).round() * _binMl;
 
