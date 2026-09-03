@@ -14,9 +14,8 @@ class AppBarRoom {
   const AppBarRoom._(this.width);
 
   /// The bar's own width, which is the screen's until the content cap bites.
-  factory AppBarRoom.of(BuildContext context) => AppBarRoom._(
-    math.min(MediaQuery.sizeOf(context).width, maxContentWidth),
-  );
+  factory AppBarRoom.of(BuildContext context) =>
+      AppBarRoom._(math.min(MediaQuery.sizeOf(context).width, maxContentWidth));
 
   final double width;
 

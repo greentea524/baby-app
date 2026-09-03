@@ -251,11 +251,7 @@ void main() {
             ),
           ],
           pumps: [
-            PumpingEvent(
-              id: 'p',
-              time: DateTime(2026, 7, 30, 7),
-              amountMl: 90,
-            ),
+            PumpingEvent(id: 'p', time: DateTime(2026, 7, 30, 7), amountMl: 90),
           ],
         ),
       ).trim().split('\n');
@@ -421,9 +417,7 @@ void main() {
     });
 
     test('metric drops the fl oz cell from the pump row too', () {
-      final csv = buildCsv(
-        _data(pumps: [session], units: UnitSystem.metric),
-      );
+      final csv = buildCsv(_data(pumps: [session], units: UnitSystem.metric));
       final widths = csv.trim().split('\n').map((r) => r.split(',').length);
       expect(widths.toSet(), hasLength(1));
       expect(csv, isNot(contains('fl oz')));

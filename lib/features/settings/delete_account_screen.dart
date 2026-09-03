@@ -80,7 +80,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
         _step = null;
         // Ordering makes this safe to repeat: records go before the account,
         // so nothing is stranded and running it again resumes.
-        _error = 'The deletion stopped partway. Nothing is left unreachable '
+        _error =
+            'The deletion stopped partway. Nothing is left unreachable '
             '— run it again to finish. ($e)';
       });
     }
@@ -211,7 +212,8 @@ class _WhatGoes extends StatelessWidget {
         for (final baby in shared)
           _Line(
             icon: Icons.logout,
-            text: 'You leave ${baby.name}. Their records stay with the '
+            text:
+                'You leave ${baby.name}. Their records stay with the '
                 'others on it.',
           ),
         const _Line(
@@ -220,7 +222,8 @@ class _WhatGoes extends StatelessWidget {
         ),
         const _Line(
           icon: Icons.mail_outline,
-          text: 'Your address, from the invitation list. Getting back in '
+          text:
+              'Your address, from the invitation list. Getting back in '
               'would mean someone adding it again by hand.',
         ),
         const _Line(

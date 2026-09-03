@@ -70,9 +70,11 @@ class ReportSummary {
     // drop its volume from the totals while the CSV, which exports every
     // session, still shows it — and two exports of the same window
     // disagreeing is worse than an unusual row.
-    final days =
-        {...feedsByDay.keys, ...diapersByDay.keys, ...pumpsByDay.keys}.toList()
-          ..sort();
+    final days = {
+      ...feedsByDay.keys,
+      ...diapersByDay.keys,
+      ...pumpsByDay.keys,
+    }.toList()..sort();
     final daily = [
       for (final day in days)
         (

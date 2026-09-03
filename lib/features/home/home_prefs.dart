@@ -205,4 +205,3 @@ class DisplayModeNotifier extends Notifier<DisplayMode> {
         .setString(_displayModeKey, mode.name);
   }
 }
-

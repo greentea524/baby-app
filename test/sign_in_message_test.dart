@@ -18,8 +18,11 @@ void main() {
     // invitation" sits directly above the button, which is where the reader
     // looked instead.
     final message = signInMessage(
-      error('unknown', 'An unknown error occurred: Error: Database is '
-          'closing/hidden'),
+      error(
+        'unknown',
+        'An unknown error occurred: Error: Database is '
+            'closing/hidden',
+      ),
     );
     expect(message, contains('blocking the storage'));
     expect(message, contains('Prevent Cross-Site Tracking'));
@@ -65,7 +68,10 @@ void main() {
   });
 
   test('a cancelled sign-in is not an error to explain', () {
-    expect(signInMessage(error('popup-closed-by-user')), 'Sign-in was cancelled.');
+    expect(
+      signInMessage(error('popup-closed-by-user')),
+      'Sign-in was cancelled.',
+    );
     expect(
       signInMessage(error('cancelled-popup-request')),
       'Sign-in was cancelled.',

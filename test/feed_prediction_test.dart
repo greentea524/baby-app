@@ -14,7 +14,11 @@ List<FeedingEvent> _steady(int count, int gapMinutes) {
   return [
     for (var i = 0; i < count; i++)
       () {
-        final e = FeedingEvent(id: 'f$i', type: FeedingType.bottle, startTime: t);
+        final e = FeedingEvent(
+          id: 'f$i',
+          type: FeedingType.bottle,
+          startTime: t,
+        );
         t = t.add(Duration(minutes: gapMinutes));
         return e;
       }(),
@@ -293,10 +297,7 @@ void main() {
       ];
       expect(feedRhythm(feeds).hasRhythm, isTrue);
       // One non-snack is still a usable anchor for a fixed interval.
-      expect(
-        fixedIntervalDue(feeds, 180),
-        base.add(const Duration(hours: 5)),
-      );
+      expect(fixedIntervalDue(feeds, 180), base.add(const Duration(hours: 5)));
     });
 
     test('feeds default to full so existing history is unaffected', () {

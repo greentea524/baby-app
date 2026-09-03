@@ -68,8 +68,14 @@ void main() {
     test('a month shorter than the birth day has not turned over', () {
       // Born the 31st: the 28th of February is not yet a month later.
       final endOfMonth = DateTime(2026, 1, 31);
-      expect(babyAgeLabel(endOfMonth, now: DateTime(2026, 2, 28)), '4 weeks old');
-      expect(babyAgeLabel(endOfMonth, now: DateTime(2026, 3, 31)), '8 weeks old');
+      expect(
+        babyAgeLabel(endOfMonth, now: DateTime(2026, 2, 28)),
+        '4 weeks old',
+      );
+      expect(
+        babyAgeLabel(endOfMonth, now: DateTime(2026, 3, 31)),
+        '8 weeks old',
+      );
     });
 
     test('a leap day birthday still ages', () {
@@ -79,7 +85,10 @@ void main() {
 
     test('a birth date in the future says nothing rather than a negative', () {
       // A typo in the profile should not read as "-3 days old".
-      expect(babyAgeLabel(DateTime(2026, 4, 1), now: DateTime(2026, 3, 15)), '');
+      expect(
+        babyAgeLabel(DateTime(2026, 4, 1), now: DateTime(2026, 3, 15)),
+        '',
+      );
     });
   });
 

@@ -91,7 +91,10 @@ void main() {
     ) async {
       await pumpTile(tester, canRevoke: true);
       expect(find.text('gran@example.com'), findsOneWidget);
-      expect(find.textContaining('waiting for them to sign in'), findsOneWidget);
+      expect(
+        find.textContaining('waiting for them to sign in'),
+        findsOneWidget,
+      );
       // A mail icon would imply something was posted.
       expect(find.byIcon(Icons.mail_outline), findsNothing);
     });

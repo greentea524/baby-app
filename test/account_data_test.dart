@@ -26,10 +26,9 @@ void main() {
     // A caregiver invited to someone else's baby has no business destroying
     // it on the way out — and the rules would refuse: a member may remove
     // exactly themselves.
-    final split = AccountData.split(
-      [baby('theirs', 'someone', others: ['me'])],
-      'me',
-    );
+    final split = AccountData.split([
+      baby('theirs', 'someone', others: ['me']),
+    ], 'me');
     expect(split.owned, isEmpty);
     expect(split.shared.map((b) => b.id), ['theirs']);
   });
@@ -47,7 +46,9 @@ void main() {
 
   test('owning it is about ownership, not membership', () {
     // Being on the roster of your own baby must not put it in both lists.
-    final split = AccountData.split([baby('ada', 'me', others: ['x'])], 'me');
+    final split = AccountData.split([
+      baby('ada', 'me', others: ['x']),
+    ], 'me');
     expect(split.owned.length, 1);
     expect(split.shared, isEmpty);
   });

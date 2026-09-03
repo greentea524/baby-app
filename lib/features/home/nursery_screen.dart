@@ -201,19 +201,21 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                             // the middle of a landscape screen — which is the
                             // shape this mode is most often seen in.
                             child: LayoutBuilder(
-                              builder: (context, space) => SingleChildScrollView(
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    minHeight: space.maxHeight,
+                              builder: (context, space) =>
+                                  SingleChildScrollView(
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        minHeight: space.maxHeight,
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [cards],
+                                      ),
+                                    ),
                                   ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [cards],
-                                  ),
-                                ),
-                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -393,10 +395,7 @@ class _Readout<T> extends StatelessWidget {
                 ),
                 const SizedBox(height: _gapLabel),
                 if (e == null)
-                  Text(
-                    'Nothing logged yet',
-                    style: theme.textTheme.titleLarge,
-                  )
+                  Text('Nothing logged yet', style: theme.textTheme.titleLarge)
                 else ...[
                   // The elapsed time is the headline: from across a room it
                   // is the only number that matters.
@@ -561,11 +560,7 @@ class _BigButton extends StatelessWidget {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 30),
-          const SizedBox(height: 6),
-          text,
-        ],
+        children: [Icon(icon, size: 30), const SizedBox(height: 6), text],
       ),
     );
   }

@@ -28,7 +28,10 @@ void main() {
   );
 
   PumpingEntry pump(int hour) => PumpingEntry(
-    PumpingEvent(id: 'p$hour', time: base.add(Duration(hours: hour))),
+    PumpingEvent(
+      id: 'p$hour',
+      time: base.add(Duration(hours: hour)),
+    ),
   );
 
   final entries = <ActivityEntry>[feed(1), diaper(2), pump(3), feed(4)];
@@ -72,10 +75,7 @@ void main() {
       // The Timeline distinguishes "empty day" from "nothing of this kind";
       // that second message would read "No all on this day." if All could ever
       // filter something out.
-      expect(
-        applyActivityFilter(entries, ActivityFilter.all),
-        same(entries),
-      );
+      expect(applyActivityFilter(entries, ActivityFilter.all), same(entries));
     });
 
     test('an empty match is empty, not everything', () {

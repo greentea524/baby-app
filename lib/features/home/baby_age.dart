@@ -36,10 +36,11 @@ String babyAgeLabel(DateTime birthDate, {DateTime? now}) {
 /// Compared in UTC on purpose. A local-time difference across a daylight
 /// saving change is 23 or 25 hours, and `inDays` truncates, so a baby born the
 /// day before the clocks go forward would read as 0 days old.
-int _daysBetween(DateTime from, DateTime to) =>
-    DateTime.utc(to.year, to.month, to.day)
-        .difference(DateTime.utc(from.year, from.month, from.day))
-        .inDays;
+int _daysBetween(DateTime from, DateTime to) => DateTime.utc(
+  to.year,
+  to.month,
+  to.day,
+).difference(DateTime.utc(from.year, from.month, from.day)).inDays;
 
 /// Whole calendar months, so a baby born on the 15th turns a month older on
 /// the 15th rather than after some average number of days.

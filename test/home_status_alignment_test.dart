@@ -117,7 +117,9 @@ void main() {
     );
   });
 
-  testWidgets('a time that fits still shares its label\'s line', (tester) async {
+  testWidgets('a time that fits still shares its label\'s line', (
+    tester,
+  ) async {
     // The pairing is the reason the row is three lines and not four; pushing
     // every time onto its own line would align them and lose that.
     await pumpHome(tester);
@@ -132,7 +134,10 @@ void main() {
     await pumpHome(tester);
 
     final label = tester.getRect(find.text('Last diaper changed'));
-    expect(tester.getRect(find.text('40 min ago')).top, greaterThanOrEqualTo(label.bottom));
+    expect(
+      tester.getRect(find.text('40 min ago')).top,
+      greaterThanOrEqualTo(label.bottom),
+    );
   });
 
   testWidgets('stays right-aligned at 200% text', (tester) async {
@@ -147,9 +152,7 @@ void main() {
     expect(changed.right, moreOrLessEquals(fed.right, epsilon: 0.5));
   });
 
-  testWidgets('the next-feed chip sits on the same right edge', (
-    tester,
-  ) async {
+  testWidgets('the next-feed chip sits on the same right edge', (tester) async {
     // The elapsed time and the countdown answer the same question from both
     // ends — when they last ate, when they next need to — so reading down
     // the right edge should get you both.
@@ -179,7 +182,10 @@ void main() {
     final chip = tester.getRect(find.byType(NextFeedChip));
     expect(
       chip.right,
-      moreOrLessEquals(tester.getRect(find.text('2 hr ago')).right, epsilon: 0.5),
+      moreOrLessEquals(
+        tester.getRect(find.text('2 hr ago')).right,
+        epsilon: 0.5,
+      ),
     );
     // Clear of the left edge the label sits on, so it is a pill that moved
     // rather than a bar that grew.

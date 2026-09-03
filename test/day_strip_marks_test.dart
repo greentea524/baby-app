@@ -109,8 +109,11 @@ void main() {
 
     // Within a few points of each other, which they cannot be if any of them
     // is in a lane of its own.
-    expect(centres.reduce((a, b) => a > b ? a : b) - centres.reduce((a, b) => a < b ? a : b),
-        lessThan(8));
+    expect(
+      centres.reduce((a, b) => a > b ? a : b) -
+          centres.reduce((a, b) => a < b ? a : b),
+      lessThan(8),
+    );
   });
 
   testWidgets('and in time order across the band', (tester) async {
@@ -140,8 +143,10 @@ void main() {
     final pixels = await pixelsOf(tester, image, colours.feed);
     expect(pixels, isNotEmpty);
     // Fully inside the band: a mark centred on x=0 would lose its left half.
-    expect(pixels.map((p) => p.$1).reduce((a, b) => a < b ? a : b),
-        greaterThan(0));
+    expect(
+      pixels.map((p) => p.$1).reduce((a, b) => a < b ? a : b),
+      greaterThan(0),
+    );
   });
 
   testWidgets('two events ten minutes apart stay two marks', (tester) async {
@@ -160,8 +165,10 @@ void main() {
     // A gap of background between them on the row they share: that sliver of
     // surface is the whole mechanism.
     final row = mean(diaper.map((p) => p.$2)).round();
-    final feedRight =
-        feed.where((p) => p.$2 == row).map((p) => p.$1).reduce((a, b) => a > b ? a : b);
+    final feedRight = feed
+        .where((p) => p.$2 == row)
+        .map((p) => p.$1)
+        .reduce((a, b) => a > b ? a : b);
     final diaperLeft = diaper
         .where((p) => p.$2 == row)
         .map((p) => p.$1)

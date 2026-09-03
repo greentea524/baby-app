@@ -20,7 +20,10 @@ class _FakeBabyData implements BabyData {
   Future<Map<String, int>> countAll(String babyId) async => counts;
 
   @override
-  Future<void> deleteAll(String babyId, {void Function(int)? onProgress}) async {
+  Future<void> deleteAll(
+    String babyId, {
+    void Function(int)? onProgress,
+  }) async {
     if (failWith case final e?) throw e;
     onProgress?.call(counts.values.fold(0, (a, b) => a + b));
     deleted.add(babyId);
@@ -140,10 +143,13 @@ void main() {
   testWidgets('warns that the others lose it too', (tester) async {
     await pumpScreen(
       tester,
-      baby: babyOwnedBy('alice', members: const {
-        'alice': CaregiverRole.owner,
-        'bob': CaregiverRole.editor,
-      }),
+      baby: babyOwnedBy(
+        'alice',
+        members: const {
+          'alice': CaregiverRole.owner,
+          'bob': CaregiverRole.editor,
+        },
+      ),
     );
 
     expect(
@@ -155,13 +161,12 @@ void main() {
   testWidgets('a non-owner is offered leaving, not deleting', (tester) async {
     // Not a UI convention: the rules allow a member to remove exactly
     // themselves, so offering Delete here offers what the database refuses.
-    await pumpScreen(
-      tester,
-      baby: babyOwnedBy('alice'),
-      signedInAs: 'bob',
-    );
+    await pumpScreen(tester, baby: babyOwnedBy('alice'), signedInAs: 'bob');
 
-    expect(find.widgetWithText(FilledButton, 'Delete permanently'), findsNothing);
+    expect(
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+      findsNothing,
+    );
     expect(find.byType(TextField), findsNothing);
     expect(find.textContaining('You can leave instead'), findsOneWidget);
   });

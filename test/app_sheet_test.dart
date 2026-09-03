@@ -106,7 +106,10 @@ void main() {
   ) async {
     await openSheet(tester);
     await raiseKeyboard(tester);
-    expect(viewport(tester).bottom, lessThanOrEqualTo(screen.height - keyboard));
+    expect(
+      viewport(tester).bottom,
+      lessThanOrEqualTo(screen.height - keyboard),
+    );
   });
 
   testWidgets('a field below the fold can be brought into view', (

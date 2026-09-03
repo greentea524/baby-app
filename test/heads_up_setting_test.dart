@@ -30,11 +30,11 @@ void main() {
     });
 
     test('is read back from preferences', () async {
-      final container = await containerWith({
-        'reminder_heads_up_minutes': 30,
-      });
-      expect(container.read(reminderSettingsProvider).headsUp,
-          const Duration(minutes: 30));
+      final container = await containerWith({'reminder_heads_up_minutes': 30});
+      expect(
+        container.read(reminderSettingsProvider).headsUp,
+        const Duration(minutes: 30),
+      );
     });
 
     test('survives a round trip through the notifier', () async {
@@ -49,9 +49,7 @@ void main() {
     });
 
     test('does not disturb the mode or the interval', () async {
-      final container = await containerWith({
-        'reminder_interval_minutes': 240,
-      });
+      final container = await containerWith({'reminder_interval_minutes': 240});
       await container
           .read(reminderSettingsProvider.notifier)
           .setHeadsUpMinutes(10);

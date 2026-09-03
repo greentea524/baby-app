@@ -97,7 +97,10 @@ void main() {
     // and passed nothing.
     Future<DayColours> underTheme(ThemeData theme) async {
       await tester.pumpWidget(
-        MaterialApp(theme: theme, home: const SizedBox(key: Key('probe'))),
+        MaterialApp(
+          theme: theme,
+          home: const SizedBox(key: Key('probe')),
+        ),
       );
       // Settle first: MaterialApp lerps between themes, so reading straight
       // after the pump catches the *old* brightness halfway through the

@@ -72,10 +72,7 @@ void main() {
     await pumpAt(tester, const Size(1194, 834));
 
     expect(
-      find.ancestor(
-        of: find.byType(Center),
-        matching: find.byType(ColoredBox),
-      ),
+      find.ancestor(of: find.byType(Center), matching: find.byType(ColoredBox)),
       findsWidgets,
     );
   });
