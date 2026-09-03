@@ -464,16 +464,15 @@ void main() {
     });
 
     testWidgets('sits in the middle of the screen', (tester) async {
-      // Centred on the screen rather than merely placed between its
-      // neighbours, which is what equal-flex sides buy.
+      // In a band of its own under the header, so nothing on either side
+      // can push it off centre.
       await pumpNursery(tester, size: const Size(834, 1194));
 
       final time = tester.getRect(find.text('2:00 PM'));
       expect(time.center.dx, moreOrLessEquals(834 / 2, epsilon: 1));
     });
 
-    testWidgets('and stays centred when the name is long', (tester) async {
-      // The name gives way first, which is the right one to lose.
+    testWidgets('and stays centred on a narrow screen too', (tester) async {
       await pumpNursery(tester, size: const Size(390, 844));
 
       final time = tester.getRect(find.text('2:00 PM'));
@@ -483,11 +482,43 @@ void main() {
     testWidgets('keeps the header to one line at a large text size', (
       tester,
     ) async {
-      // The header carries a name, an age, a time and the way out, on a
-      // screen that has already scaled its text up by a third.
+      // The header carries a name, an age and the way out, on a screen that
+      // has already scaled its text up by a third.
       await pumpNursery(tester, textScale: 2.0, size: const Size(390, 844));
       expect(tester.takeException(), isNull);
       expect(find.byTooltip('Leave nursery mode'), findsOneWidget);
+    });
+
+    testWidgets('is drawn to be read from a doorway', (tester) async {
+      // The point of the mode: a tablet on a shelf should answer "what time
+      // is it" from across the room, not from arm's length. Compared against
+      // the day under it, which is set at ordinary label size.
+      await pumpNursery(tester, size: const Size(1194, 834));
+
+      final time = tester.getRect(find.text('2:00 PM'));
+      final day = tester.getRect(find.text('Mon, Aug 24'));
+      expect(time.height, greaterThan(100));
+      expect(time.height, greaterThan(day.height * 4));
+    });
+
+    testWidgets('and takes what the screen can spare, no more', (tester) async {
+      // Sized off both dimensions, so a phone gets a clock rather than a
+      // wall of digits with the cards pushed off the bottom.
+      await pumpNursery(tester, size: const Size(390, 844));
+
+      final phone = tester.getRect(find.text('2:00 PM')).height;
+      expect(phone, greaterThan(40), reason: 'still a clock');
+      expect(phone, lessThan(100), reason: 'and still leaves room');
+      // The cards it sits above are still on screen.
+      expect(find.text('Last fed'), findsOneWidget);
+      expect(find.text('Last changed'), findsOneWidget);
+
+      await pumpNursery(tester, size: const Size(1194, 834));
+      expect(
+        tester.getRect(find.text('2:00 PM')).height,
+        greaterThan(phone),
+        reason: 'a tablet has room for more of it',
+      );
     });
 
     testWidgets('runs a ticker, and stops it on the way out', (tester) async {

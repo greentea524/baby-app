@@ -103,7 +103,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(baby: baby, clock: clock),
+                _Header(baby: baby),
                 const SizedBox(height: 12),
                 Expanded(
                   child: LayoutBuilder(
@@ -178,6 +178,22 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          // A tablet on a nursery shelf is the nearest clock
+                          // at 3am, and the screen ticks anyway to keep the
+                          // elapsed times honest — so it may as well be
+                          // readable from the doorway rather than from arm's
+                          // length.
+                          //
+                          // Sized off both dimensions so it is large where
+                          // there is room and modest where there is not: on a
+                          // tablet the height decides, on a phone the width
+                          // does, and neither lets the clock crowd out the
+                          // cards it sits above.
+                          DayTimeLabel(
+                            clock: clock,
+                            timeHeight: _clockHeight(constraints),
+                          ),
+                          const SizedBox(height: 8),
                           Expanded(
                             // Centred in whatever is left, and scrollable if
                             // that is not enough. With the buttons pinned to
@@ -235,10 +251,9 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.baby, required this.clock});
+  const _Header({required this.baby});
 
   final Baby? baby;
-  final DateTime clock;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -266,32 +281,31 @@ class _Header extends ConsumerWidget {
             ],
           ),
         ),
-        // A tablet on a nursery shelf is the nearest clock at 3am, and the
-        // screen has to tick anyway to keep the elapsed times honest — so
-        // this costs two lines and answers the other question being asked.
-        //
-        // Centred on the screen, not merely placed between its neighbours:
-        // the two sides are equal-flex Expandeds, so whatever space is left
-        // after this block is split evenly and it lands in the middle. The
-        // name gives way first, which is the right one to lose.
-        DayTimeLabel(clock: clock),
         // The only way out. The navigation bar is hidden in this mode, so
         // without this the device is stuck here and Settings is unreachable.
-        Expanded(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: IconButton(
-              icon: const Icon(Icons.close_fullscreen),
-              tooltip: 'Leave nursery mode',
-              onPressed: () => ref
-                  .read(displayModeProvider.notifier)
-                  .setMode(DisplayMode.normal),
-            ),
-          ),
+        IconButton(
+          icon: const Icon(Icons.close_fullscreen),
+          tooltip: 'Leave nursery mode',
+          onPressed: () => ref
+              .read(displayModeProvider.notifier)
+              .setMode(DisplayMode.normal),
         ),
       ],
     );
   }
+}
+
+/// How tall the clock is drawn, given the room under the header.
+///
+/// A share of the height, but never more than a share of the width, so the
+/// same rule suits a propped-up tablet and a phone held in one hand. Clamped
+/// at both ends: below 72 it stops being a clock you can read across a room,
+/// and above 240 it starts taking the cards' space on a landscape screen.
+double _clockHeight(BoxConstraints space) {
+  final fromHeight = space.maxHeight * 0.30;
+  final fromWidth = space.maxWidth * 0.22;
+  final smaller = fromHeight < fromWidth ? fromHeight : fromWidth;
+  return smaller.clamp(72.0, 240.0);
 }
 
 /// The card's vertical rhythm: related lines close together, the footer
