@@ -56,12 +56,15 @@ void main() {
       expect(BabyData.describe({'feedings': 3, 'invites': 2}), '3 feeds');
     });
 
-    test('says so when there is nothing logged, rather than nothing at all', () {
-      // The sentence it lands in is "Permanently delete …, along with Ada's
-      // profile", so this half still has to read.
-      expect(BabyData.describe(const {}), 'no logged entries');
-      expect(BabyData.describe({'invites': 1}), 'no logged entries');
-    });
+    test(
+      'says so when there is nothing logged, rather than nothing at all',
+      () {
+        // The sentence it lands in is "Permanently delete …, along with Ada's
+        // profile", so this half still has to read.
+        expect(BabyData.describe(const {}), 'no logged entries');
+        expect(BabyData.describe({'invites': 1}), 'no logged entries');
+      },
+    );
   });
 
   group('what gets swept', () {

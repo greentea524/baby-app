@@ -84,22 +84,25 @@ void main() {
       expect((reparsed - stored).abs(), greaterThan(0.5));
     });
 
-    test('it lands on the rounding grid and stays, rather than compounding', () {
-      // Worth pinning, because the obvious fear is a value walking further on
-      // every edit. It does not: one conversion snaps it to a point that
-      // survives the next round trip. That makes this a wrong number rather
-      // than a runaway one — still wrong, still worth not writing.
-      var stored = 150.0;
-      final steps = <double>[];
-      for (var edit = 0; edit < 5; edit++) {
-        stored = VolumeUnit.flOz.toMl(
-          double.parse(VolumeUnit.flOz.fieldText(stored)),
-        );
-        steps.add(stored);
-      }
-      expect(steps.toSet(), hasLength(1), reason: 'settles after the first');
-      expect(steps.first, isNot(closeTo(150, 0.05)));
-    });
+    test(
+      'it lands on the rounding grid and stays, rather than compounding',
+      () {
+        // Worth pinning, because the obvious fear is a value walking further on
+        // every edit. It does not: one conversion snaps it to a point that
+        // survives the next round trip. That makes this a wrong number rather
+        // than a runaway one — still wrong, still worth not writing.
+        var stored = 150.0;
+        final steps = <double>[];
+        for (var edit = 0; edit < 5; edit++) {
+          stored = VolumeUnit.flOz.toMl(
+            double.parse(VolumeUnit.flOz.fieldText(stored)),
+          );
+          steps.add(stored);
+        }
+        expect(steps.toSet(), hasLength(1), reason: 'settles after the first');
+        expect(steps.first, isNot(closeTo(150, 0.05)));
+      },
+    );
   });
 
   group('resolveAmountMl', () {

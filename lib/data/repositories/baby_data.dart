@@ -91,7 +91,10 @@ class BabyData {
   /// order: the baby document is the last thing to go, so until it does the
   /// rules still admit the caller and running it again picks up where it
   /// stopped. There is no state in between that anyone is locked out of.
-  Future<void> deleteAll(String babyId, {void Function(int)? onProgress}) async {
+  Future<void> deleteAll(
+    String babyId, {
+    void Function(int)? onProgress,
+  }) async {
     var done = 0;
     for (final name in collections) {
       done = await _drain(_baby(babyId).collection(name), done, onProgress);

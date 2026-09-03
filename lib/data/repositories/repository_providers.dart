@@ -275,7 +275,8 @@ final babyDataProvider = Provider<BabyData>(
 
 /// Deleting the account itself, and everything under it (#28, scope B).
 final accountDataProvider = Provider<AccountData>(
-  (ref) => AccountData(ref.watch(firestoreProvider), ref.watch(babyDataProvider)),
+  (ref) =>
+      AccountData(ref.watch(firestoreProvider), ref.watch(babyDataProvider)),
 );
 
 /// Whether [notificationPrefsProvider] is carrying the account's stored values

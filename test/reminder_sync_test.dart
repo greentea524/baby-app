@@ -64,10 +64,7 @@ void main() {
 
   group('which copy wins', () {
     test('a device that has never chosen takes the account\'s interval', () {
-      expect(
-        adoptedSetting(chosen: null, lastSynced: null, server: 240),
-        240,
-      );
+      expect(adoptedSetting(chosen: null, lastSynced: null, server: 240), 240);
     });
 
     test('a change made on another device is adopted', () {
@@ -83,7 +80,10 @@ void main() {
       // indistinguishable from the account holding the newer value, and the
       // caregiver's offline edit gets thrown away.
       expect(adoptedSetting(chosen: 300, lastSynced: 240, server: 240), isNull);
-      expect(adoptedSetting(chosen: 240, lastSynced: null, server: 180), isNull);
+      expect(
+        adoptedSetting(chosen: 240, lastSynced: null, server: 180),
+        isNull,
+      );
     });
 
     test('works for the on/off flag too, false being a real answer', () {

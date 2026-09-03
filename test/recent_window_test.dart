@@ -38,7 +38,10 @@ void main() {
     });
 
     test('crosses a month boundary without arithmetic of its own', () {
-      expect(recentActivityCutoff(DateTime(2026, 9, 1, 8)), DateTime(2026, 8, 30));
+      expect(
+        recentActivityCutoff(DateTime(2026, 9, 1, 8)),
+        DateTime(2026, 8, 30),
+      );
     });
   });
 

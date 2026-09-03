@@ -502,7 +502,11 @@ void main() {
 
         final bar = tester.getRect(find.byType(AppBar));
         final clock = tester.getRect(find.byType(DayTimeLabel));
-        expect(clock.height, lessThanOrEqualTo(bar.height), reason: 'at $scale');
+        expect(
+          clock.height,
+          lessThanOrEqualTo(bar.height),
+          reason: 'at $scale',
+        );
       }
     });
 

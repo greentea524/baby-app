@@ -70,7 +70,8 @@ class BabyApp extends ConsumerWidget {
       themeMode: themeMode,
       routerConfig: router,
       // Every route, and every sheet and dialog opened inside one.
-      builder: (context, child) => ContentWidth(child: child ?? const SizedBox()),
+      builder: (context, child) =>
+          ContentWidth(child: child ?? const SizedBox()),
     );
   }
 }

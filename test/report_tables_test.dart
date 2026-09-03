@@ -39,11 +39,7 @@ void main() {
       // The distinction the row exists to make: a feeds-per-day figure read
       // by a paediatrician should not have top-ups folded into it.
       final stats = statsFor(
-        feedings: [
-          bottle(20),
-          bottle(20, ml: 30, snack: true),
-          bottle(21),
-        ],
+        feedings: [bottle(20), bottle(20, ml: 30, snack: true), bottle(21)],
       );
 
       expect(stats.totalFeeds, 2);

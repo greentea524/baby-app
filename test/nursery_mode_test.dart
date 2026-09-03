@@ -126,8 +126,10 @@ void main() {
 
       expect(find.text('2 hr ago'), findsOneWidget);
       // One supporting line: when, then what.
-      expect(find.textContaining('12:00 PM · 150 ml (5.1 fl oz)'),
-          findsOneWidget);
+      expect(
+        find.textContaining('12:00 PM · 150 ml (5.1 fl oz)'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('metric when that is what they use', (tester) async {
@@ -231,9 +233,7 @@ void main() {
     expect(find.text('Bottle'), findsOneWidget);
   });
 
-  testWidgets('puts the next feed inside the card it is about', (
-    tester,
-  ) async {
+  testWidgets('puts the next feed inside the card it is about', (tester) async {
     // Loose underneath, the chip floated between two cards with nothing
     // saying which one it belonged to.
     await pumpNursery(tester, prefs: {'reminder_mode': 'fixedInterval'});
@@ -304,11 +304,7 @@ void main() {
     testWidgets('survives a phone-sized screen at the largest size', (
       tester,
     ) async {
-      await pumpNursery(
-        tester,
-        textScale: 2.0,
-        size: const Size(390, 844),
-      );
+      await pumpNursery(tester, textScale: 2.0, size: const Size(390, 844));
       expect(tester.takeException(), isNull);
     });
   });
@@ -414,7 +410,9 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(stored),
             authStateProvider.overrideWith((ref) => Stream.value(null)),
             babiesStreamProvider.overrideWith((ref) => Stream.value([baby])),
-            recentFeedingsProvider.overrideWith((ref) => Stream.value(const [])),
+            recentFeedingsProvider.overrideWith(
+              (ref) => Stream.value(const []),
+            ),
             recentDiapersProvider.overrideWith((ref) => Stream.value(const [])),
             recentPumpingProvider.overrideWith((ref) => Stream.value(const [])),
           ],
@@ -544,7 +542,9 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(stored),
             authStateProvider.overrideWith((ref) => Stream.value(null)),
             babiesStreamProvider.overrideWith((ref) => Stream.value([baby])),
-            recentFeedingsProvider.overrideWith((ref) => Stream.value(const [])),
+            recentFeedingsProvider.overrideWith(
+              (ref) => Stream.value(const []),
+            ),
             recentDiapersProvider.overrideWith((ref) => Stream.value(const [])),
             recentPumpingProvider.overrideWith((ref) => Stream.value(const [])),
           ],

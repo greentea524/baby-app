@@ -66,7 +66,10 @@ void main() {
     testWidgets('never measures wider than the content cap', (tester) async {
       // Above 640 the cap decides the bar, not the screen — which is why a
       // desktop window behaves the same at 1440 as at 640.
-      expect((await roomAt(tester, 1440)).width, (await roomAt(tester, 640)).width);
+      expect(
+        (await roomAt(tester, 1440)).width,
+        (await roomAt(tester, 640)).width,
+      );
     });
 
     testWidgets('leaves the name its floor at every width', (tester) async {

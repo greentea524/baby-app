@@ -48,9 +48,7 @@ void main() {
   PoopSize? selectedSize(WidgetTester tester) {
     final picker = find.byType(SegmentedButton<PoopSize>);
     if (picker.evaluate().isEmpty) return null;
-    final selected = tester
-        .widget<SegmentedButton<PoopSize>>(picker)
-        .selected;
+    final selected = tester.widget<SegmentedButton<PoopSize>>(picker).selected;
     return selected.isEmpty ? null : selected.first;
   }
 

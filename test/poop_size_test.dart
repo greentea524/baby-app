@@ -23,15 +23,21 @@ void main() {
     test('so a record already stored that way reads clean', () {
       // Not hypothetical: a size picked, then the type switched to wet, then
       // saved by a build without the clearing logic would land exactly here.
-      expect(change(DiaperType.wet, size: PoopSize.small).toMap()['poopSize'],
-          isNull);
+      expect(
+        change(DiaperType.wet, size: PoopSize.small).toMap()['poopSize'],
+        isNull,
+      );
     });
 
     test('but a dirty one keeps it', () {
-      expect(change(DiaperType.dirty, size: PoopSize.medium).poopSize,
-          PoopSize.medium);
-      expect(change(DiaperType.both, size: PoopSize.large).poopSize,
-          PoopSize.large);
+      expect(
+        change(DiaperType.dirty, size: PoopSize.medium).poopSize,
+        PoopSize.medium,
+      );
+      expect(
+        change(DiaperType.both, size: PoopSize.large).poopSize,
+        PoopSize.large,
+      );
     });
 
     test('wet + dirty counts as having stool', () {
@@ -107,10 +113,7 @@ void main() {
     });
 
     test('run smallest to largest, which is the order they are offered in', () {
-      expect(
-        PoopSize.values.map((s) => s.label),
-        ['Small', 'Medium', 'Large'],
-      );
+      expect(PoopSize.values.map((s) => s.label), ['Small', 'Medium', 'Large']);
     });
   });
 

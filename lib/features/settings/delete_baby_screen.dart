@@ -43,9 +43,7 @@ class _DeleteBabyScreenState extends ConsumerState<DeleteBabyScreen> {
 
   Future<void> _load() async {
     try {
-      final counts = await ref
-          .read(babyDataProvider)
-          .countAll(widget.baby.id);
+      final counts = await ref.read(babyDataProvider).countAll(widget.baby.id);
       if (mounted) setState(() => _counts = counts);
     } catch (e) {
       if (mounted) setState(() => _error = 'Could not read what is stored: $e');
@@ -73,8 +71,12 @@ class _DeleteBabyScreenState extends ConsumerState<DeleteBabyScreen> {
             },
           );
       messenger.showSnackBar(
-        SnackBar(content: Text('${widget.baby.name} and all of the '
-            'logged entries were deleted.')),
+        SnackBar(
+          content: Text(
+            '${widget.baby.name} and all of the '
+            'logged entries were deleted.',
+          ),
+        ),
       );
       navigator.pop();
     } catch (e) {
@@ -83,7 +85,8 @@ class _DeleteBabyScreenState extends ConsumerState<DeleteBabyScreen> {
         _deleting = false;
         // Says what is still true, because the order guarantees it: nothing
         // is stranded and running it again resumes.
-        _error = 'The delete stopped partway. Nothing is lost or unreachable '
+        _error =
+            'The delete stopped partway. Nothing is lost or unreachable '
             '— run it again to finish. ($e)';
       });
     }

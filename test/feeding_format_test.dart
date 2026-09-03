@@ -115,7 +115,9 @@ void main() {
     test('a full feed reads as its type', () {
       expect(FeedingFormat.eventLabel(feed(isSnack: false)), 'Bottle');
       expect(
-        FeedingFormat.eventLabel(feed(isSnack: false, type: FeedingType.breast)),
+        FeedingFormat.eventLabel(
+          feed(isSnack: false, type: FeedingType.breast),
+        ),
         'Breastfeeding',
       );
     });

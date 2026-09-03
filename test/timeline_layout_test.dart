@@ -45,8 +45,13 @@ void main() {
         amountMl: h.isEven ? 150 : null,
         durationMinutes: h.isEven ? null : 20,
       ),
-    FeedingEvent(id: 'snack', type: FeedingType.bottle,
-        startTime: at(11), amountMl: 40, isSnack: true),
+    FeedingEvent(
+      id: 'snack',
+      type: FeedingType.bottle,
+      startTime: at(11),
+      amountMl: 40,
+      isSnack: true,
+    ),
   ];
   final diapers = [
     for (var h = 2; h < 22; h += 3)
@@ -232,11 +237,7 @@ void main() {
   });
 
   testWidgets('survives a small screen at 200% text', (tester) async {
-    await pumpTimeline(
-      tester,
-      textScale: 2.0,
-      size: const Size(320, 640),
-    );
+    await pumpTimeline(tester, textScale: 2.0, size: const Size(320, 640));
     expect(tester.takeException(), isNull);
   });
 }

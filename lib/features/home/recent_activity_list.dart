@@ -80,9 +80,7 @@ class RecentActivityList extends ConsumerWidget {
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Center(
-            child: Text(
-              'Nothing logged in the last $recentActivityDays days.',
-            ),
+            child: Text('Nothing logged in the last $recentActivityDays days.'),
           ),
         ),
       );

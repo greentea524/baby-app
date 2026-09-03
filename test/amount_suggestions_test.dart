@@ -59,11 +59,7 @@ void main() {
     test('keeps the fives a household actually pours', () {
       // The reason the bins are five wide. At ten, every one of these moves
       // to a number nobody measured.
-      final feeds = [
-        bottle(105),
-        bottle(75, atHour: 1),
-        bottle(45, atHour: 2),
-      ];
+      final feeds = [bottle(105), bottle(75, atHour: 1), bottle(45, atHour: 2)];
       expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [
         45,
         75,
