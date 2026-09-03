@@ -17,30 +17,45 @@ class DayTimeLabel extends StatelessWidget {
     required this.clock,
     this.timeStyle,
     this.dayStyle,
+    this.timeHeight,
   });
 
   final DateTime clock;
 
-  /// Defaults suit the nursery header; Home passes something quieter.
+  /// Defaults suit a header; Home passes something quieter.
   final TextStyle? timeStyle;
   final TextStyle? dayStyle;
+
+  /// Draws the time this tall, scaled to fit, instead of at its text size.
+  ///
+  /// For nursery mode, where the point is to be legible from a doorway.
+  /// Fixing the *height* rather than the width is what keeps it steady: a
+  /// clock sized to fill its width would visibly change size at 9:59, when
+  /// "9:59 AM" becomes "10:00 AM" and the string gains a digit.
+  final double? timeHeight;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final time = Text(
+      TimeOfDay.fromDateTime(clock).format(context),
+      style:
+          timeStyle ??
+          theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
+      maxLines: 1,
+    );
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          TimeOfDay.fromDateTime(clock).format(context),
-          style:
-              timeStyle ??
-              theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-          maxLines: 1,
-        ),
+        if (timeHeight case final h?)
+          SizedBox(
+            height: h,
+            child: FittedBox(child: time),
+          )
+        else
+          time,
         Text(
           TimelineFormat.weekdayDate(clock),
           style:
