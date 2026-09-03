@@ -1,9 +1,16 @@
 name: CI
 
-# Checks for pull requests. Pushes to main are gated by the deploy workflow,
-# which re-runs analyze + test before publishing.
+# Checks for pull requests, and for what actually lands on main.
+#
+# Pull requests alone were not enough: this repository merges straight to
+# main, so the checks below — the formatting one in particular — had never
+# run at all, and 38 files had drifted out of shape before anyone looked.
+# Deploy re-runs analyze and test before publishing, but not the formatter,
+# so main is where that gate has to be.
 on:
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
 
 jobs:
