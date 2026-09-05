@@ -169,52 +169,65 @@ class HomeStatusCard extends ConsumerWidget {
 /// piece of information on the row you can still act on. A filled chip at
 /// [TextTheme.titleSmall] reads as its own thing, and warms through amber to
 /// the error palette as the feed comes due.
+/// Amber is spelled out rather than taken from the scheme because no Material
+/// role means "warning": the seed decides what `tertiary` looks like, and
+/// across this app's four accents it lands anywhere from pink to green. A
+/// caution colour has to mean caution whichever accent is chosen, the same
+/// way `error` does.
+const _soonLight = (
+  background: Color(0xFFFFE7A8),
+  foreground: Color(0xFF5A4200),
+);
+
+// Brighter than a Material dark container usually runs. `errorContainer` is
+// vivid in this scheme, and a dim amber next to it broke the escalation:
+// upcoming and soon both read as "not the red one".
+const _soonDark = (
+  background: Color(0xFF6B5200),
+  foreground: Color(0xFFFFE7A8),
+);
+
+/// How a feed-due state is coloured, for anything that wants to show it.
+///
+/// Shared rather than private to [NextFeedChip] because nursery mode tints
+/// the whole "Last fed" card with the same escalation, and two copies of the
+/// amber would drift apart the first time one of them was adjusted.
+({Color background, Color foreground, IconData icon}) feedDueColors(
+  BuildContext context,
+  FeedDueState state,
+) {
+  final theme = Theme.of(context);
+  final scheme = theme.colorScheme;
+  final soon = theme.brightness == Brightness.dark ? _soonDark : _soonLight;
+
+  return switch (state) {
+    FeedDueState.overdue => (
+      background: scheme.errorContainer,
+      foreground: scheme.onErrorContainer,
+      icon: Icons.notifications_active,
+    ),
+    FeedDueState.soon => (
+      background: soon.background,
+      foreground: soon.foreground,
+      icon: Icons.notifications_none,
+    ),
+    FeedDueState.upcoming => (
+      background: scheme.secondaryContainer,
+      foreground: scheme.onSecondaryContainer,
+      icon: Icons.schedule,
+    ),
+  };
+}
+
 class NextFeedChip extends StatelessWidget {
   const NextFeedChip({super.key, required this.text, required this.state});
 
   final String text;
   final FeedDueState state;
 
-  /// Amber is spelled out rather than taken from the scheme because no Material
-  /// role means "warning": the seed decides what `tertiary` looks like, and
-  /// across this app's four accents it lands anywhere from pink to green. A
-  /// caution colour has to mean caution whichever accent is chosen, the same
-  /// way `error` does.
-  static const _soonLight = (
-    background: Color(0xFFFFE7A8),
-    foreground: Color(0xFF5A4200),
-  );
-  // Brighter than a Material dark container usually runs. `errorContainer` is
-  // vivid in this scheme, and a dim amber next to it broke the escalation:
-  // upcoming and soon both read as "not the red one".
-  static const _soonDark = (
-    background: Color(0xFF6B5200),
-    foreground: Color(0xFFFFE7A8),
-  );
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final soon = theme.brightness == Brightness.dark ? _soonDark : _soonLight;
-
-    final (background, foreground, icon) = switch (state) {
-      FeedDueState.overdue => (
-        scheme.errorContainer,
-        scheme.onErrorContainer,
-        Icons.notifications_active,
-      ),
-      FeedDueState.soon => (
-        soon.background,
-        soon.foreground,
-        Icons.notifications_none,
-      ),
-      FeedDueState.upcoming => (
-        scheme.secondaryContainer,
-        scheme.onSecondaryContainer,
-        Icons.schedule,
-      ),
-    };
+    final (:background, :foreground, :icon) = feedDueColors(context, state);
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
