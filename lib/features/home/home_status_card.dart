@@ -42,6 +42,8 @@ class HomeStatusCard extends ConsumerWidget {
           children: [
             for (final row in rows)
               Card(
+                // The feeding row paints edge to edge when it is tinted.
+                clipBehavior: Clip.antiAlias,
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
@@ -54,6 +56,8 @@ class HomeStatusCard extends ConsumerWidget {
     }
 
     return Card(
+      // The feeding row paints edge to edge when it is tinted.
+      clipBehavior: Clip.antiAlias,
       margin: const EdgeInsets.all(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -94,6 +98,20 @@ class HomeStatusCard extends ConsumerWidget {
     }
 
     return _StatusRow(
+      // The same escalation the chip carries, behind the whole row. On a
+      // card of three rows the colour says which one is asking for
+      // something before any of them have been read.
+      tint: due == null
+          ? null
+          : feedDueTint(
+              context,
+              feedDueState(
+                due,
+                now: now,
+                within: ref.watch(reminderSettingsProvider).headsUp,
+              ),
+              Theme.of(context).colorScheme.surfaceContainerLow,
+            ),
       icon: last == null ? Icons.child_care : FeedingFormat.typeIcon(last.type),
       label: 'Last fed',
       value: last == null
@@ -219,6 +237,19 @@ const _soonDark = (
   };
 }
 
+/// [feedDueColors]'s background, softened onto [on].
+///
+/// Half strength rather than neat, for two reasons. The next-feed chip sits
+/// on top of it and would vanish into a surface of its own exact colour; and
+/// the surrounding text is `onSurface`, which is only guaranteed to read
+/// against something surface-shaped. Half keeps the hue obvious and the
+/// contrast intact, in both themes.
+Color feedDueTint(BuildContext context, FeedDueState state, Color on) =>
+    Color.alphaBlend(
+      feedDueColors(context, state).background.withValues(alpha: 0.5),
+      on,
+    );
+
 class NextFeedChip extends StatelessWidget {
   const NextFeedChip({super.key, required this.text, required this.state});
 
@@ -267,6 +298,7 @@ class _StatusRow extends StatelessWidget {
     required this.value,
     this.detail,
     this.footer,
+    this.tint,
   });
 
   final IconData icon;
@@ -282,6 +314,14 @@ class _StatusRow extends StatelessWidget {
   /// to — and reading down the right edge is how you get both.
   final Widget? footer;
 
+  /// Colours the row with a state it carries — for feeding, how close the
+  /// next feed is. See [feedDueTint].
+  ///
+  /// Painted edge to edge rather than inset, so the row's own padding still
+  /// lines its icon and text up with the untinted rows above and below. The
+  /// cards clip, which is what keeps the band inside their rounded corners.
+  final Color? tint;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -289,38 +329,41 @@ class _StatusRow extends StatelessWidget {
     // needing a bang operator on every use.
     final detailText = detail;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: theme.colorScheme.primaryContainer,
-            child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _LabelAndValue(label: label, value: value),
-                if (detailText != null)
-                  Text(
-                    detailText,
-                    // bodyMedium rather than bodySmall: this is the only
-                    // place the actual feed amount is shown on Home.
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                if (footer case final it?)
-                  Align(alignment: Alignment.centerRight, child: it),
-              ],
+    return ColoredBox(
+      color: tint ?? Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: theme.colorScheme.primaryContainer,
+              child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
             ),
-          ),
-        ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _LabelAndValue(label: label, value: value),
+                  if (detailText != null)
+                    Text(
+                      detailText,
+                      // bodyMedium rather than bodySmall: this is the only
+                      // place the actual feed amount is shown on Home.
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  if (footer case final it?)
+                    Align(alignment: Alignment.centerRight, child: it),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
