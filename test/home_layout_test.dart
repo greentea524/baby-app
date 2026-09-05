@@ -220,6 +220,74 @@ void main() {
     });
   });
 
+  group('the feeding row carries how close the next feed is', () {
+    /// Every background painted above [label]. Comparing the whole set
+    /// sidesteps having to identify which box is ours among the ones
+    /// Material paints.
+    List<Color> backdrops(WidgetTester tester, String label) => tester
+        .widgetList<ColoredBox>(
+          find.ancestor(
+            of: find.text(label),
+            matching: find.byType(ColoredBox),
+          ),
+        )
+        .map((b) => b.color)
+        .toList();
+
+    FeedingEvent feedAt(int minutesAgo) => FeedingEvent(
+      id: 'f1',
+      type: FeedingType.bottle,
+      startTime: DateTime.now().subtract(Duration(minutes: minutesAgo)),
+      amountMl: 150,
+    );
+
+    testWidgets('so the row says it before it is read', (tester) async {
+      // On a card of three rows the colour is what picks out the one asking
+      // for something.
+      await pumpHome(tester, feedings: [feedAt(15)]);
+      final justFed = backdrops(tester, 'Last fed');
+
+      // pumpHome reuses the ProviderScope, which updates in place rather
+      // than re-resolving the overridden streams — without this the second
+      // pump quietly measures the first feed again.
+      await tester.pumpWidget(const SizedBox());
+      await pumpHome(tester, feedings: [feedAt(400)]);
+      expect(backdrops(tester, 'Last fed'), isNot(justFed));
+    });
+
+    testWidgets('and the diaper row stays out of it', (tester) async {
+      await pumpHome(tester, feedings: [feedAt(15)]);
+      final calm = backdrops(tester, 'Last diaper changed');
+
+      // pumpHome reuses the ProviderScope, which updates in place rather
+      // than re-resolving the overridden streams — without this the second
+      // pump quietly measures the first feed again.
+      await tester.pumpWidget(const SizedBox());
+      await pumpHome(tester, feedings: [feedAt(400)]);
+      expect(backdrops(tester, 'Last diaper changed'), calm);
+    });
+
+    testWidgets('in the separate layout too', (tester) async {
+      await pumpHome(
+        tester,
+        prefs: {'home_layout': 'separate'},
+        feedings: [feedAt(15)],
+      );
+      final justFed = backdrops(tester, 'Last fed');
+
+      // pumpHome reuses the ProviderScope, which updates in place rather
+      // than re-resolving the overridden streams — without this the second
+      // pump quietly measures the first feed again.
+      await tester.pumpWidget(const SizedBox());
+      await pumpHome(
+        tester,
+        prefs: {'home_layout': 'separate'},
+        feedings: [feedAt(400)],
+      );
+      expect(backdrops(tester, 'Last fed'), isNot(justFed));
+    });
+  });
+
   group('the pumping action', () {
     testWidgets('is a button, the size of the two above it', (tester) async {
       // It used to be a bare text link under two proper buttons — smaller to
