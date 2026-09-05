@@ -109,6 +109,16 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final lastFed = ref.watch(lastMilkFeedProvider);
+                      final due = ref.watch(nextFeedDueProvider);
+                      final dueState = due == null
+                          ? null
+                          : feedDueState(
+                              due,
+                              now: clock,
+                              within: ref
+                                  .watch(reminderSettingsProvider)
+                                  .headsUp,
+                            );
                       final fed = _Readout(
                         icon: Icons.local_drink_outlined,
                         label: 'Last fed',
@@ -129,7 +139,13 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         // saying which one it was about — and it is about
                         // this one: when they last ate, when they next need
                         // to, one thing to read.
-                        footer: _nextFeed(context, ref, clock),
+                        footer: _nextFeed(context, clock, due, dueState),
+                        // The same escalation the chip carries, on the whole
+                        // card. From a doorway the colour arrives before any
+                        // of the words do, which is the point of this screen.
+                        tint: dueState == null
+                            ? null
+                            : feedDueColors(context, dueState).background,
                       );
                       final lastChanged = ref.watch(lastDiaperProvider);
                       final changed = _Readout(
@@ -234,15 +250,14 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
   }
 
   /// The one thing on this screen you can act on, so it stays.
-  Widget? _nextFeed(BuildContext context, WidgetRef ref, DateTime clock) {
-    final due = ref.watch(nextFeedDueProvider);
-    if (due == null) return null;
+  Widget? _nextFeed(
+    BuildContext context,
+    DateTime clock,
+    DateTime? due,
+    FeedDueState? state,
+  ) {
+    if (due == null || state == null) return null;
     final at = TimeOfDay.fromDateTime(due).format(context);
-    final state = feedDueState(
-      due,
-      now: clock,
-      within: ref.watch(reminderSettingsProvider).headsUp,
-    );
     return NextFeedChip(
       state: state,
       text: state == FeedDueState.overdue
@@ -336,6 +351,7 @@ class _Readout<T> extends StatelessWidget {
     required this.now,
     this.detail,
     this.footer,
+    this.tint,
   });
 
   final IconData icon;
@@ -356,6 +372,16 @@ class _Readout<T> extends StatelessWidget {
   /// feed card rather than floating between the two.
   final Widget? footer;
 
+  /// Colours the card with a state the reading carries — for the feed card,
+  /// how close the next feed is.
+  ///
+  /// Blended into the surface rather than used neat, for two reasons. The
+  /// chip sits on top of it and would disappear into a card of its own exact
+  /// colour; and the card's text is `onSurface`, which is only guaranteed to
+  /// read against something surface-shaped. Half-strength keeps the hue
+  /// obvious and the contrast intact, in both themes.
+  final Color? tint;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -365,7 +391,12 @@ class _Readout<T> extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
+        color: tint == null
+            ? scheme.surfaceContainerHigh
+            : Color.alphaBlend(
+                tint!.withValues(alpha: 0.5),
+                scheme.surfaceContainerHigh,
+              ),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(

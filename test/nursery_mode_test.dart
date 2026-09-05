@@ -450,6 +450,56 @@ void main() {
     expect(tester.widget<Text>(find.text('Bottle')).style?.color, isNull);
   });
 
+  group('the feed card carries how close the next feed is', () {
+    Color cardColour(WidgetTester tester, String label) {
+      final box = tester.widget<Container>(
+        find
+            .ancestor(of: find.text(label), matching: find.byType(Container))
+            .first,
+      );
+      return (box.decoration! as BoxDecoration).color!;
+    }
+
+    FeedingEvent feedAt(int minutesAgo) => FeedingEvent(
+      id: 'f1',
+      type: FeedingType.bottle,
+      startTime: now.subtract(Duration(minutes: minutesAgo)),
+      amountMl: 150,
+    );
+
+    testWidgets('so the colour arrives before the words do', (tester) async {
+      // Read from a doorway, the card's colour is the first thing to land.
+      // Just fed against long overdue: two different states, two different
+      // cards.
+      await pumpNursery(tester, feeds: [feedAt(20)]);
+      final justFed = cardColour(tester, 'Last fed');
+
+      await pumpNursery(tester, feeds: [feedAt(400)]);
+      final overdue = cardColour(tester, 'Last fed');
+
+      expect(justFed, isNot(overdue));
+    });
+
+    testWidgets('and the diaper card stays out of it', (tester) async {
+      // It has no due state of its own, so colouring it would be decoration
+      // pretending to be information.
+      await pumpNursery(tester, feeds: [feedAt(20)]);
+      final calm = cardColour(tester, 'Last changed');
+
+      await pumpNursery(tester, feeds: [feedAt(400)]);
+      expect(cardColour(tester, 'Last changed'), calm);
+    });
+
+    testWidgets('and is tinted apart from it', (tester) async {
+      await pumpNursery(tester, feeds: [feedAt(400)]);
+
+      expect(
+        cardColour(tester, 'Last fed'),
+        isNot(cardColour(tester, 'Last changed')),
+      );
+    });
+  });
+
   group('the clock', () {
     testWidgets('is on screen, with the day under it', (tester) async {
       // A tablet on a nursery shelf is the nearest clock at 3am.
