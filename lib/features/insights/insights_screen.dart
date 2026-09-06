@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/format/unit_system.dart';
+import '../../core/router/app_router.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -201,6 +203,7 @@ class _Trends extends ConsumerWidget {
             // "13h 12m" does not fit the axis gutter; the caption still
             // spells the tapped night out in full.
             axisFormat: (v) => '${(v / 60).toStringAsFixed(1)}h',
+            days: [for (final d in stats.days) d.day],
           ),
           _ChartSection(
             title: 'Feeds by hour of day',
@@ -213,11 +216,13 @@ class _Trends extends ConsumerWidget {
           title: 'Feeds per day',
           values: [for (final d in stats.days) d.stats.feedCount.toDouble()],
           labels: labels,
+          days: [for (final d in stats.days) d.day],
         ),
         _ChartSection(
           title: 'Diapers per day',
           values: [for (final d in stats.days) d.stats.diaperCount.toDouble()],
           labels: labels,
+          days: [for (final d in stats.days) d.day],
         ),
         if (stats.totalBottleMl > 0)
           _ChartSection(
@@ -227,6 +232,7 @@ class _Trends extends ConsumerWidget {
             values: [for (final d in stats.days) d.stats.bottleMl],
             labels: labels,
             secondaryFormat: units.isMetric ? null : formatFlOz,
+            days: [for (final d in stats.days) d.day],
           ),
         if (stats.totalBreastMinutes > 0)
           _ChartSection(
@@ -235,6 +241,7 @@ class _Trends extends ConsumerWidget {
               for (final d in stats.days) d.stats.breastMinutes.toDouble(),
             ],
             labels: labels,
+            days: [for (final d in stats.days) d.day],
           ),
         if (stats.totalPumpedMl > 0)
           _ChartSection(
@@ -244,6 +251,7 @@ class _Trends extends ConsumerWidget {
             values: [for (final d in stats.days) d.stats.pumpedMl],
             labels: labels,
             secondaryFormat: units.isMetric ? null : formatFlOz,
+            days: [for (final d in stats.days) d.day],
           ),
       ],
     );
@@ -433,7 +441,7 @@ class _SummaryGrid extends ConsumerWidget {
   }
 }
 
-class _ChartSection extends StatelessWidget {
+class _ChartSection extends ConsumerWidget {
   const _ChartSection({
     required this.title,
     required this.values,
@@ -442,11 +450,19 @@ class _ChartSection extends StatelessWidget {
     this.valueFormat,
     this.axisFormat,
     this.secondaryFormat,
+    this.days,
   });
 
   final String title;
   final List<double> values;
   final List<String> labels;
+
+  /// The date behind each bar, when there is one.
+  ///
+  /// Null for a chart whose bars are not days — "Feeds by hour of day" packs
+  /// the whole range into 24 columns, so no single day sits behind a bar and
+  /// there is nothing to open.
+  final List<DateTime>? days;
 
   /// Says what the bars are measured over when the title can't carry it —
   /// the night window, or that the range is stacked rather than daily.
@@ -457,8 +473,9 @@ class _ChartSection extends StatelessWidget {
   final String Function(double)? secondaryFormat;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final days = this.days;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
@@ -483,6 +500,16 @@ class _ChartSection extends StatelessWidget {
             valueFormat: valueFormat,
             axisFormat: axisFormat,
             secondaryFormat: secondaryFormat,
+            // A spike in a trend is a question about a day, and the Timeline
+            // is where that day is answered. Setting the day before pushing
+            // is what makes the two screens meet.
+            onOpenBar: days == null
+                ? null
+                : (i) {
+                    if (i >= days.length) return;
+                    ref.read(selectedDayProvider.notifier).setDay(days[i]);
+                    context.push(AppRoutes.timeline);
+                  },
           ),
         ],
       ),

@@ -28,6 +28,7 @@ class TrendChart extends StatefulWidget {
     this.valueFormat,
     this.axisFormat,
     this.secondaryFormat,
+    this.onOpenBar,
   });
 
   /// One value per day, earliest first. Days with no activity are zeros.
@@ -56,6 +57,17 @@ class TrendChart extends StatefulWidget {
   /// When set, draws a second set of tick labels down the right edge —
   /// used to read the same bars in a second unit without a second chart.
   final String Function(double)? secondaryFormat;
+
+  /// Offers a way out of the chart and into the bar itself, given its index.
+  ///
+  /// Null on a chart whose bars are not days — "Feeds by hour of day" stacks
+  /// the whole range into 24 columns, and there is no single day behind one
+  /// of them to open.
+  ///
+  /// Deliberately not wired to the bar tap. Tapping is what writes the
+  /// caption, and navigating on the same gesture would throw you off the
+  /// screen before you could read what you just asked for.
+  final void Function(int index)? onOpenBar;
 
   static String trim(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
@@ -126,6 +138,7 @@ class _TrendChartState extends State<TrendChart> {
     );
 
     final selected = _selected;
+    final openBar = widget.onOpenBar;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -162,6 +175,12 @@ class _TrendChartState extends State<TrendChart> {
                       format: axisFormat,
                       secondary: widget.secondaryFormat,
                       describe: _describe,
+                      // `button: true` without an action announces a control
+                      // that does nothing. Selecting is what a bar does, so
+                      // that is what activating one now does — which is also
+                      // how a screen-reader user reaches the caption's
+                      // "Open this day".
+                      select: (i) => setState(() => _selected = i),
                     ),
                     child: const SizedBox.expand(),
                   ),
@@ -174,14 +193,32 @@ class _TrendChartState extends State<TrendChart> {
         // The caption doubles as the tooltip: the bars are too narrow to label
         // individually, and a tap target that reveals nothing is worse than
         // none. Unlike the axis, this is a real Text and scales all the way.
-        Text(
-          selected == null ? 'Tap a bar for details' : _describe(selected),
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: selected == null
-                ? theme.colorScheme.onSurfaceVariant
-                : theme.colorScheme.onSurface,
-            fontWeight: selected == null ? null : FontWeight.w600,
-          ),
+        // A Wrap rather than a Row: at a large text size the caption and the
+        // action do not fit on one line, and the action dropping underneath
+        // is better than the numbers being ellipsised away.
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          children: [
+            Text(
+              selected == null ? 'Tap a bar for details' : _describe(selected),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: selected == null
+                    ? theme.colorScheme.onSurfaceVariant
+                    : theme.colorScheme.onSurface,
+                fontWeight: selected == null ? null : FontWeight.w600,
+              ),
+            ),
+            if (selected != null && openBar != null)
+              TextButton.icon(
+                onPressed: () => openBar(selected),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('Open this day'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+          ],
         ),
       ],
     );
@@ -294,6 +331,7 @@ class _TrendChartPainter extends CustomPainter {
     required this.text,
     required this.format,
     required this.describe,
+    required this.select,
     this.secondary,
   });
 
@@ -308,6 +346,9 @@ class _TrendChartPainter extends CustomPainter {
   final ChartText text;
   final String Function(double) format;
   final String Function(int) describe;
+
+  /// Selects a bar, for the semantics activation above.
+  final void Function(int) select;
   final String Function(double)? secondary;
 
   @override
@@ -414,6 +455,7 @@ class _TrendChartPainter extends CustomPainter {
               label: describe(i),
               selected: i == selected,
               button: true,
+              onTap: () => select(i),
               textDirection: TextDirection.ltr,
             ),
           ),
