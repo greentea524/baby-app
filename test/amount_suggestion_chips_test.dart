@@ -180,6 +180,98 @@ void main() {
     });
   });
 
+  group('the feed chooser', () {
+    Future<void> openChooser(WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final stored = await SharedPreferences.getInstance();
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(stored),
+            authStateProvider.overrideWith((ref) => Stream.value(null)),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: TextButton(
+                    // No type, so the chooser is what opens.
+                    onPressed: () => showFeedingQuickLog(context),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('offers every kind, with breastfeeding last', (tester) async {
+      // Ordered by how often it is reached for, not by how the enum is
+      // declared. Rare is not never, so it stays — just out of the way of
+      // the two that get pressed.
+      await openChooser(tester);
+
+      double y(String label) => tester.getTopLeft(find.text(label)).dy;
+
+      expect(find.text('Bottle'), findsOneWidget);
+      expect(find.text('Solids'), findsOneWidget);
+      expect(find.text('Breastfeeding'), findsOneWidget);
+      expect(y('Bottle'), lessThan(y('Solids')));
+      expect(y('Solids'), lessThan(y('Breastfeeding')));
+    });
+
+    testWidgets('and a breast feed already logged opens to be edited', (
+      tester,
+    ) async {
+      // The form is reached two ways — chosen fresh, or opened on an entry
+      // that already exists. This is the second.
+      SharedPreferences.setMockInitialValues({});
+      final stored = await SharedPreferences.getInstance();
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(stored),
+            authStateProvider.overrideWith((ref) => Stream.value(null)),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: TextButton(
+                    onPressed: () => showFeedingQuickLog(
+                      context,
+                      existing: FeedingEvent(
+                        id: 'f1',
+                        type: FeedingType.breast,
+                        startTime: DateTime(2026, 8, 30, 9),
+                        durationMinutes: 18,
+                      ),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Save changes'), findsOneWidget);
+    });
+  });
+
   group('what the provider draws on', () {
     final bottle = FeedingEvent(
       id: 'f',
