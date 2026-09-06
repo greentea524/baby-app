@@ -58,6 +58,20 @@ class _QuickLogSheetState extends State<_QuickLogSheet> {
 class _TypeChooser extends StatelessWidget {
   const _TypeChooser({required this.onSelected});
 
+  /// Every kind, but ordered by how often this household reaches for it
+  /// rather than by how the enum happens to be declared.
+  ///
+  /// Breastfeeding last. It was briefly dropped altogether, which went too
+  /// far: rare is not the same as never, and a kind you cannot start is a
+  /// kind you cannot record. Ordering costs nothing and keeps it there for
+  /// the day it is wanted, without it sitting above the two that get
+  /// pressed.
+  static const _offered = [
+    FeedingType.bottle,
+    FeedingType.solids,
+    FeedingType.breast,
+  ];
+
   final ValueChanged<FeedingType> onSelected;
 
   @override
@@ -68,7 +82,7 @@ class _TypeChooser extends StatelessWidget {
       children: [
         Text('Log a feed', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 16),
-        for (final type in FeedingType.values)
+        for (final type in _offered)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: OutlinedButton.icon(
