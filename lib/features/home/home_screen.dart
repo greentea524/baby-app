@@ -225,7 +225,14 @@ class _RecentHeader extends ConsumerWidget {
             ),
           ),
           IconButton(
-            onPressed: () => context.push(AppRoutes.timeline),
+            // Today, not wherever the day was left. selectedDayProvider is
+            // global and sticky, and Insights can now push it to a day weeks
+            // back (#32); inheriting that here would open Home's drill-down
+            // on a date nobody picked on this screen.
+            onPressed: () {
+              ref.read(selectedDayProvider.notifier).setDay(DateTime.now());
+              context.push(AppRoutes.timeline);
+            },
             icon: const Icon(Icons.timeline),
             tooltip: 'Full timeline',
           ),

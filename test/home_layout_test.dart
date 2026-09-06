@@ -288,6 +288,31 @@ void main() {
     });
   });
 
+  group('the full-timeline link', () {
+    testWidgets('opens on today, not wherever the day was left', (
+      tester,
+    ) async {
+      // selectedDayProvider is global and sticky, and Insights can now push
+      // it weeks back (#32). Home's drill-down is of Home's recent list, so
+      // it means today.
+      await pumpHome(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(HomeScreen)),
+      );
+      container.read(selectedDayProvider.notifier).setDay(DateTime(2026, 7, 4));
+
+      await tester.tap(find.byTooltip('Full timeline'));
+      await tester.pump();
+      // The layout harness has no GoRouter, so the push itself throws. The
+      // day is set first, which is the half Home owns.
+      tester.takeException();
+
+      final day = container.read(selectedDayProvider);
+      final now = DateTime.now();
+      expect(day, DateTime(now.year, now.month, now.day));
+    });
+  });
+
   group('the pumping action', () {
     testWidgets('is a button, the size of the two above it', (tester) async {
       // It used to be a bare text link under two proper buttons — smaller to
