@@ -135,6 +135,35 @@ class HomeLayoutNotifier extends Notifier<HomeLayout> {
   }
 }
 
+const _bottleShortcutKey = 'feed_button_bottle';
+
+/// Whether Home's feed button opens the bottle form instead of asking which
+/// kind of feed it is.
+///
+/// On by default. A household that mostly gives bottles was paying a tap
+/// every single feed to answer a question with the same answer.
+///
+/// Straight to the form, the way nursery mode has always done it — no way
+/// back to the chooser from inside. That does mean solids and breastfeeding
+/// are only reachable with this switched off, which is why the setting says
+/// so rather than leaving it to be discovered.
+final bottleShortcutProvider = NotifierProvider<BottleShortcutNotifier, bool>(
+  BottleShortcutNotifier.new,
+);
+
+class BottleShortcutNotifier extends Notifier<bool> {
+  @override
+  bool build() =>
+      ref.read(sharedPreferencesProvider).getBool(_bottleShortcutKey) ?? true;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setBool(_bottleShortcutKey, value);
+  }
+}
+
 const _showPumpingKey = 'show_pumping_action';
 
 /// Whether Home offers a "Log pumping" button (KAN-181).

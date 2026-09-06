@@ -11,6 +11,8 @@ import '../caregivers/caregivers_screen.dart';
 import '../export/export_screen.dart';
 import 'delete_account_screen.dart';
 import 'delete_baby_screen.dart';
+import '../../data/models/feeding_event.dart';
+import '../feeding/feeding_format.dart';
 import '../home/home_prefs.dart';
 import '../notifications/push_service.dart';
 import '../pumping/pumping_format.dart';
@@ -59,6 +61,7 @@ class SettingsScreen extends ConsumerWidget {
           const _HomeActionsPicker(),
           const _HomeLayoutPicker(),
           const _UnitsPicker(),
+          const _BottleShortcutToggle(),
           const _PumpingActionToggle(),
           const Divider(),
           ListTile(
@@ -243,6 +246,36 @@ class _UnitsPicker extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Whether Home's feed button skips the "which kind" question.
+///
+/// On by default: a household that mostly gives bottles was answering the
+/// same question every feed.
+///
+/// This switch is the only way back to the other kinds, so the subtitle
+/// names them. Logging solids or breastfeeding means turning it off — a
+/// deliberate trade of reach for a tap, and one nobody should have to
+/// discover by hunting for a button that is not there.
+class _BottleShortcutToggle extends ConsumerWidget {
+  const _BottleShortcutToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(bottleShortcutProvider);
+    return SwitchListTile(
+      secondary: Icon(FeedingFormat.typeIcon(FeedingType.bottle)),
+      title: const Text('Log bottle directly'),
+      subtitle: Text(
+        enabled
+            ? "Home's button opens the bottle form. Turn off to log solids "
+                  'or breastfeeding.'
+            : "Home's button asks which kind of feed first",
+      ),
+      value: enabled,
+      onChanged: (v) => ref.read(bottleShortcutProvider.notifier).set(v),
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/launch_action.dart';
 import '../../core/router/app_router.dart';
+import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_filter.dart';
 import '../appointments/next_appointment_button.dart';
@@ -14,6 +15,7 @@ import '../caregivers/incoming_invites.dart';
 import '../../core/layout/app_bar_room.dart';
 import '../common/day_time_label.dart';
 import '../diaper/diaper_quick_log.dart';
+import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../insights/day_timeline_strip.dart';
 import '../insights/day_view_data.dart';
@@ -54,7 +56,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.read(launchActionProvider.notifier).consume();
       if (!mounted) return;
       if (action == 'feed') {
-        showFeedingQuickLog(context);
+        _logFeed(context, ref);
       } else {
         showDiaperQuickLog(context);
       }
@@ -352,6 +354,17 @@ class _TodayCharts extends ConsumerWidget {
   }
 }
 
+/// Opens the feed sheet the way this household has asked for it.
+///
+/// Shared by the button and the app's "Log feed" launch shortcut, which are
+/// the same intent arriving two ways and would be a bug apart.
+void _logFeed(BuildContext context, WidgetRef ref) {
+  showFeedingQuickLog(
+    context,
+    type: ref.read(bottleShortcutProvider) ? FeedingType.bottle : null,
+  );
+}
+
 class _QuickActions extends ConsumerWidget {
   const _QuickActions();
 
@@ -360,6 +373,7 @@ class _QuickActions extends ConsumerWidget {
     // Pumping is opt-in (KAN-181): it only applies to some caregivers, and
     // feeds and diapers are what most people open the app to log.
     final showPumping = ref.watch(showPumpingActionProvider);
+    final bottleFirst = ref.watch(bottleShortcutProvider);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Column(
@@ -368,9 +382,16 @@ class _QuickActions extends ConsumerWidget {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () => showFeedingQuickLog(context),
-                  icon: const Icon(Icons.restaurant),
-                  label: const Text('Log feed'),
+                  onPressed: () => _logFeed(context, ref),
+                  icon: Icon(
+                    bottleFirst
+                        ? FeedingFormat.typeIcon(FeedingType.bottle)
+                        : Icons.restaurant,
+                  ),
+                  // Says what it will actually do. A button labelled "Log
+                  // feed" that opens the bottle form has told you the wrong
+                  // thing before you even reach it.
+                  label: Text(bottleFirst ? 'Log bottle' : 'Log feed'),
                 ),
               ),
               const SizedBox(width: 12),

@@ -194,6 +194,10 @@ void main() {
   });
 
   group('where the quick actions sit', () {
+    // The primary button is labelled for what it does, and the bottle
+    // shortcut is on by default — see the group below, which pins both.
+    const logFeed = 'Log bottle';
+
     double yOf(WidgetTester tester, String text) =>
         tester.getTopLeft(find.text(text)).dy;
 
@@ -201,12 +205,12 @@ void main() {
       // Logging a feed is the reason the app gets opened; it used to sit
       // below the status card and today's totals, a third of the way down.
       await pumpHome(tester);
-      expect(yOf(tester, 'Log feed'), lessThan(yOf(tester, 'Last fed')));
+      expect(yOf(tester, logFeed), lessThan(yOf(tester, 'Last fed')));
     });
 
     testWidgets('and can be put back under the status rows', (tester) async {
       await pumpHome(tester, prefs: {'home_actions': 'belowStatus'});
-      expect(yOf(tester, 'Log feed'), greaterThan(yOf(tester, 'Last fed')));
+      expect(yOf(tester, logFeed), greaterThan(yOf(tester, 'Last fed')));
     });
 
     testWidgets('either way, both are on screen without scrolling', (
@@ -214,7 +218,7 @@ void main() {
     ) async {
       for (final placement in HomeActions.values) {
         await pumpHome(tester, prefs: {'home_actions': placement.name});
-        expect(find.text('Log feed'), findsOneWidget, reason: placement.name);
+        expect(find.text(logFeed), findsOneWidget, reason: placement.name);
         expect(find.text('Last fed'), findsOneWidget, reason: placement.name);
       }
     });
@@ -288,6 +292,56 @@ void main() {
     });
   });
 
+  group('the bottle shortcut', () {
+    testWidgets('is on by default, and says what it will do', (tester) async {
+      // A button labelled "Log feed" that opens the bottle form has told you
+      // the wrong thing before you reach it.
+      await pumpHome(tester);
+
+      expect(find.text('Log bottle'), findsOneWidget);
+      expect(find.text('Log feed'), findsNothing);
+    });
+
+    testWidgets('opens the bottle form rather than the chooser', (
+      tester,
+    ) async {
+      await pumpHome(tester);
+      await tester.tap(find.text('Log bottle'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bottle'), findsWidgets);
+      expect(find.text('Log a feed'), findsNothing);
+    });
+
+    testWidgets('with no detour back to the chooser', (tester) async {
+      // Deliberately like nursery mode: straight to the form. The setting is
+      // the way back to the other kinds, not a link inside the sheet.
+      await pumpHome(tester);
+      await tester.tap(find.text('Log bottle'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Log a feed'), findsNothing);
+      expect(find.text('Log something else'), findsNothing);
+    });
+
+    testWidgets('turned off, the button asks which kind again', (tester) async {
+      await pumpHome(tester, prefs: {'feed_button_bottle': false});
+
+      expect(find.text('Log feed'), findsOneWidget);
+      await tester.tap(find.text('Log feed'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Log a feed'), findsOneWidget);
+      // And every kind is on it — the chooser is what this setting buys.
+      expect(find.widgetWithText(OutlinedButton, 'Bottle'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Solids'), findsOneWidget);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Breastfeeding'),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('the full-timeline link', () {
     testWidgets('opens on today, not wherever the day was left', (
       tester,
@@ -334,7 +388,7 @@ void main() {
         find.widgetWithText(OutlinedButton, 'Log pumping'),
       );
       final feed = tester.getRect(
-        find.widgetWithText(FilledButton, 'Log feed'),
+        find.widgetWithText(FilledButton, 'Log bottle'),
       );
       final diaper = tester.getRect(
         find.widgetWithText(FilledButton, 'Log diaper'),
