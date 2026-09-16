@@ -72,7 +72,7 @@ void main() {
       notes: 'Sweet potato',
     ),
   ];
-  final diapers = [
+  final fixtureDiapers = [
     DiaperEvent(
       id: 'd1',
       type: DiaperType.dirty,
@@ -91,6 +91,7 @@ void main() {
     Map<String, Object> prefs = const {},
     bool withData = true,
     List<FeedingEvent>? feedings,
+    List<DiaperEvent>? diapers,
   }) async {
     SharedPreferences.setMockInitialValues({
       // Reminders on, so the next-feed chip is drawn. That is the tallest
@@ -116,7 +117,8 @@ void main() {
             (ref) => Stream.value(feedings ?? (withData ? feeds : const [])),
           ),
           recentDiapersProvider.overrideWith(
-            (ref) => Stream.value(withData ? diapers : const []),
+            (ref) =>
+                Stream.value(diapers ?? (withData ? fixtureDiapers : const [])),
           ),
           recentPumpingProvider.overrideWith(
             (ref) => Stream.value(withData ? pumps : const []),
@@ -289,6 +291,45 @@ void main() {
         feedings: [feedAt(400)],
       );
       expect(backdrops(tester, 'Last fed'), isNot(justFed));
+    });
+  });
+
+  group('the diaper row carries how long it has been', () {
+    List<Color> backdrops(WidgetTester tester, String label) => tester
+        .widgetList<ColoredBox>(
+          find.ancestor(
+            of: find.text(label),
+            matching: find.byType(ColoredBox),
+          ),
+        )
+        .map((b) => b.color)
+        .toList();
+
+    Future<List<Color>> at(WidgetTester tester, Duration ago) async {
+      await tester.pumpWidget(const SizedBox());
+      await pumpHome(
+        tester,
+        diapers: [
+          DiaperEvent(
+            id: 'd1',
+            type: DiaperType.wet,
+            time: DateTime.now().subtract(ago),
+          ),
+        ],
+      );
+      return backdrops(tester, 'Last diaper changed');
+    }
+
+    testWidgets('calm, then amber at two hours, then red at three', (
+      tester,
+    ) async {
+      final fresh = await at(tester, const Duration(minutes: 30));
+      final amber = await at(tester, const Duration(hours: 2, minutes: 30));
+      final red = await at(tester, const Duration(hours: 3, minutes: 30));
+
+      expect(amber, isNot(fresh));
+      expect(red, isNot(amber));
+      expect(red, isNot(fresh));
     });
   });
 

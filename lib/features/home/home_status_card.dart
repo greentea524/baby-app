@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format/unit_system.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../diaper/diaper_due.dart';
 import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
 import '../reminders/feed_prediction.dart';
@@ -91,7 +92,7 @@ class HomeStatusCard extends ConsumerWidget {
         state: state,
         // "Next feed 2h overdue" reads badly, so the wording flips once it
         // has slipped past.
-        text: state == FeedDueState.overdue
+        text: state == DueState.overdue
             ? 'Feed ${countdownLabel(due, now: now)} · due $at'
             : 'Next feed ${countdownLabel(due, now: now)} · $at',
       );
@@ -103,7 +104,7 @@ class HomeStatusCard extends ConsumerWidget {
       // something before any of them have been read.
       tint: due == null
           ? null
-          : feedDueTint(
+          : dueTint(
               context,
               feedDueState(
                 due,
@@ -158,6 +159,16 @@ class HomeStatusCard extends ConsumerWidget {
   Widget _diaperRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastDiaperProvider);
     return _StatusRow(
+      // Its own clock, escalating like the feed row above it: amber at two
+      // hours since the last change, red at three.
+      tint: switch (diaperDueState(last?.time, now: now)) {
+        null => null,
+        final state => dueTint(
+          context,
+          state,
+          Theme.of(context).colorScheme.surfaceContainerLow,
+        ),
+      },
       icon: last == null
           ? Icons.baby_changing_station
           : DiaperFormat.typeIcon(last.type),
@@ -205,31 +216,50 @@ const _soonDark = (
   foreground: Color(0xFFFFE7A8),
 );
 
+/// Overdue in a light theme, hand-picked for the same reason the amber is.
+///
+/// `errorContainer` reads fine as a solid chip, but this scheme places it a
+/// hair from the surface — measured at (243, 227, 230) against a (235, 229,
+/// 241) card — so as a tint it all but disappears, and red came out quieter
+/// than amber. A warning's last step cannot be its faintest.
+///
+/// Dark keeps `errorContainer`: the note on [_soonDark] above already
+/// records that it is vivid there, which is the whole reason that amber had
+/// to be brightened to keep up with it.
+const _overdueLight = (
+  background: Color(0xFFFFCFCB),
+  foreground: Color(0xFF5F1412),
+);
+
 /// How a feed-due state is coloured, for anything that wants to show it.
 ///
 /// Shared rather than private to [NextFeedChip] because nursery mode tints
 /// the whole "Last fed" card with the same escalation, and two copies of the
 /// amber would drift apart the first time one of them was adjusted.
-({Color background, Color foreground, IconData icon}) feedDueColors(
+({Color background, Color foreground, IconData icon}) dueColors(
   BuildContext context,
-  FeedDueState state,
+  DueState state,
 ) {
   final theme = Theme.of(context);
   final scheme = theme.colorScheme;
   final soon = theme.brightness == Brightness.dark ? _soonDark : _soonLight;
 
   return switch (state) {
-    FeedDueState.overdue => (
-      background: scheme.errorContainer,
-      foreground: scheme.onErrorContainer,
+    DueState.overdue => (
+      background: theme.brightness == Brightness.dark
+          ? scheme.errorContainer
+          : _overdueLight.background,
+      foreground: theme.brightness == Brightness.dark
+          ? scheme.onErrorContainer
+          : _overdueLight.foreground,
       icon: Icons.notifications_active,
     ),
-    FeedDueState.soon => (
+    DueState.soon => (
       background: soon.background,
       foreground: soon.foreground,
       icon: Icons.notifications_none,
     ),
-    FeedDueState.upcoming => (
+    DueState.upcoming => (
       background: scheme.secondaryContainer,
       foreground: scheme.onSecondaryContainer,
       icon: Icons.schedule,
@@ -237,16 +267,31 @@ const _soonDark = (
   };
 }
 
-/// [feedDueColors]'s background, softened onto [on].
+/// [dueColors]'s background, softened onto [on].
 ///
-/// Half strength rather than neat, for two reasons. The next-feed chip sits
+/// Softened rather than used neat, for two reasons. The next-feed chip sits
 /// on top of it and would vanish into a surface of its own exact colour; and
 /// the surrounding text is `onSurface`, which is only guaranteed to read
-/// against something surface-shaped. Half keeps the hue obvious and the
-/// contrast intact, in both themes.
-Color feedDueTint(BuildContext context, FeedDueState state, Color on) =>
+/// against something surface-shaped.
+///
+/// The strength climbs with the state, and has to. A flat blend does not
+/// preserve the escalation: `errorContainer` in this scheme sits close to
+/// the surface, while the amber is hand-picked and saturated, so at equal
+/// strength red came out *paler* than amber — the last step of a warning
+/// reading as the quietest. Measured on the nursery cards, where the two sit
+/// side by side and the inversion is plain.
+double _tintStrength(DueState state) => switch (state) {
+  DueState.upcoming => 0.35,
+  DueState.soon => 0.55,
+  DueState.overdue => 0.85,
+};
+
+Color dueTint(BuildContext context, DueState state, Color on) =>
     Color.alphaBlend(
-      feedDueColors(context, state).background.withValues(alpha: 0.5),
+      dueColors(
+        context,
+        state,
+      ).background.withValues(alpha: _tintStrength(state)),
       on,
     );
 
@@ -254,11 +299,11 @@ class NextFeedChip extends StatelessWidget {
   const NextFeedChip({super.key, required this.text, required this.state});
 
   final String text;
-  final FeedDueState state;
+  final DueState state;
 
   @override
   Widget build(BuildContext context) {
-    final (:background, :foreground, :icon) = feedDueColors(context, state);
+    final (:background, :foreground, :icon) = dueColors(context, state);
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
@@ -315,7 +360,7 @@ class _StatusRow extends StatelessWidget {
   final Widget? footer;
 
   /// Colours the row with a state it carries — for feeding, how close the
-  /// next feed is. See [feedDueTint].
+  /// next feed is. See [dueTint].
   ///
   /// Painted edge to edge rather than inset, so the row's own padding still
   /// lines its icon and text up with the untinted rows above and below. The

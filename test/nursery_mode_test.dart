@@ -37,6 +37,7 @@ void main() {
     Size size = const Size(834, 1194),
     bool withData = true,
     List<FeedingEvent>? feeds,
+    List<DiaperEvent>? diapers,
     Map<String, Object> prefs = const {},
   }) async {
     SharedPreferences.setMockInitialValues({
@@ -71,15 +72,16 @@ void main() {
         ),
         recentDiapersProvider.overrideWith(
           (ref) => Stream.value(
-            withData
-                ? [
-                    DiaperEvent(
-                      id: 'd1',
-                      type: DiaperType.wet,
-                      time: now.subtract(const Duration(minutes: 40)),
-                    ),
-                  ]
-                : const [],
+            diapers ??
+                (withData
+                    ? [
+                        DiaperEvent(
+                          id: 'd1',
+                          type: DiaperType.wet,
+                          time: now.subtract(const Duration(minutes: 40)),
+                        ),
+                      ]
+                    : const []),
           ),
         ),
         recentPumpingProvider.overrideWith((ref) => Stream.value(const [])),
@@ -497,6 +499,68 @@ void main() {
         cardColour(tester, 'Last fed'),
         isNot(cardColour(tester, 'Last changed')),
       );
+    });
+  });
+
+  group('the diaper card carries how long it has been', () {
+    Color cardColour(WidgetTester tester, String label) {
+      final box = tester.widget<Container>(
+        find
+            .ancestor(of: find.text(label), matching: find.byType(Container))
+            .first,
+      );
+      return (box.decoration! as BoxDecoration).color!;
+    }
+
+    Future<Color> at(WidgetTester tester, Duration ago) async {
+      await pumpNursery(
+        tester,
+        diapers: [
+          DiaperEvent(id: 'd1', type: DiaperType.wet, time: now.subtract(ago)),
+        ],
+      );
+      return cardColour(tester, 'Last changed');
+    }
+
+    testWidgets('calm, then amber at two hours, then red at three', (
+      tester,
+    ) async {
+      final fresh = await at(tester, const Duration(minutes: 30));
+      final amber = await at(tester, const Duration(hours: 2, minutes: 30));
+      final red = await at(tester, const Duration(hours: 3, minutes: 30));
+
+      expect(amber, isNot(fresh));
+      expect(red, isNot(amber));
+    });
+
+    testWidgets('and each step reads louder than the one before', (
+      tester,
+    ) async {
+      // The failure this guards is specific: at a flat blend strength the
+      // scheme's errorContainer sat so near the surface that red came out
+      // *paler* than amber, and the last step of the warning was its
+      // quietest.
+      /// How far a tint sits from the untinted card.
+      double loudness(Color calm, Color c) =>
+          (c.r - calm.r).abs() + (c.g - calm.g).abs() + (c.b - calm.b).abs();
+
+      final fresh = await at(tester, const Duration(minutes: 30));
+      final amber = await at(tester, const Duration(hours: 2, minutes: 30));
+      final red = await at(tester, const Duration(hours: 3, minutes: 30));
+
+      expect(
+        loudness(fresh, red),
+        greaterThan(loudness(fresh, amber)),
+        reason: 'red must be further from calm than amber is',
+      );
+    });
+
+    testWidgets('but stays neutral when nothing has been logged', (
+      tester,
+    ) async {
+      await pumpNursery(tester, diapers: const []);
+      // Nothing to be overdue about on a household's first morning.
+      expect(find.text('Nothing logged yet'), findsWidgets);
     });
   });
 

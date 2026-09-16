@@ -77,7 +77,7 @@ void main() {
 
   group('what the chip does with it', () {
     final due = DateTime(2026, 8, 5, 14, 0);
-    FeedDueState stateAt(Duration before, int headsUpMinutes) {
+    DueState stateAt(Duration before, int headsUpMinutes) {
       final settings = ReminderSettings(
         mode: ReminderMode.fixedInterval,
         intervalMinutes: 180,
@@ -91,26 +91,26 @@ void main() {
     }
 
     test('a wider setting starts warning earlier', () {
-      expect(stateAt(const Duration(minutes: 25), 15), FeedDueState.upcoming);
-      expect(stateAt(const Duration(minutes: 25), 30), FeedDueState.soon);
+      expect(stateAt(const Duration(minutes: 25), 15), DueState.upcoming);
+      expect(stateAt(const Duration(minutes: 25), 30), DueState.soon);
     });
 
     test('off never goes amber, only red', () {
       // A due time is always strictly after now, so nothing lands inside a
       // zero-length window — the state skips straight from upcoming to
       // overdue.
-      expect(stateAt(const Duration(minutes: 30), 0), FeedDueState.upcoming);
-      expect(stateAt(const Duration(minutes: 1), 0), FeedDueState.upcoming);
-      expect(stateAt(Duration.zero, 0), FeedDueState.overdue);
+      expect(stateAt(const Duration(minutes: 30), 0), DueState.upcoming);
+      expect(stateAt(const Duration(minutes: 1), 0), DueState.upcoming);
+      expect(stateAt(Duration.zero, 0), DueState.overdue);
     });
 
     test('overdue outranks the setting, however wide', () {
-      expect(stateAt(const Duration(minutes: -5), 60), FeedDueState.overdue);
+      expect(stateAt(const Duration(minutes: -5), 60), DueState.overdue);
     });
 
     test('an hour of notice still reads as upcoming beyond it', () {
-      expect(stateAt(const Duration(minutes: 61), 60), FeedDueState.upcoming);
-      expect(stateAt(const Duration(minutes: 60), 60), FeedDueState.soon);
+      expect(stateAt(const Duration(minutes: 61), 60), DueState.upcoming);
+      expect(stateAt(const Duration(minutes: 60), 60), DueState.soon);
     });
   });
 }

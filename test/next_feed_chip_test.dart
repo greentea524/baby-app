@@ -9,7 +9,7 @@ import 'package:baby_app/features/reminders/feed_prediction.dart';
 void main() {
   Future<void> pumpChip(
     WidgetTester tester,
-    FeedDueState state, {
+    DueState state, {
     Brightness brightness = Brightness.light,
   }) async {
     await tester.pumpWidget(
@@ -44,8 +44,8 @@ void main() {
       tester.widget<Icon>(find.byType(Icon)).icon!;
 
   testWidgets('each state gets its own colour', (tester) async {
-    final seen = <FeedDueState, Color>{};
-    for (final state in FeedDueState.values) {
+    final seen = <DueState, Color>{};
+    for (final state in DueState.values) {
       await pumpChip(tester, state);
       seen[state] = background(tester);
     }
@@ -57,13 +57,13 @@ void main() {
   });
 
   testWidgets('the icon escalates with the state', (tester) async {
-    await pumpChip(tester, FeedDueState.upcoming);
+    await pumpChip(tester, DueState.upcoming);
     expect(icon(tester), Icons.schedule);
 
-    await pumpChip(tester, FeedDueState.soon);
+    await pumpChip(tester, DueState.soon);
     expect(icon(tester), Icons.notifications_none);
 
-    await pumpChip(tester, FeedDueState.overdue);
+    await pumpChip(tester, DueState.overdue);
     expect(icon(tester), Icons.notifications_active);
   });
 
@@ -71,7 +71,7 @@ void main() {
     // The accent picker offers four seeds and Material has no "warning" role,
     // so this colour is fixed rather than derived — a caution that turned pink
     // on the Blush accent would not read as caution.
-    await pumpChip(tester, FeedDueState.soon);
+    await pumpChip(tester, DueState.soon);
     final amber = background(tester);
     expect(amber.r, greaterThan(amber.b));
     expect(amber.g, greaterThan(amber.b));
@@ -84,7 +84,7 @@ void main() {
           colorSchemeSeed: const Color(0xFFD08A9B), // Blush
         ),
         home: const Scaffold(
-          body: NextFeedChip(state: FeedDueState.soon, text: 'Next feed'),
+          body: NextFeedChip(state: DueState.soon, text: 'Next feed'),
         ),
       ),
     );
@@ -93,9 +93,9 @@ void main() {
   });
 
   testWidgets('dark mode gets a dark amber, not the light one', (tester) async {
-    await pumpChip(tester, FeedDueState.soon);
+    await pumpChip(tester, DueState.soon);
     final light = background(tester);
-    await pumpChip(tester, FeedDueState.soon, brightness: Brightness.dark);
+    await pumpChip(tester, DueState.soon, brightness: Brightness.dark);
     final dark = background(tester);
 
     expect(dark, isNot(light));
@@ -108,7 +108,7 @@ void main() {
 
   testWidgets('text stays legible against every background', (tester) async {
     for (final brightness in Brightness.values) {
-      for (final state in FeedDueState.values) {
+      for (final state in DueState.values) {
         await pumpChip(tester, state, brightness: brightness);
         final bg = background(tester);
         final fg = tester
