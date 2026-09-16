@@ -127,7 +127,12 @@ DateTime? fixedIntervalDue(List<FeedingEvent> feedings, int intervalMinutes) {
 }
 
 /// How close the next feed is, for anything that wants to colour it.
-enum FeedDueState {
+/// How close something is to wanting attention.
+///
+/// Shared by the feed clock and the diaper card: both escalate the same way
+/// and are coloured from the same palette, and two enums saying calm/soon/now
+/// would be two palettes within a release.
+enum DueState {
   /// Far enough off to be background information.
   upcoming,
 
@@ -153,15 +158,13 @@ const Duration feedDueSoonWindow = Duration(minutes: defaultHeadsUpMinutes);
 /// rather than soon, and one exactly [within] away is already soon. The
 /// countdown beside it is rounded to whole minutes, so a state that flipped a
 /// second either side of the label would contradict it.
-FeedDueState feedDueState(
+DueState feedDueState(
   DateTime due, {
   required DateTime now,
   Duration within = feedDueSoonWindow,
 }) {
-  if (!due.isAfter(now)) return FeedDueState.overdue;
-  return due.difference(now) <= within
-      ? FeedDueState.soon
-      : FeedDueState.upcoming;
+  if (!due.isAfter(now)) return DueState.overdue;
+  return due.difference(now) <= within ? DueState.soon : DueState.upcoming;
 }
 
 /// Human countdown to [due]: "in 1h 20m", "due now", "25m overdue".

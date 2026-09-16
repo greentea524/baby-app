@@ -7,6 +7,7 @@ import '../../core/format/unit_system.dart';
 import '../../data/models/baby.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../diaper/diaper_due.dart';
 import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
@@ -145,7 +146,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         // of the words do, which is the point of this screen.
                         tint: dueState == null
                             ? null
-                            : feedDueColors(context, dueState).background,
+                            : dueColors(context, dueState).background,
                       );
                       final lastChanged = ref.watch(lastDiaperProvider);
                       final changed = _Readout(
@@ -161,6 +162,21 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         detail: lastChanged == null
                             ? null
                             : DiaperFormat.summary(lastChanged),
+                        // The feed card's escalation, on its own clock: amber
+                        // at two hours since the last change, red at three.
+                        // Written when the feed card got its colour that this
+                        // one had no state of its own — it has one now.
+                        tint: switch (diaperDueState(
+                          lastChanged?.time,
+                          now: clock,
+                        )) {
+                          null => null,
+                          final state => dueTint(
+                            context,
+                            state,
+                            Theme.of(context).colorScheme.surfaceContainerHigh,
+                          ),
+                        },
                       );
 
                       // Side by side when the space is wider than it is
@@ -254,13 +270,13 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
     BuildContext context,
     DateTime clock,
     DateTime? due,
-    FeedDueState? state,
+    DueState? state,
   ) {
     if (due == null || state == null) return null;
     final at = TimeOfDay.fromDateTime(due).format(context);
     return NextFeedChip(
       state: state,
-      text: state == FeedDueState.overdue
+      text: state == DueState.overdue
           ? 'Feed ${countdownLabel(due, now: clock)} · due $at'
           : 'Next feed ${countdownLabel(due, now: clock)} · $at',
     );
