@@ -83,13 +83,15 @@ class HomeStatusCard extends ConsumerWidget {
     Widget? next;
     if (due != null) {
       final at = TimeOfDay.fromDateTime(due).format(context);
-      final state = feedDueState(
-        due,
-        now: now,
-        within: ref.watch(reminderSettingsProvider).headsUp,
-      );
+      final settings = ref.watch(reminderSettingsProvider);
+      final state = feedDueState(due, now: now, within: settings.headsUp);
       next = NextFeedChip(
         state: state,
+        remaining: feedRemaining(
+          due: due,
+          interval: Duration(minutes: settings.intervalMinutes),
+          now: now,
+        ),
         // "Next feed 2h overdue" reads badly, so the wording flips once it
         // has slipped past.
         text: state == DueState.overdue
@@ -296,36 +298,86 @@ Color dueTint(BuildContext context, DueState state, Color on) =>
     );
 
 class NextFeedChip extends StatelessWidget {
-  const NextFeedChip({super.key, required this.text, required this.state});
+  const NextFeedChip({
+    super.key,
+    required this.text,
+    required this.state,
+    this.remaining,
+  });
 
   final String text;
   final DueState state;
 
+  /// How much of the gap to the next feed is left, 1 to 0, drawn as a track
+  /// depleting along the chip's own bottom edge. Null draws nothing.
+  ///
+  /// Inside the chip rather than beside it, because it is the same fact the
+  /// words are already stating and belongs to them. It costs no layout on
+  /// either screen, and it tells you what the words cannot without doing
+  /// arithmetic against your own interval: whether "26m" is a third of the
+  /// way through or nine tenths.
+  final double? remaining;
+
+  /// Thin enough to read as an underline rather than a second element.
+  static const double _trackHeight = 3;
+
   @override
   Widget build(BuildContext context) {
     final (:background, :foreground, :icon) = dueColors(context, state);
+    final left = remaining;
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      // The track runs to the chip's edge, so the corners have to cut it.
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          Icon(icon, size: 16, color: foreground),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: foreground,
-                fontWeight: FontWeight.w600,
+          if (left != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: _trackHeight,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: left,
+                  // heightFactor too: without it the box is loose vertically
+                  // and a childless ColoredBox collapses to nothing, which
+                  // is a track that paints no pixels.
+                  heightFactor: 1,
+                  child: ColoredBox(color: foreground),
+                ),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              10,
+              6,
+              10,
+              left == null ? 6 : 6 + _trackHeight,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: foreground),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    text,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: foreground,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

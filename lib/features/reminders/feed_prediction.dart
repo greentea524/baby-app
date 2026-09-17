@@ -167,6 +167,28 @@ DueState feedDueState(
   return due.difference(now) <= within ? DueState.soon : DueState.upcoming;
 }
 
+/// How much of the gap to the next feed is left, from 1 just after a feed to
+/// 0 when it is due. Null when there is no next feed to count towards.
+///
+/// The start is derived as `due - interval` rather than looked up from the
+/// feeds. That is not a shortcut: it makes the bar and the countdown beside
+/// it arithmetically incapable of disagreeing. Both then answer to the same
+/// [fixedIntervalDue], including the case that would otherwise catch a
+/// separate lookup out — a snack does not move the clock, so the feed the
+/// gap is measured from is not always the most recent one.
+///
+/// Clamped, so an overdue feed reads as empty rather than negative. How long
+/// it has been overdue is the countdown's job; a bar has no room past zero.
+double? feedRemaining({
+  required DateTime? due,
+  required Duration interval,
+  required DateTime now,
+}) {
+  if (due == null || interval <= Duration.zero) return null;
+  final left = due.difference(now).inSeconds / interval.inSeconds;
+  return left.clamp(0.0, 1.0);
+}
+
 /// Human countdown to [due]: "in 1h 20m", "due now", "25m overdue".
 String countdownLabel(DateTime due, {DateTime? now}) {
   final diff = due.difference(now ?? DateTime.now());

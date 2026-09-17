@@ -140,7 +140,21 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         // saying which one it was about — and it is about
                         // this one: when they last ate, when they next need
                         // to, one thing to read.
-                        footer: _nextFeed(context, clock, due, dueState),
+                        footer: _nextFeed(
+                          context,
+                          clock,
+                          due,
+                          dueState,
+                          feedRemaining(
+                            due: due,
+                            interval: Duration(
+                              minutes: ref
+                                  .watch(reminderSettingsProvider)
+                                  .intervalMinutes,
+                            ),
+                            now: clock,
+                          ),
+                        ),
                         // The same escalation the chip carries, on the whole
                         // card. From a doorway the colour arrives before any
                         // of the words do, which is the point of this screen.
@@ -271,11 +285,13 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
     DateTime clock,
     DateTime? due,
     DueState? state,
+    double? remaining,
   ) {
     if (due == null || state == null) return null;
     final at = TimeOfDay.fromDateTime(due).format(context);
     return NextFeedChip(
       state: state,
+      remaining: remaining,
       text: state == DueState.overdue
           ? 'Feed ${countdownLabel(due, now: clock)} · due $at'
           : 'Next feed ${countdownLabel(due, now: clock)} · $at',
