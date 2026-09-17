@@ -19,6 +19,7 @@ import 'package:baby_app/core/layout/app_bar_room.dart';
 import 'package:baby_app/features/common/day_time_label.dart';
 import 'package:baby_app/features/home/baby_switcher.dart';
 import 'package:baby_app/features/home/home_screen.dart';
+import 'package:baby_app/features/home/home_status_card.dart';
 
 /// Home has to survive a small screen at a large text size (#—).
 ///
@@ -291,6 +292,43 @@ void main() {
         feedings: [feedAt(400)],
       );
       expect(backdrops(tester, 'Last fed'), isNot(justFed));
+    });
+  });
+
+  group('the next-feed track', () {
+    testWidgets('is wired up on Home, and shortens as the feed nears', (
+      tester,
+    ) async {
+      // The chip and the bar are computed from the same due time, so this is
+      // really checking the wiring: that Home hands the fraction over at all.
+      Future<double> trackWidth(Duration sinceFeed) async {
+        await tester.pumpWidget(const SizedBox());
+        await pumpHome(
+          tester,
+          feedings: [
+            FeedingEvent(
+              id: 'f1',
+              type: FeedingType.bottle,
+              startTime: DateTime.now().subtract(sinceFeed),
+              amountMl: 120,
+            ),
+          ],
+        );
+        return tester
+            .getSize(
+              find.descendant(
+                of: find.byType(NextFeedChip),
+                matching: find.byType(ColoredBox),
+              ),
+            )
+            .width;
+      }
+
+      final justFed = await trackWidth(const Duration(minutes: 10));
+      final later = await trackWidth(const Duration(hours: 2));
+
+      expect(justFed, greaterThan(0));
+      expect(later, lessThan(justFed));
     });
   });
 
