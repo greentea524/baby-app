@@ -37,6 +37,35 @@ void main() {
     });
   });
 
+  group('PumpingFormat.measure', () {
+    // What nursery mode shows: the number, never the note.
+    test('is the volume when there is one', () {
+      final e = PumpingEvent(
+        id: 'p',
+        time: DateTime(2026, 7, 23, 8),
+        durationMinutes: 18,
+        amountMl: 120,
+        notes: 'left side felt slow today',
+      );
+      expect(PumpingFormat.measure(e, UnitSystem.metric), '120 ml');
+      expect(PumpingFormat.measure(e, UnitSystem.us), '120 ml (4.1 fl oz)');
+    });
+
+    test('falls back to the time spent when nothing was measured', () {
+      final e = PumpingEvent(
+        id: 'p',
+        time: DateTime(2026, 7, 23, 8),
+        durationMinutes: 18,
+      );
+      expect(PumpingFormat.measure(e, UnitSystem.metric), '18 min');
+    });
+
+    test('and is nothing at all when the session carries neither', () {
+      final e = PumpingEvent(id: 'p', time: DateTime(2026, 7, 23, 8));
+      expect(PumpingFormat.measure(e, UnitSystem.metric), isNull);
+    });
+  });
+
   test('DayStats sums pumped volume without touching feeding totals', () {
     final stats = DayStats.from(
       const [],

@@ -20,4 +20,17 @@ abstract final class PumpingFormat {
     ];
     return parts.join(' · ');
   }
+
+  /// The measured part of a session on its own — the volume, or the time
+  /// spent — and null when it carries neither.
+  ///
+  /// Narrower than [details] on purpose, and the counterpart of
+  /// `FeedingFormat.measure`: nursery mode is read from across a room at
+  /// boosted text size, and a note is a sentence. One would push the number
+  /// it sits beside off the card entirely.
+  static String? measure(PumpingEvent e, UnitSystem units) {
+    if (e.amountMl != null) return formatVolume(e.amountMl!, units);
+    if (e.durationMinutes != null) return '${e.durationMinutes} min';
+    return null;
+  }
 }

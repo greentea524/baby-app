@@ -9,6 +9,7 @@ import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
+import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
@@ -17,8 +18,9 @@ import 'package:baby_app/features/home/nursery_screen.dart';
 
 /// The screen for a tablet propped on a shelf (#29).
 ///
-/// Not Home scaled up: two readouts, three buttons, and nothing else — read
-/// from across a room and tapped while holding a baby.
+/// Not Home scaled up: a couple of readouts, three buttons, and nothing else
+/// — read from across a room and tapped while holding a baby. A third
+/// readout appears only for households that pump.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -38,6 +40,7 @@ void main() {
     bool withData = true,
     List<FeedingEvent>? feeds,
     List<DiaperEvent>? diapers,
+    List<PumpingEvent> pumps = const [],
     Map<String, Object> prefs = const {},
   }) async {
     SharedPreferences.setMockInitialValues({
@@ -84,7 +87,7 @@ void main() {
                     : const []),
           ),
         ),
-        recentPumpingProvider.overrideWith((ref) => Stream.value(const [])),
+        recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
       ],
     );
     addTearDown(container.dispose);
@@ -353,6 +356,141 @@ void main() {
 
     testWidgets('and survives it at the largest text size', (tester) async {
       await pumpNursery(tester, size: const Size(844, 390), textScale: 2.0);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('the pump card', () {
+    final pumped = [
+      PumpingEvent(
+        id: 'p1',
+        time: now.subtract(const Duration(minutes: 30)),
+        amountMl: 90,
+        durationMinutes: 15,
+      ),
+    ];
+
+    testWidgets('is there for a household that pumps', (tester) async {
+      await pumpNursery(tester, pumps: pumped);
+
+      expect(find.text('Last pumped'), findsOneWidget);
+      expect(find.text('30 min ago'), findsOneWidget);
+    });
+
+    testWidgets('with how much, the way the feed card does', (tester) async {
+      // The measure, not the full detail line: a note is a sentence and this
+      // screen is read from a doorway.
+      await pumpNursery(
+        tester,
+        pumps: pumped,
+        prefs: {'unit_system': 'metric'},
+      );
+
+      expect(find.textContaining('90 ml'), findsOneWidget);
+    });
+
+    testWidgets('and is absent until something is pumped', (tester) async {
+      // The default for most households, and the reason the card is
+      // conditional: an empty third of this screen says nothing.
+      await pumpNursery(tester);
+
+      expect(find.text('Last pumped'), findsNothing);
+      expect(find.text('Last fed'), findsOneWidget);
+      expect(find.text('Last changed'), findsOneWidget);
+    });
+
+    testWidgets('or when pumping is switched off', (tester) async {
+      await pumpNursery(
+        tester,
+        pumps: pumped,
+        prefs: {'show_pumping_action': false},
+      );
+
+      expect(find.text('Last pumped'), findsNothing);
+    });
+
+    testWidgets('carries the cadence countdown when one is set', (
+      tester,
+    ) async {
+      await pumpNursery(
+        tester,
+        pumps: pumped,
+        prefs: {'pump_interval_minutes': 120},
+      );
+
+      expect(find.textContaining('Next pump in 1h 30m'), findsOneWidget);
+    });
+
+    testWidgets('and stays a plain reading without one', (tester) async {
+      await pumpNursery(tester, pumps: pumped);
+
+      expect(find.textContaining('Next pump'), findsNothing);
+      // The feed card's own chip is untouched by any of this.
+      expect(find.textContaining('Next feed'), findsOneWidget);
+    });
+  });
+
+  group('three cards, for a household that pumps', () {
+    final pumped = [
+      PumpingEvent(
+        id: 'p1',
+        time: now.subtract(const Duration(minutes: 30)),
+        amountMl: 90,
+      ),
+    ];
+
+    testWidgets('sit in a row on a tablet with the width for it', (
+      tester,
+    ) async {
+      await pumpNursery(tester, pumps: pumped, size: const Size(1200, 800));
+
+      final fed = tester.getRect(find.text('Last fed'));
+      final changed = tester.getRect(find.text('Last changed'));
+      final pump = tester.getRect(find.text('Last pumped'));
+
+      expect(changed.left, greaterThan(fed.right));
+      expect(pump.left, greaterThan(changed.right));
+    });
+
+    testWidgets('and wrap to two-above-one when it is narrower', (
+      tester,
+    ) async {
+      // Three columns on a 900pt screen would be about 280pt each, which is
+      // not a card you read from across a room. Two and one beats three thin.
+      await pumpNursery(tester, pumps: pumped, size: const Size(900, 600));
+
+      final fed = tester.getRect(find.text('Last fed'));
+      final changed = tester.getRect(find.text('Last changed'));
+      final pump = tester.getRect(find.text('Last pumped'));
+
+      expect(changed.left, greaterThan(fed.right));
+      expect(pump.top, greaterThan(changed.bottom));
+    });
+
+    testWidgets('and stack in portrait, as two always have', (tester) async {
+      await pumpNursery(tester, pumps: pumped, size: const Size(834, 1194));
+
+      final changed = tester.getRect(find.text('Last changed'));
+      final pump = tester.getRect(find.text('Last pumped'));
+      expect(pump.top, greaterThan(changed.bottom));
+    });
+
+    testWidgets('a phone on its side still fits all three', (tester) async {
+      // The tightest case, now with one more card in it.
+      await pumpNursery(tester, pumps: pumped, size: const Size(844, 390));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Bottle'), findsOneWidget);
+      expect(find.text('Last pumped'), findsOneWidget);
+    });
+
+    testWidgets('and survives it at the largest text size', (tester) async {
+      await pumpNursery(
+        tester,
+        pumps: pumped,
+        size: const Size(844, 390),
+        textScale: 2.0,
+      );
       expect(tester.takeException(), isNull);
     });
   });
