@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/prefs/adopted_setting.dart';
 import '../../core/theme/theme_mode_provider.dart';
 import '../../data/models/notification_prefs.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -39,38 +40,6 @@ const _intervalSyncedKey = 'reminder_interval_synced';
 const _offSyncedKey = 'reminder_off_synced';
 
 const defaultReminderIntervalMinutes = 180; // 3 hours
-
-/// Which value wins when this device's setting and the account's disagree —
-/// the value to adopt, or null to keep the device's own.
-///
-/// The interval is stored twice: locally, which is what the in-app card reads,
-/// and on the account, which is what the reminder Cloud Function reads. Only
-/// the local copy was ever read back, so a second device kept showing its own
-/// stale interval — or the 3-hour default, on a device that had never set one
-/// — while push reminders used the account's (#27).
-///
-/// Neither copy carries a timestamp, so "newest wins" is not available. What
-/// is available is whether this device is carrying a change that never landed:
-///
-/// | chosen | lastSynced | server | outcome           |
-/// |--------|-----------|--------|-------------------|
-/// | unset  | —         | 240    | adopt 240         |
-/// | 240    | 240       | 300    | adopt 300         |
-/// | 240    | 240       | 240    | keep — they agree |
-/// | 240    | unset/180 | 180    | keep 240, resync  |
-///
-/// A device that has chosen something the account has not acknowledged is the
-/// one holding the newer value, so it wins and pushes again. Otherwise the
-/// account wins, because any difference came from somewhere else.
-T? adoptedSetting<T>({
-  required T? chosen,
-  required T? lastSynced,
-  required T server,
-}) {
-  if (chosen != null && chosen != lastSynced) return null;
-  if (server == chosen) return null;
-  return server;
-}
 
 /// The choices offered for [ReminderSettings.headsUpMinutes]. 0 is off.
 const headsUpOptions = <int>[0, 10, 15, 20, 30, 45, 60];

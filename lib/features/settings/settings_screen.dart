@@ -318,8 +318,9 @@ class _PumpingActionToggle extends ConsumerWidget {
 /// since "3 hr" next to "3 hr" tells nobody anything.
 ///
 /// A countdown only, to be clear about what it is not: no notification is
-/// sent. The feed reminder can push because a Cloud Function reads its
-/// interval out of Firestore; nothing reads this one.
+/// sent. The choice follows the caregiver's account so their other devices
+/// count to the same time, but unlike the feed interval below it nothing
+/// server-side reads it, and nothing will push when a pump falls due.
 class _PumpIntervalTile extends ConsumerWidget {
   const _PumpIntervalTile();
 
