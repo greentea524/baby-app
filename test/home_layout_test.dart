@@ -160,6 +160,7 @@ void main() {
     expect(find.text('Last fed'), findsOneWidget);
     expect(find.text('Last ate'), findsOneWidget);
     expect(find.text('Last diaper changed'), findsOneWidget);
+    expect(find.text('Last pumped'), findsOneWidget);
     expect(find.textContaining('Next feed'), findsOneWidget);
   });
 

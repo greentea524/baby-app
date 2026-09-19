@@ -7,11 +7,12 @@ import '../../data/repositories/repository_providers.dart';
 import '../diaper/diaper_due.dart';
 import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
+import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
 import 'home_prefs.dart';
 
-/// The Home status card (KAN-179): where feeding and diapers stand.
+/// The Home status card (KAN-179): where feeding, diapers and pumping stand.
 ///
 /// The next appointment used to sit here too, but it is the one thing on Home
 /// you cannot act on today — it now lives in the app bar corner
@@ -34,6 +35,7 @@ class HomeStatusCard extends ConsumerWidget {
       _feedingRow(context, ref),
       ?_solidsRow(context, ref),
       _diaperRow(context, ref),
+      ?_pumpRow(context, ref),
     ];
 
     if (ref.watch(homeLayoutProvider) == HomeLayout.separate) {
@@ -187,6 +189,34 @@ class HomeStatusCard extends ConsumerWidget {
                 DiaperFormat.details(last),
               ),
             ),
+    );
+  }
+
+  /// The last pump session, for the parent rather than the baby.
+  ///
+  /// Two things have to be true before it appears. Pumping has to be
+  /// switched on — a household that hid the pumping action has said pumping
+  /// is not part of their day, the same reading the bottle suggestion chips
+  /// take of that preference — and there has to be a session to show, so the
+  /// row does not sit empty on the day the setting is first left alone.
+  ///
+  /// Last of the rows, and untinted. Pumping has no due clock: unlike feeds
+  /// and nappies the rhythm is the caregiver's own, so there is nothing for
+  /// the app to call overdue.
+  Widget? _pumpRow(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(showPumpingActionProvider)) return null;
+    final last = ref.watch(lastPumpingProvider);
+    if (last == null) return null;
+    final units = ref.watch(unitSystemProvider);
+
+    return _StatusRow(
+      icon: PumpingFormat.icon,
+      label: 'Last pumped',
+      value: FeedingFormat.timeAgo(last.time, now: now),
+      detail: _join(
+        FeedingFormat.clockStamp(context, last.time, now: now),
+        PumpingFormat.details(last, units),
+      ),
     );
   }
 
