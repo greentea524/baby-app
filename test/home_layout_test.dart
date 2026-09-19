@@ -318,7 +318,7 @@ void main() {
         return tester
             .getSize(
               find.descendant(
-                of: find.byType(NextFeedChip),
+                of: find.byType(DueChip),
                 matching: find.byType(ColoredBox),
               ),
             )

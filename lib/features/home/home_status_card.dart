@@ -87,7 +87,7 @@ class HomeStatusCard extends ConsumerWidget {
       final at = TimeOfDay.fromDateTime(due).format(context);
       final settings = ref.watch(reminderSettingsProvider);
       final state = feedDueState(due, now: now, within: settings.headsUp);
-      next = NextFeedChip(
+      next = DueChip(
         state: state,
         remaining: feedRemaining(
           due: due,
@@ -224,12 +224,15 @@ class HomeStatusCard extends ConsumerWidget {
       details.isEmpty ? label : '$label · $details';
 }
 
-/// The next-feed countdown, as a tinted pill.
+/// A countdown to something being due, as a tinted pill.
 ///
 /// It used to be a small grey line under the last feed, which buried the one
 /// piece of information on the row you can still act on. A filled chip at
 /// [TextTheme.titleSmall] reads as its own thing, and warms through amber to
-/// the error palette as the feed comes due.
+/// the error palette as the thing it counts to comes due.
+///
+/// Named for the job rather than for feeds: it carries the pump countdown on
+/// the row below as well, and the wording is the caller's to supply.
 /// Amber is spelled out rather than taken from the scheme because no Material
 /// role means "warning": the seed decides what `tertiary` looks like, and
 /// across this app's four accents it lands anywhere from pink to green. A
@@ -265,7 +268,7 @@ const _overdueLight = (
 
 /// How a feed-due state is coloured, for anything that wants to show it.
 ///
-/// Shared rather than private to [NextFeedChip] because nursery mode tints
+/// Shared rather than private to [DueChip] because nursery mode tints
 /// the whole "Last fed" card with the same escalation, and two copies of the
 /// amber would drift apart the first time one of them was adjusted.
 ({Color background, Color foreground, IconData icon}) dueColors(
@@ -327,8 +330,8 @@ Color dueTint(BuildContext context, DueState state, Color on) =>
       on,
     );
 
-class NextFeedChip extends StatelessWidget {
-  const NextFeedChip({
+class DueChip extends StatelessWidget {
+  const DueChip({
     super.key,
     required this.text,
     required this.state,

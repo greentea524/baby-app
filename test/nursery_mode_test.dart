@@ -240,7 +240,7 @@ void main() {
     // saying which one it belonged to.
     await pumpNursery(tester, prefs: {'reminder_mode': 'fixedInterval'});
 
-    final chip = find.byType(NextFeedChip);
+    final chip = find.byType(DueChip);
     expect(chip, findsOneWidget);
 
     final fed = tester.getRect(find.text('Last fed'));

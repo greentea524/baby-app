@@ -18,7 +18,7 @@ void main() {
         home: Scaffold(
           body: Align(
             alignment: Alignment.topLeft,
-            child: NextFeedChip(
+            child: DueChip(
               text: 'Next feed in 1h · 5:00 PM',
               state: DueState.upcoming,
               remaining: remaining,
@@ -31,7 +31,7 @@ void main() {
   }
 
   final track = find.descendant(
-    of: find.byType(NextFeedChip),
+    of: find.byType(DueChip),
     matching: find.byType(ColoredBox),
   );
 

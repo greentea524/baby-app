@@ -20,7 +20,7 @@ void main() {
           colorSchemeSeed: const Color(0xFF7E9BD0),
         ),
         home: Scaffold(
-          body: NextFeedChip(state: state, text: 'Next feed in 12m · 2:15 PM'),
+          body: DueChip(state: state, text: 'Next feed in 12m · 2:15 PM'),
         ),
       ),
     );
@@ -33,7 +33,7 @@ void main() {
   Color background(WidgetTester tester) {
     final container = tester.widget<Container>(
       find.descendant(
-        of: find.byType(NextFeedChip),
+        of: find.byType(DueChip),
         matching: find.byType(Container),
       ),
     );
@@ -84,7 +84,7 @@ void main() {
           colorSchemeSeed: const Color(0xFFD08A9B), // Blush
         ),
         home: const Scaffold(
-          body: NextFeedChip(state: DueState.soon, text: 'Next feed'),
+          body: DueChip(state: DueState.soon, text: 'Next feed'),
         ),
       ),
     );
