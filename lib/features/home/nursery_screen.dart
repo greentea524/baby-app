@@ -12,6 +12,8 @@ import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
+import '../pumping/pump_schedule.dart';
+import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
 import '../reminders/feed_prediction.dart';
 import '../common/day_time_label.dart';
@@ -24,8 +26,12 @@ import 'home_status_card.dart';
 ///
 /// Not Home scaled up — a different decision about how much belongs on
 /// screen. Everything here can be read from across a room and tapped while
-/// holding a baby, which means two readouts, three buttons, and nothing else:
-/// no lists, no charts, no navigation bar.
+/// holding a baby, which means a couple of readouts, three buttons, and
+/// nothing else: no lists, no charts, no navigation bar.
+///
+/// Two readouts for most households. A third appears for those who pump,
+/// on the same terms Home's row uses — pumping switched on, and a session
+/// logged — so nobody who does not pump pays a card for it.
 ///
 /// The text is scaled inside this screen rather than app-wide, because the
 /// screens that live in the full app want density. Insights charts and the
@@ -193,33 +199,12 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         },
                       );
 
-                      // Side by side when the space is wider than it is
-                      // tall. The buttons stay along the bottom either way,
-                      // so in landscape the cards get the whole width rather
-                      // than half of it, which is the room they needed.
-                      final cards = _twoAcross(constraints)
-                          // IntrinsicHeight so the pair matches the taller of
-                          // them. Stretching instead asks for infinite height
-                          // inside the scroll view below, which is an
-                          // assertion rather than a layout.
-                          ? IntrinsicHeight(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Expanded(child: fed),
-                                  const SizedBox(width: 16),
-                                  Expanded(child: changed),
-                                ],
-                              ),
-                            )
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                fed,
-                                const SizedBox(height: 16),
-                                changed,
-                              ],
-                            );
+                      final readouts = <Widget>[
+                        fed,
+                        changed,
+                        ?_pumped(context, ref, clock),
+                      ];
+                      final cards = _cards(readouts, constraints);
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -276,6 +261,121 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// The pump card, or null when this household has no use for one.
+  ///
+  /// The same two conditions Home's row applies — pumping switched on, and
+  /// something logged — because a nursery screen is the one place where an
+  /// empty card costs most: there are only two or three things on it, and a
+  /// permanently blank third would be a third of the screen saying nothing.
+  ///
+  /// Carries the cadence countdown when one is set, exactly as the feed card
+  /// carries its own. Without a cadence it is a reading and nothing more.
+  Widget? _pumped(BuildContext context, WidgetRef ref, DateTime clock) {
+    if (!ref.watch(showPumpingActionProvider)) return null;
+    final last = ref.watch(lastPumpingProvider);
+    if (last == null) return null;
+
+    final due = ref.watch(nextPumpDueProvider);
+    final state = due == null
+        ? null
+        : feedDueState(
+            due,
+            now: clock,
+            within: ref.watch(reminderSettingsProvider).headsUp,
+          );
+
+    return _Readout(
+      icon: PumpingFormat.icon,
+      label: 'Last pumped',
+      event: last,
+      timeOf: (e) => e.time,
+      now: clock,
+      // The measure, not the full detail: notes are sentences, and this line
+      // is read from a doorway.
+      detail: PumpingFormat.measure(last, ref.watch(unitSystemProvider)),
+      footer: _nextPump(context, clock, due, state, ref),
+      tint: state == null ? null : dueColors(context, state).background,
+    );
+  }
+
+  /// The pump countdown, worded like the feed one and flipped the same way.
+  Widget? _nextPump(
+    BuildContext context,
+    DateTime clock,
+    DateTime? due,
+    DueState? state,
+    WidgetRef ref,
+  ) {
+    if (due == null || state == null) return null;
+    final at = TimeOfDay.fromDateTime(due).format(context);
+    return DueChip(
+      state: state,
+      remaining: feedRemaining(
+        due: due,
+        interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
+        now: clock,
+      ),
+      text: state == DueState.overdue
+          ? 'Pump ${countdownLabel(due, now: clock)} · due $at'
+          : 'Next pump ${countdownLabel(due, now: clock)} · $at',
+    );
+  }
+
+  /// The readouts laid out for the space there is.
+  ///
+  /// Rows of [_across] cards, stacked. With two cards on a landscape tablet
+  /// that is the pair side by side it has always been; with three on a
+  /// narrower one it becomes two above and one below, which beats three
+  /// columns too thin to read from a doorway.
+  Widget _cards(List<Widget> readouts, BoxConstraints constraints) {
+    final across = _across(constraints, readouts.length);
+    if (across == 1) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < readouts.length; i++) ...[
+            if (i > 0) const SizedBox(height: _cardGap),
+            readouts[i],
+          ],
+        ],
+      );
+    }
+
+    final rows = <Widget>[];
+    for (var i = 0; i < readouts.length; i += across) {
+      final row = readouts.sublist(
+        i,
+        i + across > readouts.length ? readouts.length : i + across,
+      );
+      rows.add(
+        // IntrinsicHeight so a row matches the taller of its cards.
+        // Stretching instead asks for infinite height inside the scroll view
+        // below, which is an assertion rather than a layout.
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var j = 0; j < row.length; j++) ...[
+                if (j > 0) const SizedBox(width: _cardGap),
+                Expanded(child: row[j]),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const SizedBox(height: _cardGap),
+          rows[i],
+        ],
+      ],
     );
   }
 
@@ -533,13 +633,29 @@ class _Readout<T> extends StatelessWidget {
   }
 }
 
-/// Whether the two cards should sit beside each other rather than stacked.
+/// The gap between cards, horizontally and vertically.
+const double _cardGap = 16;
+
+/// The narrowest a card may be and still be worth having.
 ///
-/// Wider than tall, with enough width for each to be worth having. Measured
-/// on the *available* width, after the nursery cap, so it does not depend on
-/// the size of the screen behind it.
-bool _twoAcross(BoxConstraints c) =>
-    c.maxWidth > c.maxHeight && c.maxWidth >= 620;
+/// Chosen so the two-card threshold lands where it always did — 620pt of
+/// available width — rather than as a fresh guess. Three cards then need
+/// about 940, which a tablet in landscape has and a phone does not.
+const double _minCardWidth = 302;
+
+/// How many cards sit beside each other rather than stacked.
+///
+/// Portrait always stacks: the width is not there, and the buttons pinned
+/// below leave the cards the height instead. In landscape, as many as fit at
+/// [_minCardWidth] each, never more than there are.
+///
+/// Measured on the *available* width, after the nursery cap, so it does not
+/// depend on the size of the screen behind it.
+int _across(BoxConstraints c, int cards) {
+  if (c.maxWidth <= c.maxHeight) return 1;
+  final fits = ((c.maxWidth + _cardGap) / (_minCardWidth + _cardGap)).floor();
+  return fits < 1 ? 1 : (fits > cards ? cards : fits);
+}
 
 /// Bottle, diaper and pumping — each straight into its sheet with the kind
 /// already chosen, so there is no chooser step asking again.
