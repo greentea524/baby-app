@@ -15,6 +15,7 @@ import '../../data/models/feeding_event.dart';
 import '../feeding/feeding_format.dart';
 import '../home/home_prefs.dart';
 import '../notifications/push_service.dart';
+import '../pumping/pump_schedule.dart';
 import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
@@ -63,6 +64,7 @@ class SettingsScreen extends ConsumerWidget {
           const _UnitsPicker(),
           const _BottleShortcutToggle(),
           const _PumpingActionToggle(),
+          const _PumpIntervalTile(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.group_outlined),
@@ -291,14 +293,64 @@ class _PumpingActionToggle extends ConsumerWidget {
     final enabled = ref.watch(showPumpingActionProvider);
     return SwitchListTile(
       secondary: const Icon(PumpingFormat.icon),
-      title: const Text('Pumping button'),
+      title: const Text('Pumping'),
       subtitle: Text(
         enabled
-            ? 'Shown on Home under the feed and diaper buttons'
+            ? 'A log button on Home, and a "Last pumped" row above it'
             : 'Hidden — turn on to log pump sessions',
       ),
       value: enabled,
       onChanged: (v) => ref.read(showPumpingActionProvider.notifier).set(v),
+    );
+  }
+}
+
+/// How often the caregiver means to pump, which is what the Home row counts
+/// down to.
+///
+/// Sits under the pumping toggle rather than in the reminder section below,
+/// and disappears with it: that section is about the feed reminder, and this
+/// setting has nothing to change while pumping is hidden.
+///
+/// Off unless asked for — see [pumpIntervalProvider] for why the feed
+/// reminder's default does not carry over. The subtitle says what the choice
+/// does to Home rather than restating the number in the dropdown beside it,
+/// since "3 hr" next to "3 hr" tells nobody anything.
+///
+/// A countdown only, to be clear about what it is not: no notification is
+/// sent. The feed reminder can push because a Cloud Function reads its
+/// interval out of Firestore; nothing reads this one.
+class _PumpIntervalTile extends ConsumerWidget {
+  const _PumpIntervalTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(showPumpingActionProvider)) return const SizedBox.shrink();
+    final minutes = ref.watch(pumpIntervalProvider);
+
+    return ListTile(
+      title: const Text('Pump interval'),
+      subtitle: Text(
+        minutes == 0
+            ? 'Home shows when you last pumped, with no countdown'
+            : 'Home counts down from the last session, and colours the row '
+                  'as the next one comes due',
+      ),
+      trailing: DropdownButton<int>(
+        // A stored value outside the list would leave the dropdown with no
+        // matching item, which is an assertion rather than a shrug.
+        value: pumpIntervalOptions.contains(minutes) ? minutes : 0,
+        items: [
+          for (final m in pumpIntervalOptions)
+            DropdownMenuItem(
+              value: m,
+              child: Text(m == 0 ? 'Off' : _minutesLabel(m)),
+            ),
+        ],
+        onChanged: (m) {
+          if (m != null) ref.read(pumpIntervalProvider.notifier).setMinutes(m);
+        },
+      ),
     );
   }
 }
@@ -334,12 +386,15 @@ class _ReminderSection extends ConsumerWidget {
         if (settings.mode == ReminderMode.fixedInterval)
           ListTile(
             title: const Text('Interval'),
-            subtitle: Text(_label(settings.intervalMinutes)),
+            subtitle: Text(_minutesLabel(settings.intervalMinutes)),
             trailing: DropdownButton<int>(
               value: settings.intervalMinutes,
               items: const [90, 120, 150, 180, 210, 240, 300, 360]
                   .map(
-                    (m) => DropdownMenuItem(value: m, child: Text(_label(m))),
+                    (m) => DropdownMenuItem(
+                      value: m,
+                      child: Text(_minutesLabel(m)),
+                    ),
                   )
                   .toList(),
               onChanged: (m) {
@@ -358,7 +413,7 @@ class _ReminderSection extends ConsumerWidget {
               settings.headsUpMinutes == 0
                   ? 'Home stays grey until the feed is due, then turns red'
                   : 'Home turns amber '
-                        '${_label(settings.headsUpMinutes)} before it is due',
+                        '${_minutesLabel(settings.headsUpMinutes)} before it is due',
             ),
             trailing: DropdownButton<int>(
               // A stored value outside the list would leave the dropdown with
@@ -370,7 +425,7 @@ class _ReminderSection extends ConsumerWidget {
                 for (final m in headsUpOptions)
                   DropdownMenuItem(
                     value: m,
-                    child: Text(m == 0 ? 'Off' : _label(m)),
+                    child: Text(m == 0 ? 'Off' : _minutesLabel(m)),
                   ),
               ],
               onChanged: (m) {
@@ -390,13 +445,19 @@ class _ReminderSection extends ConsumerWidget {
       ],
     );
   }
+}
 
-  static String _label(int minutes) {
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    if (h == 0) return '$m min';
-    return m == 0 ? '$h hr' : '$h hr $m min';
-  }
+/// A gap in minutes, spelled for a menu: "90 min", "3 hr", "3 hr 30 min".
+///
+/// Shared by the feed reminder and the pump interval. It was a static on the
+/// reminder section until the pump tile wanted the same wording, and two
+/// hours-and-minutes formatters would not have stayed the same wording for
+/// long.
+String _minutesLabel(int minutes) {
+  final h = minutes ~/ 60;
+  final m = minutes % 60;
+  if (h == 0) return '$m min';
+  return m == 0 ? '$h hr' : '$h hr $m min';
 }
 
 /// Quiet hours and the server-side reminder switch (KAN-167). Unlike the
