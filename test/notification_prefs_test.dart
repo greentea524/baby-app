@@ -3,6 +3,38 @@ import 'package:baby_app/features/reminders/reminder_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('the pumping cadence', () {
+    test('is off for anyone who has never set one', () {
+      // Every caregiver who saved preferences before this field existed, and
+      // everyone who does not pump — the document simply has no key.
+      expect(NotificationPrefs.fromMap(const {}).pumpIntervalMinutes, 0);
+      expect(const NotificationPrefs().pumpIntervalMinutes, 0);
+    });
+
+    test('survives a round trip through Firestore', () {
+      const prefs = NotificationPrefs(pumpIntervalMinutes: 150);
+      expect(NotificationPrefs.fromMap(prefs.toMap()).pumpIntervalMinutes, 150);
+    });
+
+    test('is published, so another device can find it', () {
+      expect(
+        const NotificationPrefs(pumpIntervalMinutes: 120).toMap(),
+        containsPair('pumpIntervalMinutes', 120),
+      );
+    });
+
+    test('reads a number stored as a double', () {
+      // Firestore hands numbers back as num; a value written by another
+      // client could arrive as 120.0.
+      expect(
+        NotificationPrefs.fromMap(const {
+          'pumpIntervalMinutes': 120.0,
+        }).pumpIntervalMinutes,
+        120,
+      );
+    });
+  });
+
   group('quiet hours', () {
     const overnight = NotificationPrefs(
       quietHoursEnabled: true,

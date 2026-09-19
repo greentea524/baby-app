@@ -199,6 +199,16 @@ final recentPumpingProvider = StreamProvider<List<PumpingEvent>>((ref) {
   return repo.watchRecent();
 });
 
+/// The most recent pump session, or null when none have been logged.
+///
+/// Powers the home "Last pumped" row. Like solids that row has no countdown
+/// attached: pumping is a supply rhythm the caregiver sets, not one the app
+/// can read off the baby, so there is nothing here to predict.
+final lastPumpingProvider = Provider<PumpingEvent?>((ref) {
+  final pumps = ref.watch(recentPumpingProvider).value ?? const [];
+  return pumps.isEmpty ? null : pumps.first;
+});
+
 final pumpingForDayProvider = StreamProvider<List<PumpingEvent>>((ref) {
   final repo = ref.watch(pumpingRepositoryProvider);
   if (repo == null) return Stream.value(const []);

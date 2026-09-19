@@ -289,7 +289,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
   ) {
     if (due == null || state == null) return null;
     final at = TimeOfDay.fromDateTime(due).format(context);
-    return NextFeedChip(
+    return DueChip(
       state: state,
       remaining: remaining,
       text: state == DueState.overdue

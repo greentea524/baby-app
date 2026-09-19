@@ -7,11 +7,13 @@ import '../../data/repositories/repository_providers.dart';
 import '../diaper/diaper_due.dart';
 import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
+import '../pumping/pump_schedule.dart';
+import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
 import 'home_prefs.dart';
 
-/// The Home status card (KAN-179): where feeding and diapers stand.
+/// The Home status card (KAN-179): where feeding, diapers and pumping stand.
 ///
 /// The next appointment used to sit here too, but it is the one thing on Home
 /// you cannot act on today — it now lives in the app bar corner
@@ -34,6 +36,7 @@ class HomeStatusCard extends ConsumerWidget {
       _feedingRow(context, ref),
       ?_solidsRow(context, ref),
       _diaperRow(context, ref),
+      ?_pumpRow(context, ref),
     ];
 
     if (ref.watch(homeLayoutProvider) == HomeLayout.separate) {
@@ -85,7 +88,7 @@ class HomeStatusCard extends ConsumerWidget {
       final at = TimeOfDay.fromDateTime(due).format(context);
       final settings = ref.watch(reminderSettingsProvider);
       final state = feedDueState(due, now: now, within: settings.headsUp);
-      next = NextFeedChip(
+      next = DueChip(
         state: state,
         remaining: feedRemaining(
           due: due,
@@ -190,16 +193,85 @@ class HomeStatusCard extends ConsumerWidget {
     );
   }
 
+  /// The last pump session, and when the next one is due.
+  ///
+  /// Two things have to be true before it appears. Pumping has to be
+  /// switched on — a household that hid the pumping action has said pumping
+  /// is not part of their day, the same reading the bottle suggestion chips
+  /// take of that preference — and there has to be a session to show, so the
+  /// row does not sit empty on the day the setting is first left alone.
+  ///
+  /// The countdown is a third condition on top of those, and only on the
+  /// chip: a cadence has to have been set (see [pumpIntervalProvider], which
+  /// is off until it is). Without one the row is what it was before — when
+  /// the last session was, and no colour — because there is nothing to be
+  /// late for. With one it escalates exactly like the feeding row, chip and
+  /// tint together, since a caregiver who set a cadence did so to be told
+  /// when it has slipped.
+  Widget? _pumpRow(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(showPumpingActionProvider)) return null;
+    final last = ref.watch(lastPumpingProvider);
+    if (last == null) return null;
+    final units = ref.watch(unitSystemProvider);
+    final due = ref.watch(nextPumpDueProvider);
+
+    DueState? state;
+    Widget? next;
+    if (due != null) {
+      // The heads-up the caregiver already chose for feeds. It is an answer
+      // to "how much notice do I want", which does not change subject with
+      // the row, and a second dropdown asking it again would be a setting
+      // earning its keep only in the settings screen.
+      final headsUp = ref.watch(reminderSettingsProvider).headsUp;
+      state = feedDueState(due, now: now, within: headsUp);
+      final at = TimeOfDay.fromDateTime(due).format(context);
+      next = DueChip(
+        state: state,
+        remaining: feedRemaining(
+          due: due,
+          interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
+          now: now,
+        ),
+        // Flipped once it has slipped past, the way the feed chip is: "Next
+        // pump 40m overdue" reads as a contradiction.
+        text: state == DueState.overdue
+            ? 'Pump ${countdownLabel(due, now: now)} · due $at'
+            : 'Next pump ${countdownLabel(due, now: now)} · $at',
+      );
+    }
+
+    return _StatusRow(
+      tint: state == null
+          ? null
+          : dueTint(
+              context,
+              state,
+              Theme.of(context).colorScheme.surfaceContainerLow,
+            ),
+      icon: PumpingFormat.icon,
+      label: 'Last pumped',
+      value: FeedingFormat.timeAgo(last.time, now: now),
+      detail: _join(
+        FeedingFormat.clockStamp(context, last.time, now: now),
+        PumpingFormat.details(last, units),
+      ),
+      footer: next,
+    );
+  }
+
   static String _join(String label, String details) =>
       details.isEmpty ? label : '$label · $details';
 }
 
-/// The next-feed countdown, as a tinted pill.
+/// A countdown to something being due, as a tinted pill.
 ///
 /// It used to be a small grey line under the last feed, which buried the one
 /// piece of information on the row you can still act on. A filled chip at
 /// [TextTheme.titleSmall] reads as its own thing, and warms through amber to
-/// the error palette as the feed comes due.
+/// the error palette as the thing it counts to comes due.
+///
+/// Named for the job rather than for feeds: it carries the pump countdown on
+/// the row below as well, and the wording is the caller's to supply.
 /// Amber is spelled out rather than taken from the scheme because no Material
 /// role means "warning": the seed decides what `tertiary` looks like, and
 /// across this app's four accents it lands anywhere from pink to green. A
@@ -235,7 +307,7 @@ const _overdueLight = (
 
 /// How a feed-due state is coloured, for anything that wants to show it.
 ///
-/// Shared rather than private to [NextFeedChip] because nursery mode tints
+/// Shared rather than private to [DueChip] because nursery mode tints
 /// the whole "Last fed" card with the same escalation, and two copies of the
 /// amber would drift apart the first time one of them was adjusted.
 ({Color background, Color foreground, IconData icon}) dueColors(
@@ -297,8 +369,8 @@ Color dueTint(BuildContext context, DueState state, Color on) =>
       on,
     );
 
-class NextFeedChip extends StatelessWidget {
-  const NextFeedChip({
+class DueChip extends StatelessWidget {
+  const DueChip({
     super.key,
     required this.text,
     required this.state,

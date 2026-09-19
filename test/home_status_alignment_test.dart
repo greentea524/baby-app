@@ -161,7 +161,7 @@ void main() {
     // Anchored on the elapsed time rather than the detail line: the detail
     // is a plain Text that stops at its own width once the screen is wide
     // enough not to clip it, so it is only the content edge by accident.
-    final chip = tester.getRect(find.byType(NextFeedChip));
+    final chip = tester.getRect(find.byType(DueChip));
     expect(
       tester.getRect(find.text('2 hr ago')).right,
       moreOrLessEquals(chip.right, epsilon: 0.5),
@@ -179,7 +179,7 @@ void main() {
     // inside it did not come along for the ride.
     await pumpHome(tester, size: const Size(900, 900));
 
-    final chip = tester.getRect(find.byType(NextFeedChip));
+    final chip = tester.getRect(find.byType(DueChip));
     expect(
       chip.right,
       moreOrLessEquals(

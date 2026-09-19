@@ -36,4 +36,19 @@ class NotificationPrefsRepository {
     'reminderIntervalMinutes': intervalMinutes,
     'remindersOff': remindersOff,
   }, SetOptions(merge: true));
+
+  /// Publishes just the pumping cadence, so the caregiver's other devices
+  /// count down to the same time.
+  ///
+  /// Narrow for the same reason [saveReminderCadence] is: this setting lives
+  /// in local preferences and can be changed before the prefs stream has
+  /// produced a value, so writing a whole [NotificationPrefs] would push
+  /// default quiet hours over whatever the caregiver had actually chosen.
+  ///
+  /// Its own method rather than a field on [saveReminderCadence] because the
+  /// two are written at different moments, and a combined call would have
+  /// each setting publishing the other's possibly-stale value.
+  Future<void> savePumpCadence({required int intervalMinutes}) => _doc.set({
+    'pumpIntervalMinutes': intervalMinutes,
+  }, SetOptions(merge: true));
 }

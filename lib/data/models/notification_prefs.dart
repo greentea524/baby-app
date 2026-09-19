@@ -16,6 +16,7 @@ class NotificationPrefs {
     this.overdueThresholdMinutes = 0,
     this.reminderIntervalMinutes = defaultReminderInterval,
     this.remindersOff = false,
+    this.pumpIntervalMinutes = 0,
   });
 
   static const defaultQuietStart = 22 * 60; // 10:00 PM
@@ -52,6 +53,15 @@ class NotificationPrefs {
   /// [enabled], which is the master switch for background push.
   final bool remindersOff;
 
+  /// The caregiver's pumping cadence, which Home counts down to. 0 is off,
+  /// and is the default for everyone who has never set one.
+  ///
+  /// The odd one out in this document: nothing server-side reads it. It is
+  /// stored here because it is the caregiver's setting and they expect it on
+  /// their other devices, and this is where their account-scoped settings
+  /// already live — not because a Cloud Function is waiting for it.
+  final int pumpIntervalMinutes;
+
   NotificationPrefs copyWith({
     bool? enabled,
     bool? quietHoursEnabled,
@@ -61,6 +71,7 @@ class NotificationPrefs {
     int? overdueThresholdMinutes,
     int? reminderIntervalMinutes,
     bool? remindersOff,
+    int? pumpIntervalMinutes,
   }) => NotificationPrefs(
     enabled: enabled ?? this.enabled,
     quietHoursEnabled: quietHoursEnabled ?? this.quietHoursEnabled,
@@ -72,6 +83,7 @@ class NotificationPrefs {
     reminderIntervalMinutes:
         reminderIntervalMinutes ?? this.reminderIntervalMinutes,
     remindersOff: remindersOff ?? this.remindersOff,
+    pumpIntervalMinutes: pumpIntervalMinutes ?? this.pumpIntervalMinutes,
   );
 
   factory NotificationPrefs.fromMap(Map<String, dynamic>? data) {
@@ -93,6 +105,9 @@ class NotificationPrefs {
           (data['reminderIntervalMinutes'] as num?)?.toInt() ??
           defaultReminderInterval,
       remindersOff: data['remindersOff'] as bool? ?? false,
+      // Absent for anyone who has not set a pumping cadence, which is most
+      // people — 0 is off, and off is the app's default too.
+      pumpIntervalMinutes: (data['pumpIntervalMinutes'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -109,6 +124,7 @@ class NotificationPrefs {
     'overdueThresholdMinutes': overdueThresholdMinutes,
     'reminderIntervalMinutes': reminderIntervalMinutes,
     'remindersOff': remindersOff,
+    'pumpIntervalMinutes': pumpIntervalMinutes,
   };
 
   /// Whether [localMinutes] (minutes from local midnight) falls inside the
