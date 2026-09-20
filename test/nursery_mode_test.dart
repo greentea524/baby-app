@@ -247,11 +247,19 @@ void main() {
     expect(chip, findsOneWidget);
 
     final fed = tester.getRect(find.text('Last fed'));
-    final changed = tester.getRect(find.text('Last changed'));
     final rect = tester.getRect(chip);
-    // Below the feed label and above where the other card begins.
     expect(rect.top, greaterThan(fed.bottom));
-    expect(rect.bottom, lessThanOrEqualTo(changed.top));
+
+    // And inside the feed card's own bounds, which is the claim — stated
+    // against the card rather than against where the diaper card happens to
+    // be, so it holds however the two are arranged.
+    final card = tester.getRect(
+      find
+          .ancestor(of: find.text('Last fed'), matching: find.byType(Container))
+          .first,
+    );
+    expect(card.contains(rect.topLeft), isTrue);
+    expect(card.contains(rect.bottomRight), isTrue);
   });
 
   testWidgets('a button opens its sheet with the kind already chosen', (
@@ -335,8 +343,24 @@ void main() {
       expect(button.top, greaterThan(card.bottom));
     });
 
-    testWidgets('and stacks the cards again in portrait', (tester) async {
+    testWidgets('and lines them up on an iPad held upright too', (
+      tester,
+    ) async {
+      // Upright used to stack on the grounds of orientation, which was the
+      // wrong question: 834pt is width for two cards whichever way round the
+      // device is, and stacking left them in a column down the middle of a
+      // screen with room either side.
       await pumpNursery(tester, size: const Size(834, 1194));
+
+      final fed = tester.getRect(find.text('Last fed'));
+      final changed = tester.getRect(find.text('Last changed'));
+      expect(changed.left, greaterThan(fed.right));
+    });
+
+    testWidgets('but a phone upright still stacks them', (tester) async {
+      // The other end of the same rule. Two columns of 167pt would be a pair
+      // of slivers, so width is what decides, not orientation.
+      await pumpNursery(tester, size: const Size(390, 844));
 
       final fed = tester.getRect(find.text('Last fed'));
       final changed = tester.getRect(find.text('Last changed'));
@@ -452,12 +476,38 @@ void main() {
       expect(pump.left, greaterThan(changed.right));
     });
 
+    testWidgets('on every iPad, in either orientation', (tester) async {
+      // The size that prompted this. An iPad has the width for three cards
+      // whichever way round it is held, and the smallest of them — 768pt
+      // upright, three columns of 232 — is the case the minimum width is set
+      // by.
+      const iPads = [
+        Size(768, 1024), // 9.7", upright
+        Size(834, 1194), // 11", upright
+        Size(1024, 1366), // 12.9", upright
+        Size(1024, 768), // 9.7", on its side
+        Size(1366, 1024), // 12.9", on its side
+      ];
+
+      for (final size in iPads) {
+        await tester.pumpWidget(const SizedBox());
+        await pumpNursery(tester, pumps: pumped, size: size);
+
+        final fed = tester.getRect(find.text('Last fed'));
+        final changed = tester.getRect(find.text('Last changed'));
+        final pump = tester.getRect(find.text('Last pumped'));
+
+        expect(changed.left, greaterThan(fed.right), reason: '$size');
+        expect(pump.left, greaterThan(changed.right), reason: '$size');
+      }
+    });
+
     testWidgets('and wrap to two-above-one when it is narrower', (
       tester,
     ) async {
-      // Three columns on a 900pt screen would be about 280pt each, which is
-      // not a card you read from across a room. Two and one beats three thin.
-      await pumpNursery(tester, pumps: pumped, size: const Size(900, 600));
+      // Below three columns' worth of width the row wraps rather than
+      // shaving every card thinner. Two and one beats three slivers.
+      await pumpNursery(tester, pumps: pumped, size: const Size(700, 500));
 
       final fed = tester.getRect(find.text('Last fed'));
       final changed = tester.getRect(find.text('Last changed'));
@@ -467,8 +517,8 @@ void main() {
       expect(pump.top, greaterThan(changed.bottom));
     });
 
-    testWidgets('and stack in portrait, as two always have', (tester) async {
-      await pumpNursery(tester, pumps: pumped, size: const Size(834, 1194));
+    testWidgets('and stack on a phone held upright', (tester) async {
+      await pumpNursery(tester, pumps: pumped, size: const Size(390, 844));
 
       final changed = tester.getRect(find.text('Last changed'));
       final pump = tester.getRect(find.text('Last pumped'));
