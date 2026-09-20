@@ -115,6 +115,18 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
+                      // How many cards there will be has to be known before
+                      // any of them is built: it decides how wide a column
+                      // each one gets, and that decides which shape the card
+                      // takes. Cheap to ask — these are the same providers
+                      // the pump card reads.
+                      final pumping =
+                          ref.watch(showPumpingActionProvider) &&
+                          ref.watch(lastPumpingProvider) != null;
+                      final across = _across(constraints, pumping ? 3 : 2);
+                      final compact =
+                          _cardWidth(constraints, across) < _compactCardWidth;
+
                       final lastFed = ref.watch(lastMilkFeedProvider);
                       final due = ref.watch(nextFeedDueProvider);
                       final dueState = due == null
@@ -127,6 +139,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                                   .headsUp,
                             );
                       final fed = _Readout(
+                        compact: compact,
                         icon: Icons.local_drink_outlined,
                         label: 'Last fed',
                         event: lastFed,
@@ -170,6 +183,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                       );
                       final lastChanged = ref.watch(lastDiaperProvider);
                       final changed = _Readout(
+                        compact: compact,
                         icon: Icons.baby_changing_station,
                         label: 'Last changed',
                         event: lastChanged,
@@ -202,9 +216,9 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                       final readouts = <Widget>[
                         fed,
                         changed,
-                        ?_pumped(context, ref, clock),
+                        if (pumping) _pumped(context, ref, clock, compact),
                       ];
-                      final cards = _cards(readouts, constraints);
+                      final cards = _cards(readouts, across);
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -264,20 +278,24 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
     );
   }
 
-  /// The pump card, or null when this household has no use for one.
+  /// The pump card.
   ///
-  /// The same two conditions Home's row applies — pumping switched on, and
-  /// something logged — because a nursery screen is the one place where an
-  /// empty card costs most: there are only two or three things on it, and a
-  /// permanently blank third would be a third of the screen saying nothing.
+  /// Built only when the caller has established there is one to build — the
+  /// same two conditions Home's row applies, pumping switched on and
+  /// something logged, asked in the layout above because the count decides
+  /// the column width. A nursery screen is the one place an empty card costs
+  /// most: there are only two or three things on it, and a permanently blank
+  /// third would be a third of the screen saying nothing.
   ///
   /// Carries the cadence countdown when one is set, exactly as the feed card
   /// carries its own. Without a cadence it is a reading and nothing more.
-  Widget? _pumped(BuildContext context, WidgetRef ref, DateTime clock) {
-    if (!ref.watch(showPumpingActionProvider)) return null;
-    final last = ref.watch(lastPumpingProvider);
-    if (last == null) return null;
-
+  Widget _pumped(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime clock,
+    bool compact,
+  ) {
+    final last = ref.watch(lastPumpingProvider)!;
     final due = ref.watch(nextPumpDueProvider);
     final state = due == null
         ? null
@@ -288,6 +306,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
           );
 
     return _Readout(
+      compact: compact,
       icon: PumpingFormat.icon,
       label: 'Last pumped',
       event: last,
@@ -324,14 +343,12 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
     );
   }
 
-  /// The readouts laid out for the space there is.
+  /// The readouts laid out [across] to a row.
   ///
-  /// Rows of [_across] cards, stacked. With two cards on a landscape tablet
-  /// that is the pair side by side it has always been; with three on a
-  /// narrower one it becomes two above and one below, which beats three
-  /// columns too thin to read from a doorway.
-  Widget _cards(List<Widget> readouts, BoxConstraints constraints) {
-    final across = _across(constraints, readouts.length);
+  /// Rows of that many, stacked. Three cards on a tablet is one row; on a
+  /// phone held upright it is three rows, which is the same widget either
+  /// way.
+  Widget _cards(List<Widget> readouts, int across) {
     if (across == 1) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -481,10 +498,21 @@ class _Readout<T> extends StatelessWidget {
     required this.event,
     required this.timeOf,
     required this.now,
+    this.compact = false,
     this.detail,
     this.footer,
     this.tint,
   });
+
+  /// Whether the column this card sits in is too narrow to spend 64pt on an
+  /// icon beside the text — see [_compactCardWidth].
+  ///
+  /// Passed in rather than measured with a `LayoutBuilder`, which cannot be
+  /// asked for an intrinsic height and so cannot live inside the
+  /// [IntrinsicHeight] that squares a row of these up. The layout knows the
+  /// column width before it builds the cards; this is that answer handed
+  /// down.
+  final bool compact;
 
   final IconData icon;
   final String label;
@@ -518,7 +546,6 @@ class _Readout<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final e = event;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -531,128 +558,187 @@ class _Readout<T> extends StatelessWidget {
               ),
         borderRadius: BorderRadius.circular(24),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: scheme.primaryContainer,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 26, color: scheme.onPrimaryContainer),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
+      // Narrow, the icon moves onto the label's line and the reading gets
+      // the card's full width. It is the headline that has to survive the
+      // squeeze — the icon is recognisable at any size, and a number scaled
+      // down to fit beside it is the one thing this screen cannot afford.
+      child: compact
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  label,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    _badge(scheme, size: 18, pad: 8),
+                    const SizedBox(width: 10),
+                    Expanded(child: _label(theme, scheme)),
+                  ],
                 ),
                 const SizedBox(height: _gapLabel),
-                if (e == null)
-                  Text('Nothing logged yet', style: theme.textTheme.titleLarge)
-                else ...[
-                  // The elapsed time is the headline: from across a room it
-                  // is the only number that matters.
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      FeedingFormat.timeAgo(timeOf(e), now: now),
-                      style: theme.textTheme.displaySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: scheme.onSurface,
-                      ),
-                      maxLines: 1,
-                    ),
+                ..._body(context, theme, scheme),
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _badge(scheme, size: 26, pad: 12),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _label(theme, scheme),
+                      const SizedBox(height: _gapLabel),
+                      ..._body(context, theme, scheme),
+                    ],
                   ),
-                  const SizedBox(height: _gapHeadline),
-                  // One supporting line, not two. As separate lines the
-                  // clock and the measurement were the same size and only a
-                  // shade apart, so neither claimed the rank — they read as
-                  // two labels rather than a fact and its footnote. Together
-                  // the card is four things: what it is, how long ago, the
-                  // detail, what happens next.
-                  //
-                  // Scaled down rather than clipped, like the headline. In
-                  // US units a volume reads "150 ml (5.1 fl oz)", which does
-                  // not fit a phone-width card at the boost this mode
-                  // applies, and an amount trailing off into an ellipsis is
-                  // the one thing this line exists to avoid.
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: FeedingFormat.clockStamp(
-                              context,
-                              timeOf(e),
-                              now: now,
-                            ),
-                          ),
-                          if (detail case final it?)
-                            TextSpan(
-                              text: ' · $it',
-                              // Carried at full strength: the clock says
-                              // when, this says what, and what is the part
-                              // being asked for.
-                              style: TextStyle(
-                                color: scheme.onSurface,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                        ],
-                      ),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                    ),
-                  ),
-                ],
-                if (footer case final it?) ...[
-                  const SizedBox(height: _gapFooter),
-                  Align(alignment: Alignment.centerLeft, child: it),
-                ],
+                ),
               ],
             ),
-          ),
-        ],
-      ),
     );
+  }
+
+  Widget _badge(
+    ColorScheme scheme, {
+    required double size,
+    required double pad,
+  }) => Container(
+    padding: EdgeInsets.all(pad),
+    decoration: BoxDecoration(
+      color: scheme.primaryContainer,
+      shape: BoxShape.circle,
+    ),
+    child: Icon(icon, size: size, color: scheme.onPrimaryContainer),
+  );
+
+  Widget _label(ThemeData theme, ColorScheme scheme) => Text(
+    label,
+    style: theme.textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant),
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+  );
+
+  /// Everything under the label: the elapsed time, its supporting line, and
+  /// the footer. The same in both shapes — only where the icon sits differs.
+  List<Widget> _body(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme scheme,
+  ) {
+    final e = event;
+    return [
+      if (e == null)
+        Text('Nothing logged yet', style: theme.textTheme.titleLarge)
+      else ...[
+        // The elapsed time is the headline: from across a room it
+        // is the only number that matters.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            FeedingFormat.timeAgo(timeOf(e), now: now),
+            style: theme.textTheme.displaySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: scheme.onSurface,
+            ),
+            maxLines: 1,
+          ),
+        ),
+        const SizedBox(height: _gapHeadline),
+        // One supporting line, not two. As separate lines the
+        // clock and the measurement were the same size and only a
+        // shade apart, so neither claimed the rank — they read as
+        // two labels rather than a fact and its footnote. Together
+        // the card is four things: what it is, how long ago, the
+        // detail, what happens next.
+        //
+        // Scaled down rather than clipped, like the headline. In
+        // US units a volume reads "150 ml (5.1 fl oz)", which does
+        // not fit a phone-width card at the boost this mode
+        // applies, and an amount trailing off into an ellipsis is
+        // the one thing this line exists to avoid.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: FeedingFormat.clockStamp(context, timeOf(e), now: now),
+                ),
+                if (detail case final it?)
+                  TextSpan(
+                    text: ' · $it',
+                    // Carried at full strength: the clock says
+                    // when, this says what, and what is the part
+                    // being asked for.
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+            maxLines: 1,
+          ),
+        ),
+      ],
+      if (footer case final it?) ...[
+        const SizedBox(height: _gapFooter),
+        Align(alignment: Alignment.centerLeft, child: it),
+      ],
+    ];
   }
 }
 
 /// The gap between cards, horizontally and vertically.
 const double _cardGap = 16;
 
-/// The narrowest a card may be and still be worth having.
+/// The narrowest a card may be and still say what it is from across a room.
 ///
-/// Chosen so the two-card threshold lands where it always did — 620pt of
-/// available width — rather than as a fresh guess. Three cards then need
-/// about 940, which a tablet in landscape has and a phone does not.
-const double _minCardWidth = 302;
+/// Set by the smallest iPad: 768pt upright leaves 728 for cards, so three of
+/// them come to 232 each. That is the case this number exists to admit —
+/// every other tablet, in either orientation, has more room than that.
+///
+/// A phone is the other side of it. Upright at 390pt there are 350 to share,
+/// and two columns of 167 would be a pair of slivers, so it keeps stacking.
+const double _minCardWidth = 228;
+
+/// Below this, a card turns its icon from a column into a header line.
+///
+/// The icon beside the text costs 64pt of every card — fine on a card with
+/// width to spare, a quarter of one that is three across a tablet, and spent
+/// on the one element that stays recognisable at any size. Moving it onto
+/// the label's line hands that width back to the reading.
+///
+/// Set where the roomy shape stops being able to show its headline
+/// unscaled, so the two never disagree about which is better: below this a
+/// card with the icon beside it would be shrinking the number to fit, and
+/// above it both shapes render the same text at the same size and the
+/// roomier one wins on looks. A threshold placed lower than this would let a
+/// *wider* card show *less* text than a narrower one.
+const double _compactCardWidth = 520;
+
+/// What each card gets when [across] of them share the width.
+double _cardWidth(BoxConstraints c, int across) =>
+    (c.maxWidth - _cardGap * (across - 1)) / across;
 
 /// How many cards sit beside each other rather than stacked.
 ///
-/// Portrait always stacks: the width is not there, and the buttons pinned
-/// below leave the cards the height instead. In landscape, as many as fit at
-/// [_minCardWidth] each, never more than there are.
+/// As many as fit at [_minCardWidth], never more than there are. Width
+/// alone, with no test of orientation: an iPad held upright has the width
+/// for three cards and used to stack them anyway, which left the readings
+/// in a tall column down the middle of a screen that had room to line them
+/// up. The question was always how much width there is, not which way round
+/// the device is.
 ///
 /// Measured on the *available* width, after the nursery cap, so it does not
 /// depend on the size of the screen behind it.
 int _across(BoxConstraints c, int cards) {
-  if (c.maxWidth <= c.maxHeight) return 1;
   final fits = ((c.maxWidth + _cardGap) / (_minCardWidth + _cardGap)).floor();
   return fits < 1 ? 1 : (fits > cards ? cards : fits);
 }
