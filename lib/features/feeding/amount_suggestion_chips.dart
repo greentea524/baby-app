@@ -43,13 +43,18 @@ class AmountSuggestionChips extends ConsumerWidget {
         children: [
           for (final s in suggestions)
             ActionChip(
-              // The pump chip is marked, because where it came from changes
-              // what it means: the others are habit, this one is the milk
-              // actually standing in the fridge.
+              // Pump chips are marked, because where the number came from
+              // changes what it means: the others are habit, these are the
+              // milk actually standing in the fridge.
               avatar: s.source == AmountSource.pump
                   ? Icon(PumpingFormat.icon, size: 18)
                   : null,
-              tooltip: s.source == AmountSource.pump ? 'Your last pump' : null,
+              // Says why it is being offered rather than which session it
+              // was, which is the part that matters and the part that stays
+              // true when there are two of them.
+              tooltip: s.source == AmountSource.pump
+                  ? 'Pumped, not fed yet'
+                  : null,
               label: Text('${unit.fieldText(s.millilitres)} ${unit.label}'),
               onPressed: () => onPick(s.millilitres),
             ),
