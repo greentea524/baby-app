@@ -365,68 +365,121 @@ void _logFeed(BuildContext context, WidgetRef ref) {
   );
 }
 
+/// Room for the label rather than for the button's own margins. Three across
+/// a phone is a narrow button, and Material's default 24pt of side padding is
+/// most of what a word needs.
+const _quickActionStyle = ButtonStyle(
+  padding: WidgetStatePropertyAll(
+    EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+  ),
+);
+
+/// The log buttons: one row, one button each.
+///
+/// Side by side rather than two-and-one. The three are the same kind of
+/// thing — something you came here to log — and pumping sitting alone
+/// underneath read as a footnote to the pair above it rather than as the
+/// third of three.
+///
+/// They keep their three emphases: filled, tonal, outlined. That is the rank
+/// the old layout carried in its shape, and with the shape gone the colour
+/// is what is left to carry it — feeds and diapers are what most people open
+/// the app for, and pumping is opt-in (KAN-181).
 class _QuickActions extends ConsumerWidget {
   const _QuickActions();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Pumping is opt-in (KAN-181): it only applies to some caregivers, and
-    // feeds and diapers are what most people open the app to log.
     final showPumping = ref.watch(showPumpingActionProvider);
     final bottleFirst = ref.watch(bottleShortcutProvider);
+
+    final actions = <Widget>[
+      FilledButton(
+        onPressed: () => _logFeed(context, ref),
+        style: _quickActionStyle,
+        // Says what it will actually do. A button labelled "Feed" that opens
+        // the bottle form has told you the wrong thing before you reach it.
+        child: _QuickActionLabel(
+          icon: bottleFirst
+              ? FeedingFormat.typeIcon(FeedingType.bottle)
+              : Icons.restaurant,
+          label: bottleFirst ? 'Bottle' : 'Feed',
+        ),
+      ),
+      FilledButton.tonal(
+        onPressed: () => showDiaperQuickLog(context),
+        style: _quickActionStyle,
+        child: const _QuickActionLabel(
+          icon: Icons.baby_changing_station,
+          label: 'Diaper',
+        ),
+      ),
+      if (showPumping)
+        OutlinedButton(
+          onPressed: () => showPumpingQuickLog(context),
+          style: _quickActionStyle,
+          child: const _QuickActionLabel(
+            icon: PumpingFormat.icon,
+            label: 'Pump',
+          ),
+        ),
+    ];
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => _logFeed(context, ref),
-                  icon: Icon(
-                    bottleFirst
-                        ? FeedingFormat.typeIcon(FeedingType.bottle)
-                        : Icons.restaurant,
-                  ),
-                  // Says what it will actually do. A button labelled "Log
-                  // feed" that opens the bottle form has told you the wrong
-                  // thing before you even reach it.
-                  label: Text(bottleFirst ? 'Log bottle' : 'Log feed'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: () => showDiaperQuickLog(context),
-                  icon: const Icon(Icons.baby_changing_station),
-                  label: const Text('Log diaper'),
-                ),
-              ),
+      // Squared up, because the labels do not all shrink by the same amount:
+      // a short word like "Pump" still fits where "Diaper" has had to give,
+      // and left to themselves the three buttons came out different heights.
+      // Intrinsic height is measured before any of that shrinking, so it is
+      // the same for all three.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < actions.length; i++) ...[
+              if (i > 0) const SizedBox(width: 12),
+              Expanded(child: actions[i]),
             ],
-          ),
-          if (showPumping) ...[
-            const SizedBox(height: 12),
-            // A button, like the two above it, rather than the text link it
-            // used to be: same height, same hit area, so all three read as
-            // things to press.
-            //
-            // Outlined rather than tonal keeps the rank the text link was
-            // carrying — feed and diaper are what most people open the app
-            // for, and pumping is opt-in. On its own full-width row it would
-            // otherwise be the largest button on the screen.
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => showPumpingQuickLog(context),
-                icon: const Icon(PumpingFormat.icon),
-                label: const Text('Log pumping'),
-              ),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
+}
+
+/// A log button's face: the icon above the word rather than beside it.
+///
+/// Beside it, the icon and the gap take about 26pt of a button that is a
+/// third of a phone wide, and the word was the thing giving way. Stacked,
+/// the button only has to be as wide as its label.
+///
+/// The label is one word for the same reason — and it is the word nursery
+/// mode already uses for these three buttons, which are the same three
+/// actions in the same arrangement.
+///
+/// Scaled down rather than truncated when even that does not fit. At the
+/// largest accessibility sizes three words cannot share a phone's width, and
+/// a slightly smaller "Diaper" is worth more than a full-sized "Dia…".
+class _QuickActionLabel extends StatelessWidget {
+  const _QuickActionLabel({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon),
+      const SizedBox(height: 4),
+      Flexible(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label, maxLines: 1),
+        ),
+      ),
+    ],
+  );
 }
 
 /// What Home shows before there is a baby to log against. Which of these is
