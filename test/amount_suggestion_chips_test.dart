@@ -81,6 +81,38 @@ void main() {
       expect(find.byIcon(PumpingFormat.icon), findsOneWidget);
     });
 
+    testWidgets('mark both of them when two pumps are offered', (tester) async {
+      // Two sessions still in the fridge: both are milk in hand, so both
+      // carry the mark that says so.
+      await pumpChips(
+        tester,
+        offered: const [
+          AmountSuggestion(95, AmountSource.pump),
+          AmountSuggestion(120, AmountSource.bottle),
+          AmountSuggestion(130, AmountSource.pump),
+        ],
+      );
+
+      expect(find.byIcon(PumpingFormat.icon), findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.widgetWithText(ActionChip, '120 ml'),
+          matching: find.byIcon(PumpingFormat.icon),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('show an amount that is not a round five as it is', (
+      tester,
+    ) async {
+      await pumpChips(
+        tester,
+        offered: const [AmountSuggestion(93, AmountSource.pump)],
+      );
+      expect(find.text('93 ml'), findsOneWidget);
+    });
+
     testWidgets('wrap onto a second line rather than overflowing a phone', (
       tester,
     ) async {

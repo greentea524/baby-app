@@ -45,15 +45,25 @@ void main() {
         bottle(120, atHour: 1),
         bottle(122, atHour: 2),
       ];
-      expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [120]);
+      // One chip, because one habit — and it reads 122, the last of them
+      // actually poured, rather than the 120 the group is counted under.
+      expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [122]);
     });
 
-    test('a value on the boundary goes up, and stays its own amount', () {
-      // Any binning has to break the midpoint somewhere: 122 falls back to
-      // 120, 123 goes up to 125. Pinned so the choice is visible rather than
-      // surprising.
+    test('a chip carries a real entry, never its group', () {
+      // Reported: chips landing on numbers nobody poured. A household that
+      // only ever pours 118 should be offered 118 to tap, not a tidied 120
+      // that would go into the record as 120.
+      final feeds = [for (var i = 0; i < 4; i++) bottle(118, atHour: i)];
+      expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [118]);
+    });
+
+    test('groups either side of a boundary stay separate chips', () {
+      // Any binning has to break the midpoint somewhere: 122 is counted
+      // under 120, 123 under 125. Two groups, so two chips — each showing
+      // its own real amount.
       final feeds = [bottle(122), bottle(123, atHour: 1)];
-      expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [120, 125]);
+      expect(mlOf(suggestedAmounts(feeds: feeds, pumps: const [])), [122, 123]);
     });
 
     test('keeps the fives a household actually pours', () {
@@ -171,11 +181,11 @@ void main() {
     });
   });
 
-  group('from the last pump', () {
+  group('from recent pumps', () {
     test('keeps its place against a wall of bottles', () {
-      // The reserved slot earning its keep: one pump session would lose every
-      // frequency contest, and it is the only source that knows what is
-      // actually in the bottle.
+      // The reserved slots earning their keep: a pump session would lose
+      // every frequency contest, and it is the only source that knows what
+      // is actually in the bottle.
       final feeds = [for (var i = 0; i < 40; i++) bottle(120, atHour: i)];
       final picked = suggestedAmounts(
         feeds: feeds,
@@ -217,12 +227,65 @@ void main() {
       expect(picked.single.source, AmountSource.pump);
     });
 
-    test('takes the latest session, not the biggest', () {
+    test('offers the last two, not just the latest', () {
+      // Which of the two bottles in the fridge you reach for is not
+      // something the app can know, and one chip made it a guess.
       final picked = suggestedAmounts(
         feeds: const [],
         pumps: [pump(200, atHour: 1), pump(90, atHour: 5)],
       );
-      expect(mlOf(picked), [90]);
+      expect(mlOf(picked), [90, 200]);
+      expect(picked.every((s) => s.source == AmountSource.pump), isTrue);
+    });
+
+    test('and only the last two when there are more', () {
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: [
+          pump(60, atHour: 1),
+          pump(70, atHour: 2),
+          pump(80, atHour: 3),
+          pump(90, atHour: 4),
+        ],
+      );
+      expect(mlOf(picked), [80, 90]);
+    });
+
+    test('drops the one that has been fed, keeping the one that has not', () {
+      // The case this rule is for: pumped at one and at three, a bottle
+      // poured at two. The one o'clock milk is gone; the three o'clock milk
+      // is what is left.
+      final picked = suggestedAmounts(
+        feeds: [bottle(130, atHour: 2)],
+        pumps: [pump(130, atHour: 1), pump(95, atHour: 3)],
+      );
+      expect(
+        picked
+            .where((s) => s.source == AmountSource.pump)
+            .map((s) => s.millilitres),
+        [95],
+      );
+    });
+
+    test('shows one chip when both sessions came back the same', () {
+      // Two chips reading 120 would tap to the same number and say nothing
+      // about which is which.
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: [pump(120, atHour: 1), pump(120, atHour: 5)],
+      );
+      expect(mlOf(picked), [120]);
+    });
+
+    test('is offered at the exact amount, fives or not', () {
+      // Reported: a 93 ml session came back as a 95 ml chip. The pump slots
+      // are measurements rather than habits, so moving one offers milk that
+      // was never in the bottle.
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: [pump(93, atHour: 1), pump(107, atHour: 2)],
+      );
+      expect(mlOf(picked), [93, 107]);
     });
 
     test('skips sessions logged without an amount', () {
@@ -234,16 +297,18 @@ void main() {
     });
 
     test('shows one chip when it lands on an amount already offered', () {
+      // 122 and 120 side by side would be two chips for one pour, and the
+      // difference between them is not a choice anyone is making.
       final feeds = [for (var i = 0; i < 4; i++) bottle(120, atHour: i)];
       final picked = suggestedAmounts(
         feeds: feeds,
         pumps: [pump(122, atHour: 5)],
       );
-      expect(mlOf(picked), [120]);
+      expect(mlOf(picked), [122]);
       expect(
         picked.single.source,
         AmountSource.pump,
-        reason: 'the fresher fact',
+        reason: 'the fresher fact, at the amount actually measured',
       );
     });
 
