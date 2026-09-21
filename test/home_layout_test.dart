@@ -200,21 +200,31 @@ void main() {
   group('where the quick actions sit', () {
     // The primary button is labelled for what it does, and the bottle
     // shortcut is on by default — see the group below, which pins both.
-    const logFeed = 'Log bottle';
+    //
+    // Matched as a button rather than by its text: "Bottle" is also what the
+    // activity list calls a logged bottle, so a bare text finder picks up
+    // whichever rows happen to be on screen.
+    final logFeed = find.widgetWithText(FilledButton, 'Bottle');
 
-    double yOf(WidgetTester tester, String text) =>
-        tester.getTopLeft(find.text(text)).dy;
+    double yOf(WidgetTester tester, Finder target) =>
+        tester.getTopLeft(target).dy;
 
     testWidgets('by default, logging comes before reading', (tester) async {
       // Logging a feed is the reason the app gets opened; it used to sit
       // below the status card and today's totals, a third of the way down.
       await pumpHome(tester);
-      expect(yOf(tester, logFeed), lessThan(yOf(tester, 'Last fed')));
+      expect(
+        yOf(tester, logFeed),
+        lessThan(yOf(tester, find.text('Last fed'))),
+      );
     });
 
     testWidgets('and can be put back under the status rows', (tester) async {
       await pumpHome(tester, prefs: {'home_actions': 'belowStatus'});
-      expect(yOf(tester, logFeed), greaterThan(yOf(tester, 'Last fed')));
+      expect(
+        yOf(tester, logFeed),
+        greaterThan(yOf(tester, find.text('Last fed'))),
+      );
     });
 
     testWidgets('either way, both are on screen without scrolling', (
@@ -222,7 +232,7 @@ void main() {
     ) async {
       for (final placement in HomeActions.values) {
         await pumpHome(tester, prefs: {'home_actions': placement.name});
-        expect(find.text(logFeed), findsOneWidget, reason: placement.name);
+        expect(logFeed, findsOneWidget, reason: placement.name);
         expect(find.text('Last fed'), findsOneWidget, reason: placement.name);
       }
     });
@@ -374,19 +384,19 @@ void main() {
 
   group('the bottle shortcut', () {
     testWidgets('is on by default, and says what it will do', (tester) async {
-      // A button labelled "Log feed" that opens the bottle form has told you
-      // the wrong thing before you reach it.
+      // A button labelled "Feed" that opens the bottle form has told you the
+      // wrong thing before you reach it.
       await pumpHome(tester);
 
-      expect(find.text('Log bottle'), findsOneWidget);
-      expect(find.text('Log feed'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Bottle'), findsOneWidget);
+      expect(find.text('Feed'), findsNothing);
     });
 
     testWidgets('opens the bottle form rather than the chooser', (
       tester,
     ) async {
       await pumpHome(tester);
-      await tester.tap(find.text('Log bottle'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Bottle'));
       await tester.pumpAndSettle();
 
       expect(find.text('Bottle'), findsWidgets);
@@ -397,7 +407,7 @@ void main() {
       // Deliberately like nursery mode: straight to the form. The setting is
       // the way back to the other kinds, not a link inside the sheet.
       await pumpHome(tester);
-      await tester.tap(find.text('Log bottle'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Bottle'));
       await tester.pumpAndSettle();
 
       expect(find.text('Log a feed'), findsNothing);
@@ -407,8 +417,8 @@ void main() {
     testWidgets('turned off, the button asks which kind again', (tester) async {
       await pumpHome(tester, prefs: {'feed_button_bottle': false});
 
-      expect(find.text('Log feed'), findsOneWidget);
-      await tester.tap(find.text('Log feed'));
+      expect(find.text('Feed'), findsOneWidget);
+      await tester.tap(find.text('Feed'));
       await tester.pumpAndSettle();
 
       expect(find.text('Log a feed'), findsOneWidget);
@@ -448,42 +458,92 @@ void main() {
   });
 
   group('the pumping action', () {
-    testWidgets('is a button, the size of the two above it', (tester) async {
+    testWidgets('is a button, the size of the other two', (tester) async {
       // It used to be a bare text link under two proper buttons — smaller to
       // hit, and not obviously a thing to press at all.
       await pumpHome(tester);
 
-      final pumping = find.widgetWithText(OutlinedButton, 'Log pumping');
+      final pumping = find.widgetWithText(OutlinedButton, 'Pump');
       expect(pumping, findsOneWidget);
       expect(
         tester.getSize(pumping).height,
-        tester.getSize(find.widgetWithText(FilledButton, 'Log diaper')).height,
+        tester.getSize(find.widgetWithText(FilledButton, 'Diaper')).height,
       );
     });
 
-    testWidgets('spans the pair above it, edge to edge', (tester) async {
+    testWidgets('sits in the row beside them, not under it', (tester) async {
+      // All three are the same kind of thing. Alone underneath, pumping read
+      // as a footnote to the pair above rather than as the third of three.
       await pumpHome(tester);
 
-      final pumping = tester.getRect(
-        find.widgetWithText(OutlinedButton, 'Log pumping'),
-      );
-      final feed = tester.getRect(
-        find.widgetWithText(FilledButton, 'Log bottle'),
-      );
+      final feed = tester.getRect(find.widgetWithText(FilledButton, 'Bottle'));
       final diaper = tester.getRect(
-        find.widgetWithText(FilledButton, 'Log diaper'),
+        find.widgetWithText(FilledButton, 'Diaper'),
+      );
+      final pumping = tester.getRect(
+        find.widgetWithText(OutlinedButton, 'Pump'),
       );
 
-      expect(pumping.left, feed.left);
-      expect(pumping.right, diaper.right);
-      expect(pumping.top, greaterThan(feed.bottom));
+      expect(diaper.left, greaterThan(feed.right));
+      expect(pumping.left, greaterThan(diaper.right));
+      expect(pumping.top, feed.top);
     });
 
-    testWidgets('and is still hidden when pumping is switched off', (
+    testWidgets('and the three share the width evenly', (tester) async {
+      await pumpHome(tester);
+
+      final widths = [
+        for (final f in [
+          find.widgetWithText(FilledButton, 'Bottle'),
+          find.widgetWithText(FilledButton, 'Diaper'),
+          find.widgetWithText(OutlinedButton, 'Pump'),
+        ])
+          tester.getSize(f).width,
+      ];
+      expect(widths[1], moreOrLessEquals(widths[0], epsilon: 0.5));
+      expect(widths[2], moreOrLessEquals(widths[0], epsilon: 0.5));
+    });
+
+    testWidgets('and all three keep one height at a large text size', (
       tester,
     ) async {
+      // The labels do not all shrink by the same amount — a short word like
+      // "Pump" still fits where "Diaper" has had to give — so left to
+      // themselves the three buttons came out different heights and sat at
+      // different offsets down the row.
+      await pumpHome(tester, textScale: 2.0, size: const Size(320, 568));
+
+      final rects = [
+        for (final f in [
+          find.widgetWithText(FilledButton, 'Bottle'),
+          find.widgetWithText(FilledButton, 'Diaper'),
+          find.widgetWithText(OutlinedButton, 'Pump'),
+        ])
+          tester.getRect(f),
+      ];
+      for (final r in rects.skip(1)) {
+        expect(r.height, moreOrLessEquals(rects.first.height, epsilon: 0.5));
+        expect(r.top, moreOrLessEquals(rects.first.top, epsilon: 0.5));
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('and the other two take the row when it is off', (
+      tester,
+    ) async {
+      // The row closes up rather than leaving a gap where pumping was.
       await pumpHome(tester, prefs: {'show_pumping_action': false});
-      expect(find.text('Log pumping'), findsNothing);
+      expect(find.text('Pump'), findsNothing);
+
+      final feed = tester.getRect(find.widgetWithText(FilledButton, 'Bottle'));
+      final diaper = tester.getRect(
+        find.widgetWithText(FilledButton, 'Diaper'),
+      );
+      expect(diaper.left, greaterThan(feed.right));
+      expect(
+        tester.getSize(find.widgetWithText(FilledButton, 'Diaper')).width,
+        moreOrLessEquals(feed.width, epsilon: 0.5),
+      );
     });
   });
 
