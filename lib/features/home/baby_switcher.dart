@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/models/baby.dart';
 import '../../data/repositories/repository_providers.dart';
-import '../settings/delete_baby_screen.dart';
 import 'add_baby_dialog.dart';
 import 'baby_age.dart';
 
@@ -74,29 +72,16 @@ Future<void> _showBabyPicker(BuildContext context) {
   );
 }
 
+/// Switching between babies, editing one, and adding another.
+///
+/// Deliberately no delete. This sheet is opened to switch baby — several
+/// times a day in a two-child household — and it was offering "Add baby" and
+/// a menu containing "Delete" within a thumb's width of each other. The
+/// delete flow itself cannot be completed by accident, but a sheet reached
+/// this often is the wrong place to keep the door to it; deleting a record
+/// lives in Settings, where you go on purpose.
 class _BabyPickerSheet extends ConsumerWidget {
   const _BabyPickerSheet();
-
-  /// Opens the delete flow rather than asking here.
-  ///
-  /// This used to be a two-button dialog over a one-line delete that removed
-  /// the profile and left every logged entry behind — the dialog even said
-  /// so, in as many words: "Logged entries are no longer shown." Deleting
-  /// the data needs a screen, because it has to count what is about to go,
-  /// offer the export, and be typed to confirm (#28).
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    Baby baby,
-  ) async {
-    final navigator = Navigator.of(context);
-    // Closes the picker sheet first: the delete screen is a destination, not
-    // something to read through a bottom sheet.
-    navigator.pop();
-    await navigator.push(
-      MaterialPageRoute<void>(builder: (_) => DeleteBabyScreen(baby: baby)),
-    );
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -139,21 +124,13 @@ class _BabyPickerSheet extends ConsumerWidget {
                       Icons.check_circle,
                       color: Theme.of(context).colorScheme.primary,
                     ),
-                  PopupMenuButton<String>(
-                    onSelected: (v) {
-                      if (v == 'edit') {
-                        showBabyDialog(context, existing: baby);
-                      } else if (v == 'delete') {
-                        _confirmDelete(context, ref, baby);
-                      }
-                    },
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Text('Delete'),
-                      ),
-                    ],
+                  // A button rather than a menu: with delete gone, Edit was
+                  // the only thing behind the menu, and a menu of one is a
+                  // tap in front of a tap.
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    tooltip: 'Edit ${baby.name}',
+                    onPressed: () => showBabyDialog(context, existing: baby),
                   ),
                 ],
               ),
