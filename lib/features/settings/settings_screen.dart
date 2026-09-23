@@ -88,8 +88,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(),
-          const _DeleteDataTile(),
-          const _DeleteAccountTile(),
+          const _DangerZone(),
           const Divider(),
           ListTile(
             leading: Icon(
@@ -641,6 +640,42 @@ class _PushToggle extends ConsumerWidget {
           );
         }
       },
+    );
+  }
+}
+
+/// The two deletes, folded away until they are asked for.
+///
+/// Both were sitting open in the list, a scroll away from Export and a
+/// mis-tap away from a screen headed "Delete". Neither can actually destroy
+/// anything without the baby's name or the account's email typed in by hand,
+/// so the risk was never a one-tap loss — it was how ordinary they looked
+/// among the settings around them.
+///
+/// Collapsed rather than moved somewhere else: they belong here, next to
+/// Export, because taking the data out and taking it away are the two halves
+/// of owning it. What they do not need is to be readable at a glance while
+/// someone is looking for the units setting.
+///
+/// Not a lock or a second confirmation — the screens behind it already ask
+/// for more than a tap, and a guard in front of a guard teaches people to
+/// tap through both.
+class _DangerZone extends StatelessWidget {
+  const _DangerZone();
+
+  @override
+  Widget build(BuildContext context) {
+    final error = Theme.of(context).colorScheme.error;
+
+    return ExpansionTile(
+      leading: Icon(Icons.delete_outline, color: error),
+      title: Text('Delete data or account', style: TextStyle(color: error)),
+      subtitle: const Text('Nothing in here can be undone'),
+      // Shut on every visit, including one straight after it was opened: a
+      // section that remembers being expanded is one that is open the next
+      // time somebody scrolls past looking for something else.
+      initiallyExpanded: false,
+      children: const [_DeleteDataTile(), _DeleteAccountTile()],
     );
   }
 }
