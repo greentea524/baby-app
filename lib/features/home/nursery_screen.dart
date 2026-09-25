@@ -12,6 +12,7 @@ import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
+import '../fridge/fridge_button.dart';
 import '../pumping/pump_schedule.dart';
 import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
@@ -309,6 +310,10 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
       compact: compact,
       icon: PumpingFormat.icon,
       label: 'Last pumped',
+      // Same way in as Home's pump row. On a propped-up tablet the fridge is
+      // often the next question, and leaving nursery mode to find it would be
+      // the long way round.
+      action: const FridgeButton(),
       event: last,
       timeOf: (e) => e.time,
       now: clock,
@@ -502,7 +507,16 @@ class _Readout<T> extends StatelessWidget {
     this.detail,
     this.footer,
     this.tint,
+    this.action,
   });
+
+  /// A button at the card's top-right, level with its label, for a card that
+  /// leads somewhere — the pump card, into the fridge.
+  ///
+  /// Up there rather than in the footer, which already holds the countdown:
+  /// the footer is what happens next, and a way into another screen is not
+  /// that.
+  final Widget? action;
 
   /// Whether the column this card sits in is too narrow to spend 64pt on an
   /// icon beside the text — see [_compactCardWidth].
@@ -572,6 +586,7 @@ class _Readout<T> extends StatelessWidget {
                     _badge(scheme, size: 18, pad: 8),
                     const SizedBox(width: 10),
                     Expanded(child: _label(theme, scheme)),
+                    ?action,
                   ],
                 ),
                 const SizedBox(height: _gapLabel),
@@ -594,6 +609,7 @@ class _Readout<T> extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (action case final it?) ...[const SizedBox(width: 8), it],
               ],
             ),
     );
