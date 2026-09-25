@@ -30,7 +30,7 @@ void main() {
     WidgetTester tester, {
     List<AmountSuggestion> offered = suggestions,
     VolumeUnit unit = VolumeUnit.ml,
-    void Function(double)? onPick,
+    void Function(AmountSuggestion)? onPick,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -66,7 +66,11 @@ void main() {
     ) async {
       // The label says "4.1"; parsing that back would be 121.3.
       final picked = <double>[];
-      await pumpChips(tester, unit: VolumeUnit.flOz, onPick: picked.add);
+      await pumpChips(
+        tester,
+        unit: VolumeUnit.flOz,
+        onPick: (s) => picked.add(s.millilitres),
+      );
       await tester.tap(find.text('4.1 fl oz'));
       expect(picked, [120]);
     });
