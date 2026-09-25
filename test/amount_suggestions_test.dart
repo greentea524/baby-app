@@ -1,4 +1,5 @@
 import 'package:baby_app/data/models/feeding_event.dart';
+import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/features/feeding/amount_suggestions.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,6 +29,17 @@ void main() {
     id: 'p${seq++}',
     time: base.add(Duration(hours: atHour)),
     amountMl: ml,
+  );
+
+  FridgeBottle inFridge(
+    double ml, {
+    required int atHour,
+    BottleKind kind = BottleKind.expressed,
+  }) => FridgeBottle(
+    id: 'b${seq++}',
+    filledAt: base.add(Duration(hours: atHour)),
+    amountMl: ml,
+    kind: kind,
   );
 
   List<double> mlOf(List<AmountSuggestion> s) =>
@@ -320,6 +332,162 @@ void main() {
       ];
       final picked = suggestedAmounts(feeds: feeds, pumps: const []);
       expect(picked.every((s) => s.source == AmountSource.bottle), isTrue);
+    });
+  });
+
+  group('from the fridge', () {
+    List<double> fromFridge(List<AmountSuggestion> s) => [
+      for (final x in s)
+        if (x.source == AmountSource.fridge) x.millilitres,
+    ];
+
+    test('offers the next two bottles on the shelf', () {
+      // Shelf order, not size or age: the shelf is arranged so the next to
+      // use is on the left, and that is the one being poured.
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: const [],
+        fridge: [
+          inFridge(100, atHour: 3),
+          inFridge(70, atHour: 1),
+          inFridge(120, atHour: 2),
+        ],
+      );
+      expect(fromFridge(picked), [70, 100]);
+    });
+
+    test('at the exact amount in the bottle', () {
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: const [],
+        fridge: [inFridge(87, atHour: 1)],
+      );
+      expect(picked, const [AmountSuggestion(87, AmountSource.fridge)]);
+    });
+
+    test('however long ago it was filled', () {
+      // Unlike a pump session, a bottle is not fed by a later feed: it is
+      // on the shelf until it is taken off.
+      final picked = suggestedAmounts(
+        feeds: [bottle(120, atHour: 5)],
+        pumps: const [],
+        fridge: [inFridge(90, atHour: 1)],
+      );
+      expect(fromFridge(picked), [90]);
+    });
+
+    test('formula as well as breast milk', () {
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: const [],
+        fridge: [inFridge(150, atHour: 1, kind: BottleKind.formula)],
+      );
+      expect(fromFridge(picked), [150]);
+    });
+
+    test('one chip for two bottles of the same amount', () {
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: const [],
+        fridge: [
+          inFridge(90, atHour: 1),
+          inFridge(90, atHour: 2),
+          inFridge(60, atHour: 3),
+        ],
+      );
+      expect(fromFridge(picked), [60, 90]);
+    });
+
+    test('alongside fresh milk that never went in the fridge', () {
+      // The case asked for: a bottle is waiting in the fridge, and the baby
+      // is given what was just pumped instead.
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: [pump(95, atHour: 4)],
+        fridge: [inFridge(120, atHour: 1)],
+      );
+      expect(picked, const [
+        AmountSuggestion(95, AmountSource.pump),
+        AmountSuggestion(120, AmountSource.fridge),
+      ]);
+    });
+
+    test('and a session that was bottled is the fridge chip, not a pump', () {
+      // Pumped at four and put in the fridge: that milk is in a bottle now,
+      // and offering it as fresh as well would be two chips for one pour.
+      final pumped = pump(110, atHour: 4);
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: [pumped],
+        fridge: [FridgeBottle(id: 'b', filledAt: pumped.time, amountMl: 110)],
+      );
+      expect(picked, const [AmountSuggestion(110, AmountSource.fridge)]);
+    });
+
+    test('including one split into two bottles', () {
+      final pumped = pump(160, atHour: 4);
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: [pumped],
+        fridge: [
+          FridgeBottle(id: 'a', filledAt: pumped.time, amountMl: 80),
+          FridgeBottle(id: 'b', filledAt: pumped.time, amountMl: 80),
+        ],
+      );
+      expect(picked, const [AmountSuggestion(80, AmountSource.fridge)]);
+    });
+
+    test('but not formula made up in the same minute as a pump', () {
+      final pumped = pump(100, atHour: 4);
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: [pumped],
+        fridge: [
+          FridgeBottle(
+            id: 'f',
+            filledAt: pumped.time,
+            amountMl: 150,
+            kind: BottleKind.formula,
+          ),
+        ],
+      );
+      expect(picked, const [
+        AmountSuggestion(100, AmountSource.pump),
+        AmountSuggestion(150, AmountSource.fridge),
+      ]);
+    });
+
+    test('stands in for the usual amount it lands on', () {
+      // 118 in the fridge beside a habit of 120: one pour, one chip, and the
+      // one that says it is in the fridge.
+      final feeds = [for (var i = 0; i < 4; i++) bottle(120, atHour: i)];
+      final picked = suggestedAmounts(
+        feeds: feeds,
+        pumps: const [],
+        fridge: [inFridge(118, atHour: 5)],
+      );
+      expect(picked, const [AmountSuggestion(118, AmountSource.fridge)]);
+    });
+
+    test('leaves room for the usual amounts on a full shelf', () {
+      // Two fridge, two fresh, and the row still has this baby's habit on
+      // it.
+      final picked = suggestedAmounts(
+        feeds: [for (var i = 0; i < 3; i++) bottle(150, atHour: i)],
+        pumps: [pump(95, atHour: 5), pump(105, atHour: 6)],
+        fridge: [
+          inFridge(60, atHour: 0),
+          inFridge(70, atHour: 1),
+          inFridge(80, atHour: 2),
+        ],
+      );
+      expect(picked, const [
+        AmountSuggestion(60, AmountSource.fridge),
+        AmountSuggestion(70, AmountSource.fridge),
+        AmountSuggestion(95, AmountSource.pump),
+        AmountSuggestion(105, AmountSource.pump),
+        AmountSuggestion(150, AmountSource.bottle),
+      ]);
     });
   });
 }

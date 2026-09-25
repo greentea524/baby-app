@@ -43,18 +43,26 @@ class AmountSuggestionChips extends ConsumerWidget {
         children: [
           for (final s in suggestions)
             ActionChip(
-              // Pump chips are marked, because where the number came from
-              // changes what it means: the others are habit, these are the
-              // milk actually standing in the fridge.
-              avatar: s.source == AmountSource.pump
-                  ? Icon(PumpingFormat.icon, size: 18)
-                  : null,
-              // Says why it is being offered rather than which session it
-              // was, which is the part that matters and the part that stays
-              // true when there are two of them.
-              tooltip: s.source == AmountSource.pump
-                  ? 'Pumped, not fed yet'
-                  : null,
+              // Fridge and pump chips are marked, because where the number
+              // came from changes what it means: the others are habit, these
+              // are milk there actually is — on the shelf, or fresh from the
+              // pump.
+              avatar: switch (s.source) {
+                AmountSource.fridge => const Icon(
+                  Icons.kitchen_outlined,
+                  size: 18,
+                ),
+                AmountSource.pump => Icon(PumpingFormat.icon, size: 18),
+                AmountSource.bottle => null,
+              },
+              // Says why it is being offered rather than which bottle or
+              // session it was, which is the part that matters and the part
+              // that stays true when there are two of them.
+              tooltip: switch (s.source) {
+                AmountSource.fridge => 'In the fridge',
+                AmountSource.pump => 'Pumped, not fed yet',
+                AmountSource.bottle => null,
+              },
               label: Text('${unit.fieldText(s.millilitres)} ${unit.label}'),
               onPressed: () => onPick(s.millilitres),
             ),

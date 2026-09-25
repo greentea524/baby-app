@@ -1,14 +1,19 @@
 import '../../core/format/volume_format.dart';
 import '../../data/models/feeding_event.dart';
+import '../../data/models/fridge_bottle.dart';
 import '../../data/models/pumping_event.dart';
+import '../fridge/fridge_order.dart';
 
 /// Where a suggested amount came from (#31).
 enum AmountSource {
   /// A volume this baby is regularly given.
   bottle,
 
-  /// The yield of a recent pump that has not been fed yet — what is in the
-  /// fridge right now.
+  /// A bottle standing in the fridge.
+  fridge,
+
+  /// The yield of a recent pump that has neither been fed nor put in the
+  /// fridge — fresh milk, given straight from the pump.
   pump,
 }
 
@@ -57,16 +62,27 @@ double _bin(double ml) => (ml / _binMl).round() * _binMl;
 /// something the app can know. One chip made that a guess.
 const int _pumpSlots = 2;
 
+/// How many fridge bottles get a reserved chip: the next two on the shelf.
+///
+/// Not every bottle. A well-stocked fridge would fill the row on its own and
+/// push out the amounts this baby is usually given, and the bottle you reach
+/// for is nearly always one of the first two — the shelf is arranged so the
+/// next to use is on the left.
+const int _fridgeSlots = 2;
+
 /// Amounts worth offering as one-tap shortcuts, smallest first.
 ///
-/// Two sources answering two different questions. Past bottles say what this
-/// baby usually drinks — a settled pattern, best read by frequency. Recent
-/// pumps say what is physically in the fridge, which bottle history can never
-/// know: you pump 130, you pour 130, and that feed has not been logged yet.
+/// Three sources answering two different questions. Past bottles say what
+/// this baby usually drinks — a settled pattern, best read by frequency. The
+/// fridge and recent pumps say what milk there physically is, which bottle
+/// history can never know: you pump 130, you pour 130, and that feed has not
+/// been logged yet. The fridge is the milk that was put away; a pump that
+/// never went into the fridge is fresh milk, given straight from the pump.
 ///
 /// They are deliberately not ranked together. A pump session against forty
 /// bottles loses every frequency contest, so a single pot would always drop
-/// the freshest numbers. Pumps get [_pumpSlots] reserved places instead.
+/// the freshest numbers. The fridge gets [_fridgeSlots] reserved places and
+/// pumps [_pumpSlots] instead.
 ///
 /// Every amount offered is one that was actually recorded. Bottle history is
 /// grouped to bins to be counted, but a chip carries a real entry's volume
@@ -79,9 +95,11 @@ const int _pumpSlots = 2;
 /// costs less than typing.
 ///
 /// Handles unsorted input; [feeds] and [pumps] need not be in any order.
+/// [fridge] is the shelf as it is drawn, next to use first.
 List<AmountSuggestion> suggestedAmounts({
   required List<FeedingEvent> feeds,
   required List<PumpingEvent> pumps,
+  List<FridgeBottle> fridge = const [],
   int max = 5,
 }) {
   if (max <= 0) return const [];
@@ -106,8 +124,16 @@ List<AmountSuggestion> suggestedAmounts({
   // making.
   final spokenFor = <double>{};
 
-  for (final ml in _milkInHandMl(pumps, bottles)) {
+  for (final ml in _fridgeMl(fridge)) {
     if (picked.length >= max) break;
+    picked.add(AmountSuggestion(ml, AmountSource.fridge));
+    spokenFor.add(_bin(ml));
+  }
+
+  for (final ml in _freshMl(pumps, bottles, fridge)) {
+    if (picked.length >= max) break;
+    // The same number twice would be two chips tapping to one amount.
+    if (picked.any((s) => s.millilitres == ml)) continue;
     picked.add(AmountSuggestion(ml, AmountSource.pump));
     spokenFor.add(_bin(ml));
   }
@@ -123,8 +149,31 @@ List<AmountSuggestion> suggestedAmounts({
   return picked;
 }
 
-/// The yields still standing in the fridge, most recent first, at most
-/// [_pumpSlots] of them.
+/// The next bottles on the shelf, at most [_fridgeSlots] different amounts.
+///
+/// Whatever their age: a bottle on the shelf has not been fed, however long
+/// ago it was filled, since finishing one takes it off. And whatever their
+/// kind — formula is poured into the same bottle form.
+///
+/// Exact, like a pump's yield; and two bottles of the same amount are one
+/// chip, since they would tap to the same number.
+List<double> _fridgeMl(List<FridgeBottle> shelf) {
+  final out = <double>[];
+  for (final b in shelf) {
+    if (out.length >= _fridgeSlots) break;
+    if (b.amountMl <= 0 || out.contains(b.amountMl)) continue;
+    out.add(b.amountMl);
+  }
+  return out;
+}
+
+/// The yields of fresh milk — pumped and neither fed nor put in the
+/// fridge — most recent first, at most [_pumpSlots] of them.
+///
+/// A session that is on the shelf is the fridge's chip, not this one: the
+/// milk is in a bottle now, and offering it twice, once as each, would be two
+/// chips for one pour. Recognised by the time the bottle carries — see
+/// [isOnShelf] — which also covers a session split into two bottles.
 ///
 /// A session counts only while it postdates the last bottle. Milk pumped at
 /// seven and given at nine is not what you are holding at two, and offering
@@ -144,9 +193,10 @@ List<AmountSuggestion> suggestedAmounts({
 ///
 /// Two sessions that came back at the same volume are one chip. The second
 /// would be indistinguishable from the first and tap to the same number.
-List<double> _milkInHandMl(
+List<double> _freshMl(
   List<PumpingEvent> pumps,
   List<FeedingEvent> bottles,
+  List<FridgeBottle> shelf,
 ) {
   final lastBottle = bottles.isEmpty ? null : bottles.first.startTime;
   final inHand =
@@ -155,7 +205,8 @@ List<double> _milkInHandMl(
             (p) =>
                 p.amountMl != null &&
                 p.amountMl! > 0 &&
-                (lastBottle == null || p.time.isAfter(lastBottle)),
+                (lastBottle == null || p.time.isAfter(lastBottle)) &&
+                !isOnShelf(p.time, shelf),
           )
           .toList()
         ..sort((a, b) => b.time.compareTo(a.time));
