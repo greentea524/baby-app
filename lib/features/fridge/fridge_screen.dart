@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -85,19 +87,16 @@ class _Shelf extends ConsumerWidget {
   /// that a second bottle is visibly there to scroll to.
   static const _cardWidth = 150.0;
 
-  /// Below this much height the shelf stops sharing the screen and the page
-  /// scrolls instead — see [_shortShelf].
-  static const _roomyHeight = 480.0;
-
-  /// The shelf's height when the page scrolls: room for a bottle to stand
-  /// beside its numbers, whatever the text size.
+  /// The least height the shelf is ever given: room for a card with its
+  /// bottle beside its numbers and its Finished button, at any text size.
   ///
-  /// Measured, not guessed. A phone on its side at the largest text size has
-  /// 334pt under the app bar; the summary took 190 of it, clearance for the
-  /// Add button another 104, and the cards were left 40pt — too little for
-  /// even their label. Giving the shelf a height of its own and letting the
-  /// page scroll is the only way everything keeps its size.
-  static const _shortShelf = 300.0;
+  /// Below it, the page scrolls rather than squeezing the shelf. Measured, not
+  /// guessed: a phone on its side at the largest text size has 334pt under
+  /// the app bar, the summary took 190 of it, and the cards were left 40pt —
+  /// too little for even their label. On a small phone upright at that size
+  /// the summary took nearly everything, and the cards drew at no height at
+  /// all, invisibly and without an error.
+  static const _minShelf = 300.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -175,38 +174,58 @@ class _Shelf extends ConsumerWidget {
               index: i,
               units: units,
               now: now,
+              onFinished: () => _finish(context, ref, shelf[i]),
             ),
           ),
         ),
       ),
     );
 
-    return LayoutBuilder(
-      builder: (context, box) {
-        // Upright, with room: the shelf takes whatever the summary leaves.
-        if (box.maxHeight >= _roomyHeight) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              summary,
-              Expanded(child: list),
-            ],
-          );
-        }
-        // On its side, or at a text size that eats the height: the page
-        // scrolls, and the shelf keeps a height a bottle can stand in.
-        return SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              summary,
-              SizedBox(height: _shortShelf, child: list),
-            ],
-          ),
-        );
-      },
+    // The shelf takes exactly what the summary leaves, and never less than
+    // [_minShelf] — when that is more than is left, the page scrolls.
+    //
+    // Measured after the summary is laid out rather than guessed from the
+    // screen: how tall the summary is depends on the text size and on how its
+    // lines wrap at this width, and a guess from the screen height alone gave
+    // one phone at the largest text a shelf of nothing.
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(child: summary),
+        SliverLayoutBuilder(
+          builder: (context, constraints) {
+            final left =
+                constraints.viewportMainAxisExtent -
+                constraints.precedingScrollExtent;
+            return SliverToBoxAdapter(
+              child: SizedBox(
+                height: left > _minShelf ? left : _minShelf,
+                child: list,
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
+}
+
+/// Takes a finished bottle off the shelf, straight from its card.
+///
+/// Not through `saveAndClose`, which closes a sheet — there is no sheet here,
+/// and popping would take the whole fridge screen with it. The same shape
+/// otherwise: the write starts and the shelf updates from the local cache at
+/// once, and only a failure says anything, whenever it arrives.
+void _finish(BuildContext context, WidgetRef ref, FridgeBottle bottle) {
+  final repo = ref.read(fridgeRepositoryProvider);
+  if (repo == null) return;
+  final messenger = ScaffoldMessenger.of(context);
+  unawaited(
+    Future.sync(() => repo.delete(bottle.id)).catchError((Object e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not remove the bottle: $e')),
+      );
+    }),
+  );
 }
 
 /// One bottle: how much, when it was pumped, and how old that makes it.
@@ -216,12 +235,16 @@ class _BottleCard extends StatelessWidget {
     required this.index,
     required this.units,
     required this.now,
+    required this.onFinished,
   });
 
   final FridgeBottle bottle;
   final int index;
   final UnitSystem units;
   final DateTime now;
+
+  /// The bottle has been fed, or poured away: take it off the shelf.
+  final VoidCallback onFinished;
 
   @override
   Widget build(BuildContext context) {
@@ -259,6 +282,38 @@ class _BottleCard extends StatelessWidget {
 
     final gauge = BottleGauge(amountMl: bottle.amountMl, kind: bottle.kind);
 
+    // The quick way out of the fridge, one tap from the shelf. Taking a
+    // bottle out is what this screen is used for most, and it used to be two
+    // taps — open the bottle, then Remove — for the commonest thing anyone
+    // does here. Full width and at the foot of the card, where a thumb
+    // reaching for this bottle lands, and a button of its own inside the
+    // card, so pressing it never also opens the bottle.
+    //
+    // The label is scaled to fit rather than wrapped. A card is a third of a
+    // phone wide, and at the larger text sizes "Finished" and its tick broke
+    // over three lines into a button 160pt tall that pushed the card over
+    // the edge of the shelf.
+    final finished = SizedBox(
+      width: double.infinity,
+      child: FilledButton.tonal(
+        onPressed: onFinished,
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+        ),
+        child: const FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check, size: 18),
+              SizedBox(width: 6),
+              Text('Finished', maxLines: 1),
+            ],
+          ),
+        ),
+      ),
+    );
+
     return Card(
       clipBehavior: Clip.antiAlias,
       margin: EdgeInsets.zero,
@@ -283,7 +338,8 @@ class _BottleCard extends StatelessWidget {
               // makes that, so its height is known before it is laid out.
               // Everything else is text, and grows with the text size.
               final bottleHeight = c.maxWidth / BottleGauge.aspectRatio;
-              final tall = c.maxHeight >= bottleHeight + 40 + 130 * scale;
+              final tall =
+                  c.maxHeight >= bottleHeight + 50 + (130 + 50) * scale;
 
               if (tall) {
                 return Column(
@@ -295,6 +351,8 @@ class _BottleCard extends StatelessWidget {
                     gauge,
                     const SizedBox(height: 10),
                     _Facts(bottle: bottle, units: units, now: now),
+                    const SizedBox(height: 10),
+                    finished,
                   ],
                 );
               }
@@ -306,7 +364,15 @@ class _BottleCard extends StatelessWidget {
                   Expanded(
                     child: Row(
                       children: [
-                        gauge,
+                        // Capped, because the bottle keeps its shape: given a
+                        // tall card and no limit across, it grew as wide as
+                        // its height asked and ran off the side of the card.
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: c.maxWidth * 0.4,
+                          ),
+                          child: gauge,
+                        ),
                         const SizedBox(width: 10),
                         // Scaled down rather than overflowing: the height here
                         // is whatever is left, and at the largest text sizes
@@ -326,6 +392,8 @@ class _BottleCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  finished,
                 ],
               );
             },

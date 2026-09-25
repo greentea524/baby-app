@@ -358,7 +358,102 @@ void main() {
     });
   });
 
+  group('finishing one', () {
+    testWidgets('every bottle has the button, on its own card', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 5), bottle('b', hoursAgo: 1)],
+        size: const Size(834, 1194),
+      );
+      expect(find.widgetWithText(FilledButton, 'Finished'), findsNWidgets(2));
+    });
+
+    testWidgets('takes it off the shelf in one tap', (tester) async {
+      // The commonest thing done on this screen, and it used to be two taps:
+      // open the bottle, then Remove.
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('old', hoursAgo: 5, ml: 120),
+          bottle('new', hoursAgo: 1, ml: 60),
+        ],
+        repo: repo,
+        size: const Size(834, 1194),
+      );
+
+      await tester.tap(
+        find.descendant(
+          of: find.ancestor(of: find.text('120'), matching: find.byType(Card)),
+          matching: find.widgetWithText(FilledButton, 'Finished'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // That bottle, and only that one.
+      expect(repo.deleted, ['old']);
+    });
+
+    testWidgets('without opening the bottle or saying anything', (
+      tester,
+    ) async {
+      // A button of its own inside the card, so the press is never also a
+      // tap on the card. And no message: the bottle leaving is the answer.
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        repo: repo,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Finished'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit bottle'), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('and is there on a short shelf too', (tester) async {
+      // A phone on its side: the bottle moves beside its numbers, and the
+      // button stays at the foot of the card.
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        size: const Size(844, 390),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.widgetWithText(FilledButton, 'Finished'), findsOneWidget);
+    });
+  });
+
   group('each bottle is drawn filled to what is in it', () {
+    testWidgets('and every bottle stands at the same level', (tester) async {
+      // A note is an extra line. When the card grew for it, that bottle was
+      // pushed up above its neighbours — on a row whose point is comparing
+      // levels at a glance. The line is kept whether or not there is a note.
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('plain', hoursAgo: 5, ml: 120),
+          bottle('noted', hoursAgo: 3, ml: 90, notes: 'for daycare'),
+          bottle('tin', hoursAgo: 1, ml: 60, kind: BottleKind.formula),
+        ],
+        size: const Size(834, 1194),
+      );
+
+      final tops = tester
+          .widgetList<CustomPaint>(
+            find.byWidgetPredicate(
+              (w) => w is CustomPaint && w.painter is BottlePainter,
+            ),
+          )
+          .map((w) => tester.getRect(find.byWidget(w)).top)
+          .toList();
+      expect(tops, hasLength(3));
+      for (final top in tops) {
+        expect(top, moreOrLessEquals(tops.first, epsilon: 0.5));
+      }
+    });
+
     BottlePainter painterFor(WidgetTester tester, String amount) {
       final paint = tester.widget<CustomPaint>(
         find.descendant(
@@ -448,19 +543,44 @@ void main() {
       expect(drawing.right, lessThan(tester.getRect(find.text('90')).left));
     });
 
-    testWidgets('even at the largest text size', (tester) async {
-      for (final size in const [Size(844, 390), Size(320, 568)]) {
-        await tester.pumpWidget(const SizedBox());
-        await pumpFridge(
-          tester,
-          bottles: [
-            bottle('a', hoursAgo: 2, ml: 90, notes: 'for daycare'),
-            bottle('b', hoursAgo: 1, ml: 120),
-          ],
-          size: size,
-          textScale: 2.0,
-        );
-        expect(tester.takeException(), isNull, reason: '$size');
+    testWidgets('at every screen and text size, visibly', (tester) async {
+      // Checked for errors alone, this let through a shelf drawn at no height:
+      // a small phone at the largest text size, where the summary took nearly
+      // all the room, drew its bottles invisibly and threw nothing. So each
+      // card must also have real height, and the Finished button must not
+      // have wrapped into a tower — it once reached 160pt.
+      const sizes = [
+        Size(390, 844), // phone
+        Size(844, 390), // phone on its side
+        Size(320, 568), // small phone
+        Size(768, 1024), // tablet
+        Size(1024, 768), // tablet on its side
+      ];
+      for (final size in sizes) {
+        for (final scale in const [1.0, 1.5, 2.0]) {
+          await tester.pumpWidget(const SizedBox());
+          await pumpFridge(
+            tester,
+            bottles: [
+              bottle('a', hoursAgo: 2, ml: 90, notes: 'for daycare'),
+              bottle('b', hoursAgo: 1, ml: 120),
+            ],
+            size: size,
+            textScale: scale,
+          );
+          final where = '$size at ${scale}x';
+          expect(tester.takeException(), isNull, reason: where);
+          expect(
+            tester.getSize(find.byType(Card).first).height,
+            greaterThan(150),
+            reason: where,
+          );
+          expect(
+            tester.getSize(find.byType(FilledButton).first).height,
+            lessThan(60),
+            reason: where,
+          );
+        }
       }
     });
 
