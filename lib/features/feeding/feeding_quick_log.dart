@@ -15,21 +15,60 @@ import 'feeding_format.dart';
 
 /// Opens the feeding quick-log sheet. Pass [existing] to edit an entry
 /// (KAN-147); omit it to log a new feed (KAN-143/144/145).
+///
+/// Pass [draft] to log a bottle that already exists — one out of the fridge.
+/// The sheet opens on the bottle form with it filled in.
 Future<void> showFeedingQuickLog(
   BuildContext context, {
   FeedingEvent? existing,
   FeedingType? type,
+  BottleDraft? draft,
 }) {
   return showAppSheet<void>(
     context,
-    builder: (_) => _QuickLogSheet(existing: existing, type: type),
+    builder: (_) => _QuickLogSheet(
+      existing: existing,
+      type: draft != null ? FeedingType.bottle : type,
+      draft: draft,
+    ),
   );
 }
 
+/// A bottle feed that starts from a bottle already made up.
+///
+/// The amount is the bottle's, to the millilitre, but still only a starting
+/// point: a bottle that was not all drunk is corrected in the field like any
+/// other. The time is left at now, because the feed is happening now; when
+/// the bottle was filled is the bottle's business, not the feed's.
+class BottleDraft {
+  const BottleDraft({
+    required this.amountMl,
+    required this.source,
+    required this.onSaved,
+    this.notes,
+  });
+
+  final double amountMl;
+
+  /// Said under the title — which bottle this is, so it is clear what saving
+  /// will do to it.
+  final String source;
+
+  final String? notes;
+
+  /// Started alongside the feed's own write, when it is saved, and not at
+  /// all if the sheet is closed without saving. Alongside rather than after:
+  /// offline, the feed's write does not finish until the device is back
+  /// online, and the bottle should not sit on the shelf until then. Reports
+  /// its own failures, since it knows what it was doing.
+  final void Function() onSaved;
+}
+
 class _QuickLogSheet extends StatefulWidget {
-  const _QuickLogSheet({this.existing, this.type});
+  const _QuickLogSheet({this.existing, this.type, this.draft});
 
   final FeedingEvent? existing;
+  final BottleDraft? draft;
 
   /// Opens straight onto this kind's form, skipping the chooser. Nursery mode
   /// has a button per kind, so the chooser there would be a step that asks
@@ -49,7 +88,10 @@ class _QuickLogSheetState extends State<_QuickLogSheet> {
     return switch (_mode) {
       null => _TypeChooser(onSelected: (t) => setState(() => _mode = t)),
       FeedingType.breast => _BreastForm(existing: existing),
-      FeedingType.bottle => _BottleForm(existing: existing),
+      FeedingType.bottle => _BottleForm(
+        existing: existing,
+        draft: widget.draft,
+      ),
       FeedingType.solids => _SolidsForm(existing: existing),
     };
   }
@@ -106,9 +148,13 @@ class _SaveBar extends ConsumerStatefulWidget {
     required this.isEdit,
     required this.build,
     this.enabled = true,
+    this.onSaved,
   });
 
   final bool isEdit;
+
+  /// See [BottleDraft.onSaved].
+  final void Function()? onSaved;
 
   /// False while the form holds something it must not save — a time ahead of
   /// the clock. The form shows the reason; this only stops the write.
@@ -140,11 +186,13 @@ class _SaveBarState extends ConsumerState<_SaveBar> {
       return;
     }
     _saving = true;
-    saveAndClose(
-      context,
-      () => widget.isEdit ? repo.update(event) : repo.add(event),
-      failure: 'Could not save the feed',
-    );
+    saveAndClose(context, () {
+      final write = widget.isEdit ? repo.update(event) : repo.add(event);
+      // Only once the feed's write has been started: a repository that throws
+      // on the spot has saved nothing, so nothing else should happen either.
+      widget.onSaved?.call();
+      return write;
+    }, failure: 'Could not save the feed');
   }
 
   @override
@@ -299,9 +347,10 @@ class _SnackToggle extends StatelessWidget {
 }
 
 class _BottleForm extends ConsumerStatefulWidget {
-  const _BottleForm({this.existing});
+  const _BottleForm({this.existing, this.draft});
 
   final FeedingEvent? existing;
+  final BottleDraft? draft;
 
   @override
   ConsumerState<_BottleForm> createState() => _BottleFormState();
@@ -336,6 +385,15 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
       _amountController.text = _unit.fieldText(e!.amountMl!);
     }
     if (e?.notes != null) _notesController.text = e!.notes!;
+
+    // As if its amount had been tapped as a suggestion: the exact
+    // millilitres are what is saved, unless the field is typed in.
+    final draft = widget.draft;
+    if (e == null && draft != null) {
+      _storedMl = draft.amountMl;
+      _amountController.text = _unit.fieldText(draft.amountMl);
+      if (draft.notes != null) _notesController.text = draft.notes!;
+    }
   }
 
   @override
@@ -391,11 +449,22 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Bottle', style: Theme.of(context).textTheme.titleLarge),
+        if (widget.draft case final draft?) ...[
+          const SizedBox(height: 4),
+          Text(
+            draft.source,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         VolumeField(
           controller: _amountController,
           unit: _unit,
-          autofocus: widget.existing == null,
+          // Not with a draft: the amount is already there, and a keyboard
+          // coming up would cover the Save button it is one tap from.
+          autofocus: widget.existing == null && widget.draft == null,
           errorText: _amountError,
           onUnitChanged: (unit, text) => setState(() {
             _unit = unit;
@@ -426,6 +495,7 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
           isEdit: widget.existing != null,
           build: _build,
           enabled: !isFutureLogTime(_time),
+          onSaved: widget.draft?.onSaved,
         ),
       ],
     );

@@ -7,8 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:baby_app/core/auth/auth_providers.dart';
 import 'package:baby_app/core/format/volume_format.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
+import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
+import 'package:baby_app/data/repositories/feeding_repository.dart';
 import 'package:baby_app/data/repositories/fridge_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/fridge/bottle_gauge.dart';
@@ -42,6 +44,7 @@ void main() {
     List<PumpingEvent> pumps = const [],
     Size size = const Size(390, 844),
     FridgeRepository? repo,
+    FeedingRepository? feeds,
     double textScale = 1.0,
   }) async {
     SharedPreferences.setMockInitialValues({'unit_system': 'metric'});
@@ -60,6 +63,8 @@ void main() {
           authStateProvider.overrideWith((ref) => Stream.value(null)),
           fridgeBottlesProvider.overrideWith((ref) => Stream.value(bottles)),
           if (repo != null) fridgeRepositoryProvider.overrideWithValue(repo),
+          if (feeds != null) feedingRepositoryProvider.overrideWithValue(feeds),
+          recentFeedingsProvider.overrideWith((ref) => Stream.value([])),
           recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
         ],
         child: MaterialApp(
@@ -368,9 +373,14 @@ void main() {
       expect(find.widgetWithText(FilledButton, 'Finished'), findsNWidgets(2));
     });
 
-    testWidgets('takes it off the shelf in one tap', (tester) async {
-      // The commonest thing done on this screen, and it used to be two taps:
-      // open the bottle, then Remove.
+    Finder finishedOn(String amount) => find.descendant(
+      of: find.ancestor(of: find.text(amount), matching: find.byType(Card)),
+      matching: find.widgetWithText(FilledButton, 'Finished'),
+    );
+
+    testWidgets('opens the bottle log with that bottle in it', (tester) async {
+      // A bottle out of the fridge is a feed. Removing it without logging one
+      // meant logging it again by hand from Home.
       final repo = _RecordingFridge();
       await pumpFridge(
         tester,
@@ -379,37 +389,164 @@ void main() {
           bottle('new', hoursAgo: 1, ml: 60),
         ],
         repo: repo,
+        feeds: _RecordingFeeds(),
         size: const Size(834, 1194),
       );
 
-      await tester.tap(
-        find.descendant(
-          of: find.ancestor(of: find.text('120'), matching: find.byType(Card)),
-          matching: find.widgetWithText(FilledButton, 'Finished'),
-        ),
-      );
+      await tester.tap(finishedOn('120'));
       await tester.pumpAndSettle();
 
-      // That bottle, and only that one.
-      expect(repo.deleted, ['old']);
+      final sheet = find.byType(BottomSheet);
+      expect(
+        find.descendant(of: sheet, matching: find.text('Bottle')),
+        findsOneWidget,
+      );
+      // That bottle's amount, and a word on where it came from.
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.widgetWithText(TextField, '120'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'From the fridge, pumped 9:00 AM. Saving takes it off the shelf.',
+        ),
+        findsOneWidget,
+      );
+      // Nothing has happened to the bottle yet.
+      expect(repo.deleted, isEmpty);
     });
 
-    testWidgets('without opening the bottle or saying anything', (
+    testWidgets('and saving logs the feed and takes it off the shelf', (
       tester,
     ) async {
-      // A button of its own inside the card, so the press is never also a
-      // tap on the card. And no message: the bottle leaving is the answer.
       final repo = _RecordingFridge();
+      final feeds = _RecordingFeeds();
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('old', hoursAgo: 5, ml: 120),
+          bottle('new', hoursAgo: 1, ml: 60),
+        ],
+        repo: repo,
+        feeds: feeds,
+        size: const Size(834, 1194),
+      );
+
+      await tester.tap(finishedOn('120'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(feeds.added, hasLength(1));
+      final feed = feeds.added.single;
+      expect(feed.type, FeedingType.bottle);
+      expect(feed.amountMl, 120);
+      expect(feed.notes, isNull);
+      // Now, not when it was pumped: the feed is happening now.
+      expect(
+        DateTime.now().difference(feed.startTime).inMinutes.abs(),
+        lessThan(2),
+      );
+      // That bottle, and only that one. And no message: the bottle leaving
+      // is the answer.
+      expect(repo.deleted, ['old']);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('logs what was drunk, when not all of it was', (tester) async {
+      final repo = _RecordingFridge();
+      final feeds = _RecordingFeeds();
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 120)],
+        repo: repo,
+        feeds: feeds,
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Finished'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.byType(TextField).first,
+        ),
+        '90',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(feeds.added.single.amountMl, 90);
+      expect(repo.deleted, ['a']);
+    });
+
+    testWidgets('keeps the bottle if the sheet is closed without saving', (
+      tester,
+    ) async {
+      // A mistaken press costs nothing.
+      final repo = _RecordingFridge();
+      final feeds = _RecordingFeeds();
       await pumpFridge(
         tester,
         bottles: [bottle('a', hoursAgo: 2, ml: 90)],
         repo: repo,
+        feeds: feeds,
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Finished'));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(feeds.added, isEmpty);
+      expect(repo.deleted, isEmpty);
+    });
+
+    testWidgets('writes formula down on the feed', (tester) async {
+      // The feed has no kind of milk of its own; once the bottle is gone, the
+      // note is the only record that it was formula.
+      final feeds = _RecordingFeeds();
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle(
+            'tin',
+            hoursAgo: 1,
+            ml: 60,
+            kind: BottleKind.formula,
+            notes: 'for daycare',
+          ),
+        ],
+        repo: _RecordingFridge(),
+        feeds: feeds,
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Finished'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('made up 1:00 PM'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(feeds.added.single.notes, 'Formula · for daycare');
+    });
+
+    testWidgets('never opens the bottle itself', (tester) async {
+      // A button of its own inside the card, so the press is never also a
+      // tap on the card.
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        repo: _RecordingFridge(),
+        feeds: _RecordingFeeds(),
       );
       await tester.tap(find.widgetWithText(FilledButton, 'Finished'));
       await tester.pumpAndSettle();
 
       expect(find.text('Edit bottle'), findsNothing);
-      expect(find.byType(SnackBar), findsNothing);
     });
 
     testWidgets('and is there on a short shelf too', (tester) async {
@@ -744,7 +881,20 @@ class _RecordingFridge extends FridgeRepository {
   Future<void> delete(String id) async => deleted.add(id);
 }
 
-/// Never touched: [_RecordingFridge] overrides every call that would reach it.
+class _RecordingFeeds extends FeedingRepository {
+  _RecordingFeeds() : super(_NoFirestore(), 'baby1', 'alice');
+
+  final added = <FeedingEvent>[];
+
+  @override
+  Future<String> add(FeedingEvent event) async {
+    added.add(event);
+    return 'feed1';
+  }
+}
+
+/// Never touched: the recording repositories override every call that would
+/// reach it.
 class _NoFirestore implements FirebaseFirestore {
   @override
   dynamic noSuchMethod(Invocation invocation) =>
