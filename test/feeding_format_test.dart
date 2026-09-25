@@ -1,5 +1,6 @@
 import 'package:baby_app/core/format/unit_system.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
+import 'package:baby_app/data/models/milk_kind.dart';
 import 'package:baby_app/features/feeding/feeding_format.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -100,6 +101,21 @@ void main() {
       expect(FeedingFormat.details(e, UnitSystem.us), '120 ml (4.1 fl oz)');
       // Metric drops the conversion rather than showing both.
       expect(FeedingFormat.details(e, UnitSystem.metric), '120 ml');
+    });
+
+    test('bottle says what was in it, when that was recorded', () {
+      final e = FeedingEvent(
+        id: 'b',
+        type: FeedingType.bottle,
+        startTime: DateTime(2026, 7, 23),
+        amountMl: 120,
+        milk: MilkKind.wholeMilk,
+        notes: 'warmed',
+      );
+      expect(
+        FeedingFormat.details(e, UnitSystem.metric),
+        '120 ml · Whole milk · warmed',
+      );
     });
   });
 

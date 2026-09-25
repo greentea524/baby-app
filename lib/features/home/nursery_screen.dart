@@ -313,7 +313,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
       // Same way in as Home's pump row. On a propped-up tablet the fridge is
       // often the next question, and leaving nursery mode to find it would be
       // the long way round.
-      action: const FridgeButton(),
+      action: ref.watch(showFridgeProvider) ? const FridgeButton() : null,
       event: last,
       timeOf: (e) => e.time,
       now: clock,

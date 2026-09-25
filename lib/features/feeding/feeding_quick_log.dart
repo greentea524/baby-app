@@ -9,6 +9,7 @@ import '../../data/repositories/repository_providers.dart';
 import '../../core/format/volume_entry.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
+import '../common/milk_chooser.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
 import '../../core/format/unit_system.dart';
@@ -50,9 +51,13 @@ class BottleDraft {
     required this.source,
     required this.onSaved,
     this.notes,
+    this.milk,
   });
 
   final double amountMl;
+
+  /// What is in the bottle, which is what the feed is of.
+  final MilkKind? milk;
 
   /// Said under the title — which bottle this is, so it is clear what saving
   /// will do to it.
@@ -386,6 +391,28 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
   /// somewhere else, or by the line's own close button.
   FridgeBottle? _fromFridge;
 
+  /// What was in the bottle, once it is settled: picked by hand or by a
+  /// chip, or the feed being edited's own. Until then, [_milkOrDefault]
+  /// supplies the starting value.
+  ///
+  /// On a feed logged before the choice existed this stays null until
+  /// someone picks one — the form does not guess for them.
+  MilkKind? _milk;
+  bool _milkSettled = false;
+
+  /// For a new feed: whatever the last bottle held. Watched rather than read
+  /// once, because the history may still be arriving when the sheet opens,
+  /// and a default that silently stayed on breast milk would be the one
+  /// wrong answer nobody notices.
+  MilkKind _defaultMilk = MilkKind.expressed;
+
+  MilkKind? get _milkOrDefault => _milkSettled ? _milk : _defaultMilk;
+
+  void _settleMilk(MilkKind? milk) {
+    _milk = milk;
+    _milkSettled = true;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -398,6 +425,14 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
       _amountController.text = _unit.fieldText(e!.amountMl!);
     }
     if (e?.notes != null) _notesController.text = e!.notes!;
+
+    // A feed being edited, or a bottle out of the fridge, already knows.
+    // A new one starts on the last bottle's — see [_defaultMilk].
+    if (e != null) {
+      _settleMilk(e.milk);
+    } else if (widget.draft?.milk case final milk?) {
+      _settleMilk(milk);
+    }
 
     // As if its amount had been tapped as a suggestion: the exact
     // millilitres are what is saved, unless the field is typed in.
@@ -416,6 +451,24 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
     super.dispose();
   }
 
+  /// The milk of the most recent bottle feed that recorded one.
+  ///
+  /// A baby is on one milk for months at a time, and the switch is a moment
+  /// worth one tap. Feeds too old to say are passed over rather than read as
+  /// breast milk.
+  static MilkKind? _lastMilk(List<FeedingEvent> feeds) {
+    MilkKind? milk;
+    DateTime? at;
+    for (final f in feeds) {
+      if (f.type != FeedingType.bottle || f.milk == null) continue;
+      if (at == null || f.startTime.isAfter(at)) {
+        at = f.startTime;
+        milk = f.milk;
+      }
+    }
+    return milk;
+  }
+
   /// Fills the field from a suggestion chip (#31).
   ///
   /// Stores the chip's millilitres rather than letting the field's text speak
@@ -430,11 +483,19 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
       _storedMl = millilitres;
       _amountEdited = false;
       _amountError = null;
-      _pickBottle(
-        suggestion.source == AmountSource.fridge
-            ? _bottleFor(millilitres)
-            : null,
-      );
+      _fromFridge = suggestion.source == AmountSource.fridge
+          ? _bottleFor(millilitres)
+          : null;
+      // A chip that says where the milk is also says what it is: a fridge
+      // bottle knows its kind, and a pump session is breast milk.
+      switch (suggestion.source) {
+        case AmountSource.fridge:
+          if (_fromFridge case final bottle?) _settleMilk(bottle.kind);
+        case AmountSource.pump:
+          _settleMilk(MilkKind.expressed);
+        case AmountSource.bottle:
+          break;
+      }
     });
   }
 
@@ -452,23 +513,6 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
       if (b.amountMl == millilitres) return b;
     }
     return null;
-  }
-
-  /// Picks [bottle] (or none), carrying a formula bottle's kind into the
-  /// notes the way finishing it from the shelf does — the feed has no kind of
-  /// milk of its own. Only into empty notes, and taken back out again only
-  /// if nobody has written anything since.
-  void _pickBottle(FridgeBottle? bottle) {
-    final formula = BottleKind.formula.label;
-    if (_fromFridge?.kind == BottleKind.formula &&
-        _notesController.text == formula) {
-      _notesController.text = '';
-    }
-    _fromFridge = bottle;
-    if (bottle?.kind == BottleKind.formula &&
-        _notesController.text.trim().isEmpty) {
-      _notesController.text = formula;
-    }
   }
 
   /// Takes the picked bottle off the shelf, alongside the feed's own write.
@@ -517,11 +561,16 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
           ? null
           : _notesController.text.trim(),
       isSnack: _isSnack,
+      milk: _milkOrDefault,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Breast milk when there is no bottle to go by, as the fridge starts.
+    _defaultMilk =
+        _lastMilk(ref.watch(recentFeedingsProvider).value ?? const []) ??
+        MilkKind.expressed;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -536,6 +585,13 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
             ),
           ),
         ],
+        const SizedBox(height: 16),
+        // First, as on the fridge's own sheet: what is in the bottle, then
+        // how much of it.
+        MilkChooser(
+          value: _milkOrDefault,
+          onChanged: (m) => setState(() => _settleMilk(m)),
+        ),
         const SizedBox(height: 16),
         VolumeField(
           controller: _amountController,
@@ -557,7 +613,7 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
         if (_fromFridge case final bottle?)
           _FromFridge(
             bottle: bottle,
-            onLeave: () => setState(() => _pickBottle(null)),
+            onLeave: () => setState(() => _fromFridge = null),
           ),
         const SizedBox(height: 12),
         EventTimeRow(time: _time, onChanged: (t) => setState(() => _time = t)),

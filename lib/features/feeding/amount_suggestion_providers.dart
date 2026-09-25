@@ -25,6 +25,11 @@ final bottleAmountSuggestionsProvider = Provider<List<AmountSuggestion>>((ref) {
   return suggestedAmounts(
     feeds: feeds,
     pumps: pumps,
-    fridge: ref.watch(fridgeShelfProvider),
+    // Nothing from a fridge the household has hidden — and so nothing held
+    // back as bottled, either: with the fridge out of use, a pump session is
+    // fresh milk until it is fed.
+    fridge: ref.watch(showFridgeProvider)
+        ? ref.watch(fridgeShelfProvider)
+        : const [],
   );
 });

@@ -230,12 +230,7 @@ void _finish(
   final repo = ref.read(fridgeRepositoryProvider);
   final messenger = ScaffoldMessenger.of(context);
   final when = FeedingFormat.clockStamp(context, bottle.filledAt, now: now);
-  final notes = [
-    // The feed has no kind of milk of its own, and once the bottle is gone
-    // this is the only place formula would still be written down.
-    if (bottle.kind == BottleKind.formula) bottle.kind.label,
-    if (bottle.notes?.trim() case final n? when n.isNotEmpty) n,
-  ].join(' · ');
+  final notes = bottle.notes?.trim() ?? '';
 
   showFeedingQuickLog(
     context,
@@ -245,6 +240,7 @@ void _finish(
           'From the fridge, ${bottle.kind.filledLabel.toLowerCase()} $when. '
           'Saving takes it off the shelf.',
       notes: notes.isEmpty ? null : notes,
+      milk: bottle.kind,
       onSaved: () {
         if (repo == null) return;
         unawaited(

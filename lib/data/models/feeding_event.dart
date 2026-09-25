@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'baby_event.dart';
+import 'milk_kind.dart';
 
 enum FeedingType { breast, bottle, solids }
 
@@ -19,6 +20,7 @@ class FeedingEvent implements BabyEvent {
     this.side,
     this.notes,
     this.isSnack = false,
+    this.milk,
   });
 
   @override
@@ -41,6 +43,12 @@ class FeedingEvent implements BabyEvent {
   /// breast feeds carry no volume at all, and a guessed threshold makes the
   /// reminder unpredictable in exactly the case it matters most.
   final bool isSnack;
+
+  /// What was in the bottle. Bottle feeds only, and null on any logged
+  /// before the choice existed — unknown, which is not the same as breast
+  /// milk, so it is not read as that the way a fridge bottle's missing kind
+  /// is.
+  final MilkKind? milk;
 
   /// Whether this event marks a boundary in the feeding rhythm.
   ///
@@ -66,6 +74,7 @@ class FeedingEvent implements BabyEvent {
       // Absent on every event logged before snacks existed — those were all
       // full feeds as far as the clock was concerned, so default to false.
       isSnack: data['isSnack'] as bool? ?? false,
+      milk: MilkKind.values.asNameMap()[data['milk']],
     );
   }
 
@@ -78,5 +87,6 @@ class FeedingEvent implements BabyEvent {
     'side': side?.name,
     'notes': notes,
     'isSnack': isSnack,
+    if (milk != null) 'milk': milk!.name,
   };
 }

@@ -223,7 +223,11 @@ service cloud.firestore {
             && amount(d.get('amountMl', null))
             && side(d.get('side', null))
             && text(d.get('notes', null))
-            && d.get('isSnack', false) is bool;
+            && d.get('isSnack', false) is bool
+            // What was in the bottle. Optional: absent on every feed logged
+            // before it was asked, and on feeds that are not bottles. The
+            // same names as a fridge bottle's `kind`.
+            && optional(d.get('milk', null), ['expressed', 'formula', 'wholeMilk']);
         }
       }
 
@@ -290,11 +294,11 @@ service cloud.firestore {
           // the timestamp means is the app's to label, not the shape's.
           // `kind` is optional so a document written before formula was
           // supported still passes; the client reads a missing one as
-          // expressed.
+          // expressed. The same names as a feed's `milk`.
           return d.filledAt is timestamp
             && d.amountMl is number
             && d.amountMl > 0
-            && optional(d.get('kind', null), ['expressed', 'formula'])
+            && optional(d.get('kind', null), ['expressed', 'formula', 'wholeMilk'])
             && count(d.get('position', null))
             && text(d.get('notes', null));
         }

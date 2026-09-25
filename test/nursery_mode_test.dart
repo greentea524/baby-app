@@ -461,6 +461,12 @@ void main() {
       expect(button.top, lessThan(card.bottom));
     });
 
+    testWidgets('but not once the fridge is switched off', (tester) async {
+      await pumpNursery(tester, pumps: pumped, prefs: {'show_fridge': false});
+      expect(find.text('Last pumped'), findsOneWidget);
+      expect(find.byType(FridgeButton), findsNothing);
+    });
+
     testWidgets('and only the pump card does', (tester) async {
       // Feeding and diapers lead nowhere. No pump card, no button.
       await pumpNursery(tester);

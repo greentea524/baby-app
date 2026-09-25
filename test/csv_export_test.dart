@@ -3,6 +3,7 @@ import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/growth_measurement.dart';
+import 'package:baby_app/data/models/milk_kind.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/features/export/csv_export.dart';
 import 'package:baby_app/features/export/export_data.dart';
@@ -175,6 +176,34 @@ void main() {
         );
       });
     }
+
+    test('a bottle says what milk was in it, under its own header', () {
+      final lines = buildCsv(
+        _data(
+          units: UnitSystem.metric,
+          feedings: [
+            FeedingEvent(
+              id: 'f',
+              type: FeedingType.bottle,
+              startTime: DateTime(2026, 7, 10, 9),
+              amountMl: 120,
+              milk: MilkKind.formula,
+            ),
+            // Logged before the question was asked: blank, not a guess.
+            FeedingEvent(
+              id: 'g',
+              type: FeedingType.bottle,
+              startTime: DateTime(2026, 7, 10, 12),
+              amountMl: 90,
+            ),
+          ],
+        ),
+      ).trim().split('\n');
+      final milk = lines.first.split(',').indexOf('Milk');
+      expect(milk, isNonNegative);
+      expect(lines[1].split(',')[milk], 'Formula');
+      expect(lines[2].split(',')[milk], '');
+    });
 
     test('metric omits the fluid-ounce column entirely', () {
       final metricHeader = buildCsv(

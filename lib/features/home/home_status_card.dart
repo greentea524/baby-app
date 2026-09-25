@@ -252,7 +252,7 @@ class HomeStatusCard extends ConsumerWidget {
       // The one row on this card that leads somewhere. What is in the fridge
       // is the question a pumping household asks straight after "when did I
       // last pump", and this row is where they are already looking.
-      action: const FridgeButton(),
+      action: ref.watch(showFridgeProvider) ? const FridgeButton() : null,
       icon: PumpingFormat.icon,
       label: 'Last pumped',
       value: FeedingFormat.timeAgo(last.time, now: now),

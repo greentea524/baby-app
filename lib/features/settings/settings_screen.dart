@@ -65,6 +65,7 @@ class SettingsScreen extends ConsumerWidget {
           const _BottleShortcutToggle(),
           const _PumpingActionToggle(),
           const _PumpIntervalTile(),
+          const _FridgeToggle(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.group_outlined),
@@ -300,6 +301,32 @@ class _PumpingActionToggle extends ConsumerWidget {
       ),
       value: enabled,
       onChanged: (v) => ref.read(showPumpingActionProvider.notifier).set(v),
+    );
+  }
+}
+
+/// Whether the fridge is offered at all — see [showFridgeProvider].
+///
+/// Its own switch rather than riding on pumping's: formula and whole milk go
+/// in the fridge too. The subtitle says what turning it off keeps, because
+/// "hide" next to a shelf of bottles reads like "delete".
+class _FridgeToggle extends ConsumerWidget {
+  const _FridgeToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(showFridgeProvider);
+    return SwitchListTile(
+      secondary: const Icon(Icons.kitchen_outlined),
+      title: const Text('In the fridge'),
+      subtitle: Text(
+        enabled
+            ? 'Keep track of the bottles in the fridge'
+            : 'Hidden — any bottles already there are kept for when you turn '
+                  'it back on',
+      ),
+      value: enabled,
+      onChanged: (v) => ref.read(showFridgeProvider.notifier).set(v),
     );
   }
 }

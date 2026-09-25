@@ -34,7 +34,7 @@ void main() {
   FridgeBottle inFridge(
     double ml, {
     required int atHour,
-    BottleKind kind = BottleKind.expressed,
+    MilkKind kind = MilkKind.expressed,
   }) => FridgeBottle(
     id: 'b${seq++}',
     filledAt: base.add(Duration(hours: atHour)),
@@ -380,7 +380,7 @@ void main() {
       final picked = suggestedAmounts(
         feeds: const [],
         pumps: const [],
-        fridge: [inFridge(150, atHour: 1, kind: BottleKind.formula)],
+        fridge: [inFridge(150, atHour: 1, kind: MilkKind.formula)],
       );
       expect(fromFridge(picked), [150]);
     });
@@ -481,7 +481,7 @@ void main() {
             id: 'f',
             filledAt: pumped.time,
             amountMl: 150,
-            kind: BottleKind.formula,
+            kind: MilkKind.formula,
           ),
         ],
       );

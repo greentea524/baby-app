@@ -189,6 +189,31 @@ class ShowPumpingActionNotifier extends Notifier<bool> {
   }
 }
 
+const _showFridgeKey = 'show_fridge';
+
+/// Whether the app offers the fridge at all: the shelf of bottles, the way
+/// to it from the pump rows, fridge bottles among a feed's suggested
+/// amounts, and the pump sheet's "Add to the fridge".
+///
+/// On by default, since it is how anyone finds out the fridge exists. Off
+/// hides it without touching it: bottles already on the shelf are kept, and
+/// are all there again when it is turned back on. Per device, like the other
+/// switches here.
+final showFridgeProvider = NotifierProvider<ShowFridgeNotifier, bool>(
+  ShowFridgeNotifier.new,
+);
+
+class ShowFridgeNotifier extends Notifier<bool> {
+  @override
+  bool build() =>
+      ref.read(sharedPreferencesProvider).getBool(_showFridgeKey) ?? true;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await ref.read(sharedPreferencesProvider).setBool(_showFridgeKey, value);
+  }
+}
+
 const _pumpToFridgeKey = 'pump_to_fridge';
 
 /// Whether a logged pump session also goes in the fridge as a bottle.
