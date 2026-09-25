@@ -9,6 +9,7 @@ import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
+import 'package:baby_app/features/fridge/fridge_button.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 
@@ -120,30 +121,39 @@ void main() {
     expect(find.text('Last pumped'), findsNothing);
   });
 
-  testWidgets('leads to the fridge', (tester) async {
-    // The question a pumping household asks straight after "when did I last
-    // pump", answered from where they are already looking.
+  testWidgets('has a button into the fridge, on its own line', (tester) async {
+    // What is in the fridge is the question a pumping household asks
+    // straight after "when did I last pump". A filled button with a fridge on
+    // it, where there used to be a bare chevron that did not say where it
+    // went.
     await pumpCard(tester, pumping: pumps);
 
-    expect(
-      find.descendant(
-        of: find.ancestor(
-          of: find.text('Last pumped'),
-          matching: find.byType(InkWell),
-        ),
-        matching: find.byIcon(Icons.chevron_right),
-      ),
-      findsOneWidget,
-    );
+    final button = find.byType(FridgeButton);
+    expect(button, findsOneWidget);
+    expect(find.byTooltip('In the fridge'), findsOneWidget);
+    expect(find.byIcon(FridgeButton.icon), findsOneWidget);
+
+    // Beside the reading it belongs to, not floating somewhere on the card.
+    final row = tester.getRect(find.text('Last pumped'));
+    final rect = tester.getRect(button);
+    expect(rect.top, lessThan(row.bottom + 40));
+    expect(rect.left, greaterThan(row.right));
   });
 
-  testWidgets('and the rows that lead nowhere say so by having no chevron', (
+  testWidgets('and no other row has one, or a chevron', (tester) async {
+    // Feeding and diapers only report. A row that looks like it goes
+    // somewhere and does not is worse than one that plainly does not.
+    await pumpCard(tester, pumping: pumps);
+
+    expect(find.byType(FridgeButton), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+  });
+
+  testWidgets('and it goes where the row goes: nowhere, without pumping', (
     tester,
   ) async {
-    // A row that looks tappable and is not is worse than one that plainly
-    // only reports.
-    await pumpCard(tester, pumping: pumps);
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    await pumpCard(tester);
+    expect(find.byType(FridgeButton), findsNothing);
   });
 
   testWidgets('gets its own card in the separate layout', (tester) async {

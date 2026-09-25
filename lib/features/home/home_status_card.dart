@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/format/unit_system.dart';
-import '../../core/router/app_router.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../diaper/diaper_due.dart';
 import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
+import '../fridge/fridge_button.dart';
 import '../pumping/pump_schedule.dart';
 import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
@@ -253,7 +252,7 @@ class HomeStatusCard extends ConsumerWidget {
       // The one row on this card that leads somewhere. What is in the fridge
       // is the question a pumping household asks straight after "when did I
       // last pump", and this row is where they are already looking.
-      onTap: () => context.push(AppRoutes.fridge),
+      action: const FridgeButton(),
       icon: PumpingFormat.icon,
       label: 'Last pumped',
       value: FeedingFormat.timeAgo(last.time, now: now),
@@ -474,15 +473,17 @@ class _StatusRow extends StatelessWidget {
     this.detail,
     this.footer,
     this.tint,
-    this.onTap,
+    this.action,
   });
 
-  /// Where the row leads, for the rows that lead anywhere.
+  /// A button at the row's trailing edge, for the rows that lead anywhere.
   ///
-  /// Null for most of them: a row that looks tappable and is not is worse
-  /// than one that plainly only reports. The chevron is drawn only when this
-  /// is set, so the two can never disagree.
-  final VoidCallback? onTap;
+  /// A button rather than making the whole row tappable. The row used to be
+  /// one big tap target with a chevron at the end, and the chevron was all
+  /// there was to say so — easy to miss, and it did not say where. A button
+  /// is its own evidence of being pressable, and it is the only thing that
+  /// is: nothing on the row answers a tap that does not look like it would.
+  final Widget? action;
 
   final IconData icon;
   final String label;
@@ -512,7 +513,7 @@ class _StatusRow extends StatelessWidget {
     // needing a bang operator on every use.
     final detailText = detail;
 
-    final row = ColoredBox(
+    return ColoredBox(
       color: tint ?? Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -545,19 +546,11 @@ class _StatusRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (onTap != null)
-              Icon(
-                Icons.chevron_right,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+            if (action case final it?) ...[const SizedBox(width: 8), it],
           ],
         ),
       ),
     );
-
-    // Inside the tint rather than around it, so the ripple covers the same
-    // band the colour does.
-    return onTap == null ? row : InkWell(onTap: onTap, child: row);
   }
 }
 

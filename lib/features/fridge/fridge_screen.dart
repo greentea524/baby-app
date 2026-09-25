@@ -6,8 +6,8 @@ import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../feeding/feeding_format.dart';
-import '../pumping/pumping_format.dart';
 import 'bottle_sheet.dart';
+import 'fridge_button.dart';
 import 'fridge_order.dart';
 
 /// What bottles are in the fridge, laid out the way the shelf is.
@@ -286,7 +286,7 @@ class _EmptyFridge extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              PumpingFormat.icon,
+              FridgeButton.icon,
               size: 48,
               color: theme.colorScheme.onSurfaceVariant,
             ),

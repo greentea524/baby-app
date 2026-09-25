@@ -11,6 +11,7 @@ import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
+import 'package:baby_app/features/fridge/fridge_button.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 import 'package:baby_app/features/home/home_screen.dart';
@@ -443,6 +444,27 @@ void main() {
       );
 
       expect(find.textContaining('Next pump in 1h 30m'), findsOneWidget);
+    });
+
+    testWidgets('carries the way into the fridge', (tester) async {
+      // The same button Home's pump row has. On a propped-up tablet the
+      // fridge is often the next question, and leaving nursery mode to find
+      // it would be the long way round.
+      await pumpNursery(tester, pumps: pumped);
+
+      expect(find.byType(FridgeButton), findsOneWidget);
+      final card = tester.getRect(find.text('Last pumped'));
+      final button = tester.getRect(find.byType(FridgeButton));
+      // Level with the label, at the card's top-right. The label fills the
+      // line up to the button, so the two meet rather than leave a gap.
+      expect(button.left, greaterThanOrEqualTo(card.right - 0.5));
+      expect(button.top, lessThan(card.bottom));
+    });
+
+    testWidgets('and only the pump card does', (tester) async {
+      // Feeding and diapers lead nowhere. No pump card, no button.
+      await pumpNursery(tester);
+      expect(find.byType(FridgeButton), findsNothing);
     });
 
     testWidgets('and stays a plain reading without one', (tester) async {
