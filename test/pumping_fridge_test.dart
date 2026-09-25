@@ -24,11 +24,13 @@ void main() {
   Future<void> openSheet(
     WidgetTester tester, {
     bool? remembered,
+    bool? fridgeShown,
     PumpingEvent? existing,
   }) async {
     SharedPreferences.setMockInitialValues({
       'unit_system': 'metric',
       'pump_to_fridge': ?remembered,
+      'show_fridge': ?fridgeShown,
     });
     stored = await SharedPreferences.getInstance();
     pumps = _RecordingPumps();
@@ -120,6 +122,21 @@ void main() {
     await openSheet(tester, remembered: true);
     expect(find.text('Once there is an amount'), findsOneWidget);
 
+    await save(tester);
+
+    expect(pumps.added, hasLength(1));
+    expect(fridge.added, isEmpty);
+  });
+
+  testWidgets('and is gone, and adds nothing, with the fridge hidden', (
+    tester,
+  ) async {
+    // Left on from before the fridge was switched off: the switch it was
+    // set with is out of sight, so it must not go on working unseen.
+    await openSheet(tester, remembered: true, fridgeShown: false);
+    expect(toggle(), findsNothing);
+
+    await tester.enterText(amountField(), '110');
     await save(tester);
 
     expect(pumps.added, hasLength(1));

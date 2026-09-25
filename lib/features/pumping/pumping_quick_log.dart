@@ -143,7 +143,9 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
   /// Whether this session goes in the fridge too. New sessions only; see
   /// [pumpToFridgeProvider] for why it is remembered.
   bool get _toFridge =>
-      widget.existing == null && ref.read(pumpToFridgeProvider);
+      widget.existing == null &&
+      ref.read(showFridgeProvider) &&
+      ref.read(pumpToFridgeProvider);
 
   /// The amount to store: what was typed, converted, or the stored value
   /// untouched when the field was never edited.
@@ -189,7 +191,8 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
           onChanged: (_) => setState(() => _amountEdited = true),
         ),
         // Under the amount, because the amount is what goes in the bottle.
-        if (!isEdit) _FridgeToggle(amountMl: _amountMl()),
+        if (!isEdit && ref.watch(showFridgeProvider))
+          _FridgeToggle(amountMl: _amountMl()),
         const SizedBox(height: 12),
         TextField(
           controller: _duration,

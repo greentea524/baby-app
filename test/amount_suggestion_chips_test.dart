@@ -354,9 +354,11 @@ void main() {
     Future<List<AmountSuggestion>> suggestionsWith({
       required bool pumpingShown,
       List<FridgeBottle> fridge = const [],
+      bool fridgeShown = true,
     }) async {
       SharedPreferences.setMockInitialValues({
         'show_pumping_action': pumpingShown,
+        'show_fridge': fridgeShown,
       });
       final stored = await SharedPreferences.getInstance();
       final container = ProviderContainer(
@@ -378,6 +380,7 @@ void main() {
       // rather than one deliberately left out.
       container.listen(bottleAmountSuggestionsProvider, (_, _) {});
       container.listen(recentPumpingProvider, (_, _) {});
+      container.listen(fridgeBottlesProvider, (_, _) {});
       await container.read(recentFeedingsProvider.future);
       await container.read(recentPumpingProvider.future);
       await container.read(fridgeBottlesProvider.future);
@@ -429,6 +432,28 @@ void main() {
         const [
           AmountSuggestion(120, AmountSource.bottle),
           AmountSuggestion(150, AmountSource.fridge),
+        ],
+      );
+    });
+
+    test('no fridge chips once the fridge is switched off', () async {
+      // And the pump is fresh milk again: nothing is held back as bottled
+      // in a fridge that is out of use.
+      expect(
+        await suggestionsWith(
+          pumpingShown: true,
+          fridgeShown: false,
+          fridge: [
+            FridgeBottle(
+              id: 'b',
+              filledAt: DateTime(2026, 8, 30, 9, 30),
+              amountMl: 130,
+            ),
+          ],
+        ),
+        const [
+          AmountSuggestion(120, AmountSource.bottle),
+          AmountSuggestion(130, AmountSource.pump),
         ],
       );
     });

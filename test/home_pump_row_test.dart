@@ -149,6 +149,15 @@ void main() {
     expect(find.byIcon(Icons.chevron_right), findsNothing);
   });
 
+  testWidgets('and none once the fridge is switched off in Settings', (
+    tester,
+  ) async {
+    // The row stays; only the way into the fridge goes.
+    await pumpCard(tester, pumping: pumps, prefs: {'show_fridge': false});
+    expect(find.text('Last pumped'), findsOneWidget);
+    expect(find.byType(FridgeButton), findsNothing);
+  });
+
   testWidgets('and it goes where the row goes: nowhere, without pumping', (
     tester,
   ) async {
