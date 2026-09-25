@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../auth/auth_providers.dart';
 import '../../features/appointments/appointments_screen.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/fridge/fridge_screen.dart';
 import '../../features/growth/growth_screen.dart';
 import '../../features/home/home_prefs.dart';
 import '../../features/home/home_screen.dart';
@@ -17,6 +18,7 @@ abstract final class AppRoutes {
   static const login = '/login';
   static const home = '/';
   static const timeline = '/timeline';
+  static const fridge = '/fridge';
   static const insights = '/insights';
   static const growth = '/growth';
   static const appointments = '/appointments';
@@ -54,6 +56,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.timeline,
         builder: (context, state) => const TimelineScreen(),
+      ),
+      // Outside the shell for the same reason the timeline is: it is a
+      // drill-down from Home's pump row, not a sixth place to be. It pushes
+      // over the nav bar and gets a back button for free.
+      GoRoute(
+        path: AppRoutes.fridge,
+        builder: (context, state) => const FridgeScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

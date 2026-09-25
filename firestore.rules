@@ -11,6 +11,7 @@ rules_version = '2';
 //   babies/{babyId}/diapers/{eventId}
 //   babies/{babyId}/growth/{eventId}
 //   babies/{babyId}/pumps/{eventId}
+//   babies/{babyId}/bottles/{eventId}   (bottles in the fridge)
 //   babies/{babyId}/appointments/{eventId}
 //   babies/{babyId}/invites/{email}       (pending caregiver invitations)
 //
@@ -267,6 +268,34 @@ service cloud.firestore {
             && count(d.get('durationMinutes', null))
             && amount(d.get('amountMl', null))
             && side(d.get('side', null))
+            && text(d.get('notes', null));
+        }
+      }
+
+      // Expressed milk currently in the fridge. Not a log — a list of what is
+      // there now, which is why it is its own collection rather than a flag
+      // on a pump session.
+      match /bottles/{docId} {
+        allow read, delete: if isMember(babyId);
+        allow create: if isMember(babyId) && authored() && bottleShape();
+        allow update: if isMember(babyId) && reauthored() && bottleShape();
+
+        function bottleShape() {
+          let d = request.resource.data;
+          // Required, unlike every other amount in this file: a bottle with
+          // nothing in it is not a bottle. Splitting enforces the same thing
+          // client-side, so neither half can come out empty.
+          //
+          // `filledAt` covers both kinds — expressed or mixed — because what
+          // the timestamp means is the app's to label, not the shape's.
+          // `kind` is optional so a document written before formula was
+          // supported still passes; the client reads a missing one as
+          // expressed.
+          return d.filledAt is timestamp
+            && d.amountMl is number
+            && d.amountMl > 0
+            && optional(d.get('kind', null), ['expressed', 'formula'])
+            && count(d.get('position', null))
             && text(d.get('notes', null));
         }
       }
