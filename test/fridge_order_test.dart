@@ -171,4 +171,77 @@ void main() {
       expect(BottleKind.formula.label, isNot(BottleKind.expressed.label));
     });
   });
+
+  group('how full a bottle is', () {
+    test('against the 120 ml the household\'s bottles hold', () {
+      expect(bottleCapacityMl, 120);
+      expect(fullness(120), 1.0);
+      expect(fullness(90), 0.75);
+      expect(fullness(60), 0.5);
+      expect(fullness(0), 0.0);
+    });
+
+    test('full, not overflowing, past the top mark', () {
+      // A reading over capacity is a bigger bottle, not a spill. The number
+      // on the card stays exact.
+      expect(fullness(150), 1.0);
+    });
+  });
+
+  group('whether a pump session is already on the shelf', () {
+    final pumped = DateTime(2026, 9, 25, 9, 5, 33);
+
+    test('a bottle carrying its time is that milk', () {
+      expect(
+        isOnShelf(pumped, [
+          FridgeBottle(id: 'a', filledAt: pumped, amountMl: 90),
+        ]),
+        isTrue,
+      );
+    });
+
+    test('to the minute, since a re-picked time loses the seconds', () {
+      expect(
+        isOnShelf(pumped, [
+          FridgeBottle(
+            id: 'a',
+            filledAt: DateTime(2026, 9, 25, 9, 5),
+            amountMl: 90,
+          ),
+        ]),
+        isTrue,
+      );
+    });
+
+    test('a bottle from another time is not', () {
+      expect(
+        isOnShelf(pumped, [
+          FridgeBottle(
+            id: 'a',
+            filledAt: DateTime(2026, 9, 25, 9, 6),
+            amountMl: 90,
+          ),
+        ]),
+        isFalse,
+      );
+    });
+
+    test('and formula made the same minute is not that milk', () {
+      expect(
+        isOnShelf(pumped, [
+          FridgeBottle(
+            id: 'a',
+            filledAt: pumped,
+            amountMl: 90,
+            kind: BottleKind.formula,
+          ),
+        ]),
+        isFalse,
+      );
+    });
+
+    test('and an empty fridge holds nothing', () {
+      expect(isOnShelf(pumped, const []), isFalse);
+    });
+  });
 }

@@ -6,8 +6,8 @@ import 'package:baby_app/features/common/action_snack_bar.dart';
 /// A snack bar with a button that still leaves on its own.
 ///
 /// Flutter now keeps any snack bar with an action on screen until the action
-/// is tapped. "Bottle removed · Undo" sat over the fridge indefinitely because
-/// of it, and the caregiver notice ignored its own 8-second duration.
+/// is tapped. The caregiver notice ignored its own 8-second duration because
+/// of it, and so did the fridge's old Undo.
 void main() {
   Future<void> show(WidgetTester tester, {VoidCallback? onAction}) async {
     await tester.pumpWidget(
@@ -17,8 +17,8 @@ void main() {
             builder: (context) => TextButton(
               onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
                 actionSnackBar(
-                  content: const Text('Bottle removed'),
-                  actionLabel: 'Undo',
+                  content: const Text('Caregiver added'),
+                  actionLabel: 'Copy',
                   onAction: onAction ?? () {},
                 ),
               ),
@@ -34,12 +34,12 @@ void main() {
 
   testWidgets('goes away by itself', (tester) async {
     await show(tester);
-    expect(find.text('Bottle removed'), findsOneWidget);
+    expect(find.text('Caregiver added'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 7));
     await tester.pumpAndSettle();
 
-    expect(find.text('Bottle removed'), findsNothing);
+    expect(find.text('Caregiver added'), findsNothing);
   });
 
   testWidgets('but not before there is time to reach the button', (
@@ -47,17 +47,17 @@ void main() {
   ) async {
     await show(tester);
     await tester.pump(const Duration(seconds: 4));
-    expect(find.text('Undo'), findsOneWidget);
+    expect(find.text('Copy'), findsOneWidget);
   });
 
   testWidgets('and the button still does what it says', (tester) async {
-    var undone = false;
-    await show(tester, onAction: () => undone = true);
+    var copied = false;
+    await show(tester, onAction: () => copied = true);
 
-    await tester.tap(find.text('Undo'));
+    await tester.tap(find.text('Copy'));
     await tester.pumpAndSettle();
 
-    expect(undone, isTrue);
+    expect(copied, isTrue);
   });
 
   test('asks not to persist, rather than trusting the default', () {

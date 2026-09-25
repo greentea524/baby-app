@@ -9,11 +9,11 @@ import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
 import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
-import '../common/action_snack_bar.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
+import '../feeding/feeding_format.dart';
 
 /// Adds a bottle to the fridge, or edits one already in it.
 ///
@@ -53,6 +53,18 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   /// Whether the time has been picked by hand, so switching kind knows
   /// whether it may move it. See [_setKind].
   bool _timeEdited = false;
+
+  /// Whether this bottle is still being filled in from the last pump session.
+  ///
+  /// True from the start whenever there is a session to open on, and false for
+  /// good once the caregiver says this bottle is not from it — see
+  /// [_startBlank]. The prefill used to be unannounced and unshakeable: the
+  /// time sat on the session's time with nothing saying why, which read as a
+  /// field stuck on the wrong value.
+  late bool _usePrefill = widget.prefillFrom != null;
+
+  /// The session this bottle is being filled in from, if it still is.
+  PumpingEvent? get _prefill => _usePrefill ? widget.prefillFrom : null;
 
   /// Guards a second tap landing while the sheet closes, as the other sheets
   /// do — there is no spinner to hide behind (#21).
@@ -110,7 +122,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   void _setKind(BottleKind kind) {
     setState(() {
       _kind = kind;
-      final prefill = widget.prefillFrom;
+      final prefill = _prefill;
       if (!_amountEdited) {
         final ml = kind == BottleKind.expressed ? prefill?.amountMl : null;
         _storedMl = ml;
@@ -121,6 +133,24 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
             ? (prefill?.time ?? DateTime.now())
             : DateTime.now();
       }
+    });
+  }
+
+  /// Not from that pump: now, and an empty amount.
+  ///
+  /// Both together, and regardless of edits, because they arrived together.
+  /// The session's time and yield are one claim — this bottle is that milk —
+  /// and a bottle that is not that milk is wrong about both. It stays blank
+  /// afterwards, through any switch of kind, since the caregiver has said
+  /// where this bottle did not come from.
+  void _startBlank() {
+    setState(() {
+      _usePrefill = false;
+      _filledAt = DateTime.now();
+      _timeEdited = false;
+      _storedMl = null;
+      _amount.text = '';
+      _amountEdited = false;
     });
   }
 
@@ -206,6 +236,11 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
             _timeEdited = true;
           }),
         ),
+        // Says where the time and amount came from, and offers a way out.
+        // Without it the sheet opened on an old time with nothing explaining
+        // it, and there was no way back to now short of picking it by hand.
+        if (_prefill case final session? when _kind == BottleKind.expressed)
+          _FromPump(session: session, onStartBlank: _startBlank),
         const SizedBox(height: 12),
         TextField(
           controller: _notes,
@@ -256,60 +291,22 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     );
   }
 
-  /// Takes the bottle off the shelf, with a way back.
+  /// Takes the bottle off the shelf.
   ///
-  /// No confirmation dialog. Removing is how this screen is *used* — a bottle
-  /// comes out of the fridge several times a day — and a prompt on the common
-  /// action is one people learn to tap through. Undo is the better guard: it
-  /// costs nothing when the removal was meant, and it is still there when it
-  /// was not.
+  /// No confirmation and no undo. Removing is how this screen is *used* — a
+  /// bottle comes out of the fridge several times a day — and it is already
+  /// two taps, through the bottle's own sheet. No message either: the bottle
+  /// leaving the shelf is the confirmation, and a bar saying so would only
+  /// cover the shelf it is confirming. Only a failure is worth a word.
   void _remove(FridgeBottle bottle) {
     if (_saving) return;
     final repo = ref.read(fridgeRepositoryProvider);
     if (repo == null) return;
-    // Captured before the pop, like saveAndClose does: afterwards this
-    // context is defunct, and that is exactly when the message is shown.
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
     _saving = true;
-
-    unawaited(
-      Future.sync(() => repo.delete(bottle.id)).catchError((Object e) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Could not remove the bottle: $e')),
-        );
-      }),
-    );
-    navigator.pop();
-
-    // Six seconds, then gone. Long enough to reach Undo with a bottle in
-    // the other hand, short enough that it is not still covering the shelf
-    // after the moment for undoing has passed.
-    messenger.showSnackBar(
-      actionSnackBar(
-        content: const Text('Bottle removed'),
-        actionLabel: 'Undo',
-        // Re-added rather than restored: the document is gone, so this is a
-        // new one carrying the same milk. It keeps its position, so it goes
-        // back to the slot on the shelf it came from.
-        //
-        // The removed bottle itself, not a copy spelled out field by field.
-        // It used to be the latter, and when formula arrived the copy never
-        // learned about `kind` — undoing a formula bottle brought it back as
-        // breast milk. `add` stores the fields and ignores the id, so handing
-        // it the original keeps every field, including ones not written yet.
-        onAction: () => unawaited(
-          // The id `add` returns is of no use here, and a catchError on a
-          // Future<String> would have to invent one.
-          Future<void>.sync(() async {
-            await repo.add(bottle);
-          }).catchError((Object e) {
-            messenger.showSnackBar(
-              SnackBar(content: Text('Could not put it back: $e')),
-            );
-          }),
-        ),
-      ),
+    saveAndClose(
+      context,
+      () => repo.delete(bottle.id),
+      failure: 'Could not remove the bottle',
     );
   }
 }
@@ -437,6 +434,50 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
             child: const Text('Split into two bottles'),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// "From your 9:05 AM pump · Start blank", under the time row.
+class _FromPump extends ConsumerWidget {
+  const _FromPump({required this.session, required this.onStartBlank});
+
+  final PumpingEvent session;
+  final VoidCallback onStartBlank;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final units = ref.watch(unitSystemProvider);
+    final amount = session.amountMl;
+    final when = FeedingFormat.clockStamp(context, session.time);
+
+    return Row(
+      children: [
+        Icon(
+          Icons.info_outline,
+          size: 18,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            amount == null
+                ? 'From your $when pump'
+                : 'From your $when pump · ${formatVolume(amount, units)}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        // Compact, so the line sits close under the time it is explaining
+        // rather than a button's height away from it.
+        TextButton(
+          onPressed: onStartBlank,
+          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+          child: const Text('Start blank'),
+        ),
       ],
     );
   }

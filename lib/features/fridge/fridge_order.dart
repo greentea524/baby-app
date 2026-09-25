@@ -77,3 +77,41 @@ Map<BottleKind, double> totalByKind(List<FridgeBottle> bottles) {
   }
   return totals;
 }
+
+/// How much one bottle holds, full to the top mark.
+///
+/// One number, here, because it is one fact about the household's bottles
+/// rather than about any bottle in particular. When the baby moves up to the
+/// next size of bottle, this is the line that changes.
+const double bottleCapacityMl = 120;
+
+/// How full [amountMl] leaves a bottle, from 0 to 1.
+///
+/// Clamped at full rather than drawn spilling over. A reading over capacity
+/// is a bottle bigger than this one, not an overflowing one, and the amount
+/// written beside the drawing is exact either way — the drawing is for the
+/// glance, the number is for the record.
+double fullness(double amountMl) =>
+    (amountMl / bottleCapacityMl).clamp(0.0, 1.0);
+
+/// Whether milk pumped at [pumpedAt] is already standing on [shelf].
+///
+/// A bottle made from a pump session carries that session's time, which is
+/// how it is recognised: the add sheet opens on the last session, and once
+/// that session is in the fridge, opening on it again would offer to bottle
+/// the same milk twice.
+///
+/// Matched to the minute rather than exactly. The session is stamped to the
+/// second when it is logged, and a bottle whose time was re-picked lands on
+/// the minute — still the same milk.
+///
+/// Breast milk only: formula made up in the same minute is not that
+/// session's milk.
+bool isOnShelf(DateTime pumpedAt, List<FridgeBottle> shelf) {
+  DateTime minute(DateTime t) =>
+      DateTime(t.year, t.month, t.day, t.hour, t.minute);
+  final target = minute(pumpedAt);
+  return shelf.any(
+    (b) => b.kind == BottleKind.expressed && minute(b.filledAt) == target,
+  );
+}

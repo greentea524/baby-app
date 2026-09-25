@@ -11,6 +11,7 @@ import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/fridge_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
+import 'package:baby_app/features/fridge/bottle_gauge.dart';
 import 'package:baby_app/features/fridge/fridge_screen.dart';
 
 /// The fridge shelf: what is in it, in what order, and what you can do to it.
@@ -41,6 +42,7 @@ void main() {
     List<PumpingEvent> pumps = const [],
     Size size = const Size(390, 844),
     FridgeRepository? repo,
+    double textScale = 1.0,
   }) async {
     SharedPreferences.setMockInitialValues({'unit_system': 'metric'});
     final stored = await SharedPreferences.getInstance();
@@ -60,7 +62,16 @@ void main() {
           if (repo != null) fridgeRepositoryProvider.overrideWithValue(repo),
           recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
         ],
-        child: MaterialApp(home: FridgeScreen(now: now)),
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: FridgeScreen(now: now),
+            ),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -332,49 +343,138 @@ void main() {
       return repo;
     }
 
-    testWidgets('says so, with a way back', (tester) async {
+    testWidgets('takes it off the shelf', (tester) async {
       final repo = await remove(tester, bottle('a', hoursAgo: 2, ml: 90));
-
       expect(repo.deleted, ['a']);
-      expect(find.text('Bottle removed'), findsOneWidget);
-      expect(find.text('Undo'), findsOneWidget);
     });
 
-    testWidgets('and the message leaves by itself', (tester) async {
-      // Reported: it stayed on screen indefinitely. Flutter now keeps any
-      // snack bar with a button up until the button is tapped.
+    testWidgets('with no undo and no message over the shelf', (tester) async {
+      // The bottle leaving the shelf is the confirmation. The old bar said so
+      // with an Undo, and stayed until tapped.
       await remove(tester, bottle('a', hoursAgo: 2, ml: 90));
 
-      await tester.pump(const Duration(seconds: 7));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Bottle removed'), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.text('Undo'), findsNothing);
     });
+  });
 
-    testWidgets('and undo brings back the same bottle, kind and all', (
+  group('each bottle is drawn filled to what is in it', () {
+    BottlePainter painterFor(WidgetTester tester, String amount) {
+      final paint = tester.widget<CustomPaint>(
+        find.descendant(
+          of: find.ancestor(of: find.text(amount), matching: find.byType(Card)),
+          matching: find.byWidgetPredicate(
+            (w) => w is CustomPaint && w.painter is BottlePainter,
+          ),
+        ),
+      );
+      return paint.painter! as BottlePainter;
+    }
+
+    testWidgets('against the 120 ml the household\'s bottles hold', (
       tester,
     ) async {
-      // The copy undo used to write out field by field never learned about
-      // formula, so a formula bottle came back as breast milk.
-      final original = bottle(
-        'tin',
-        hoursAgo: 2,
-        ml: 60,
-        kind: BottleKind.formula,
-        position: 3,
-        notes: 'for daycare',
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('half', hoursAgo: 5, ml: 60),
+          bottle('full', hoursAgo: 3, ml: 120),
+          bottle('quarter', hoursAgo: 1, ml: 30),
+        ],
+        size: const Size(834, 1194),
       );
-      final repo = await remove(tester, original);
 
-      await tester.tap(find.text('Undo'));
-      await tester.pumpAndSettle();
+      expect(painterFor(tester, '60').level, 0.5);
+      expect(painterFor(tester, '120').level, 1.0);
+      expect(painterFor(tester, '30').level, 0.25);
+    });
 
-      final back = repo.added.single;
-      expect(back.kind, BottleKind.formula);
-      expect(back.amountMl, 60);
-      expect(back.filledAt, original.filledAt);
-      expect(back.position, 3);
-      expect(back.notes, 'for daycare');
+    testWidgets('and says how full to a screen reader', (tester) async {
+      // The drawing is otherwise invisible to one. The card is a single
+      // tappable thing, so its label is merged into the card's own — which is
+      // what a screen reader should read out: the bottle, how full, and when.
+      final semantics = tester.ensureSemantics();
+      await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 2, ml: 90)]);
+
+      expect(find.bySemanticsLabel(RegExp('75% full')), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('in a different colour for formula', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('milk', hoursAgo: 5, ml: 90),
+          bottle('tin', hoursAgo: 1, ml: 60, kind: BottleKind.formula),
+        ],
+      );
+      expect(
+        painterFor(tester, '60').milk,
+        isNot(painterFor(tester, '90').milk),
+      );
+    });
+
+    testWidgets('standing above its numbers on a tall shelf', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        size: const Size(390, 844),
+      );
+      final drawing = tester.getRect(
+        find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is BottlePainter,
+        ),
+      );
+      expect(drawing.bottom, lessThan(tester.getRect(find.text('90')).top));
+    });
+
+    testWidgets('and beside them on a short one, without overflowing', (
+      tester,
+    ) async {
+      // A phone on its side: there is not the height for a bottle above four
+      // lines, so it moves beside them.
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        size: const Size(844, 390),
+      );
+      expect(tester.takeException(), isNull);
+
+      final drawing = tester.getRect(
+        find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is BottlePainter,
+        ),
+      );
+      expect(drawing.right, lessThan(tester.getRect(find.text('90')).left));
+    });
+
+    testWidgets('even at the largest text size', (tester) async {
+      for (final size in const [Size(844, 390), Size(320, 568)]) {
+        await tester.pumpWidget(const SizedBox());
+        await pumpFridge(
+          tester,
+          bottles: [
+            bottle('a', hoursAgo: 2, ml: 90, notes: 'for daycare'),
+            bottle('b', hoursAgo: 1, ml: 120),
+          ],
+          size: size,
+          textScale: 2.0,
+        );
+        expect(tester.takeException(), isNull, reason: '$size');
+      }
+    });
+
+    testWidgets('and the last one is not hidden under the Add button', (
+      tester,
+    ) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        size: const Size(390, 844),
+      );
+      final card = tester.getRect(find.byType(Card));
+      final add = tester.getRect(find.byType(FloatingActionButton));
+      expect(card.bottom, lessThanOrEqualTo(add.top));
     });
   });
 
@@ -397,6 +497,96 @@ void main() {
 
       expect(find.text('Add a bottle'), findsOneWidget);
       expect(find.text('135'), findsOneWidget);
+    });
+
+    testWidgets('and says so, with a way back to now', (tester) async {
+      // It used to open on the session's time with nothing saying why, which
+      // read as a field stuck on the wrong value.
+      await pumpFridge(
+        tester,
+        pumps: [
+          PumpingEvent(
+            id: 'p1',
+            time: now.subtract(const Duration(minutes: 20)),
+            amountMl: 135,
+          ),
+        ],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('From your'), findsOneWidget);
+      expect(find.text('Start blank'), findsOneWidget);
+    });
+
+    testWidgets('and Start blank means now, and empty', (tester) async {
+      final pumped = now.subtract(const Duration(hours: 3));
+      await pumpFridge(
+        tester,
+        pumps: [PumpingEvent(id: 'p1', time: pumped, amountMl: 135)],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      final before = tester.widget<Text>(find.textContaining('Pumped').first);
+
+      await tester.tap(find.text('Start blank'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('135'), findsNothing);
+      expect(find.text('Start blank'), findsNothing);
+      // The time moved off the session's. Now comes from the real clock, so
+      // this checks that it changed rather than what it changed to.
+      final after = tester.widget<Text>(find.textContaining('Pumped').first);
+      expect(after.data, isNot(before.data));
+    });
+
+    testWidgets('and stays blank through a change of kind', (tester) async {
+      // The caregiver has said this bottle is not from that pump. Choosing
+      // Breast milk again must not bring the session back.
+      await pumpFridge(
+        tester,
+        pumps: [
+          PumpingEvent(
+            id: 'p1',
+            time: now.subtract(const Duration(minutes: 20)),
+            amountMl: 135,
+          ),
+        ],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start blank'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Formula').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Breast milk').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('135'), findsNothing);
+    });
+
+    testWidgets('but not on a session that is already in the fridge', (
+      tester,
+    ) async {
+      // Reported: every new bottle opened on the same pump time, long after
+      // that milk had been bottled. Once the session is on the shelf,
+      // opening on it again would offer to bottle it twice.
+      final pumped = now.subtract(const Duration(minutes: 20));
+      await pumpFridge(
+        tester,
+        bottles: [FridgeBottle(id: 'b1', filledAt: pumped, amountMl: 135)],
+        pumps: [PumpingEvent(id: 'p1', time: pumped, amountMl: 135)],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add a bottle'), findsOneWidget);
+      expect(find.textContaining('From your'), findsNothing);
+      // The shelf's own card shows 135; the sheet's field must not.
+      expect(
+        find.descendant(of: find.byType(TextField), matching: find.text('135')),
+        findsNothing,
+      );
     });
 
     testWidgets('and on an empty amount when nothing has been pumped', (

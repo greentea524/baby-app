@@ -4,16 +4,16 @@ import 'package:flutter/material.dart';
 ///
 /// Flutter changed the default under us. A `SnackBar` with an `action` now
 /// stays on screen until the action is tapped — `persist` defaults to
-/// `action != null` — whatever `duration` says. So "Bottle removed · Undo" sat
-/// over the fridge forever, and the caregiver notice with its 8-second
-/// duration never left either: the duration was being ignored.
+/// `action != null` — whatever `duration` says. It was found on the fridge,
+/// where "Bottle removed · Undo" sat over the shelf indefinitely, and the
+/// caregiver notice with its 8-second duration turned out to be doing the
+/// same: the duration was being ignored.
 ///
-/// Both kinds of message here are offers, not questions. Undo is for the
-/// moment straight after a mistake, and a copy button is for the moment
-/// straight after adding someone; once the moment has passed, the bar is only
-/// in the way. So every action snack bar in the app goes through this, which
-/// asks for the old behaviour back explicitly rather than trusting a default
-/// that has already moved once.
+/// An action on a snack bar is an offer for the moment it appears — copy the
+/// message now, while you are about to send it — and once that moment has
+/// passed the bar is only in the way. So every action snack bar in the app
+/// goes through this, which asks for the old behaviour back explicitly rather
+/// than trusting a default that has already moved once.
 SnackBar actionSnackBar({
   required Widget content,
   required String actionLabel,
