@@ -1,13 +1,17 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:baby_app/core/auth/auth_providers.dart';
+import 'package:baby_app/core/format/volume_format.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
+import 'package:baby_app/data/repositories/fridge_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
+import 'package:baby_app/features/fridge/bottle_gauge.dart';
 import 'package:baby_app/features/fridge/fridge_screen.dart';
 
 /// The fridge shelf: what is in it, in what order, and what you can do to it.
@@ -37,6 +41,8 @@ void main() {
     List<FridgeBottle> bottles = const [],
     List<PumpingEvent> pumps = const [],
     Size size = const Size(390, 844),
+    FridgeRepository? repo,
+    double textScale = 1.0,
   }) async {
     SharedPreferences.setMockInitialValues({'unit_system': 'metric'});
     final stored = await SharedPreferences.getInstance();
@@ -53,9 +59,19 @@ void main() {
           // This is about what the shelf shows, not what it saves.
           authStateProvider.overrideWith((ref) => Stream.value(null)),
           fridgeBottlesProvider.overrideWith((ref) => Stream.value(bottles)),
+          if (repo != null) fridgeRepositoryProvider.overrideWithValue(repo),
           recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
         ],
-        child: MaterialApp(home: FridgeScreen(now: now)),
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: FridgeScreen(now: now),
+            ),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -316,6 +332,272 @@ void main() {
     });
   });
 
+  group('removing one', () {
+    Future<_RecordingFridge> remove(WidgetTester tester, FridgeBottle b) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(tester, bottles: [b], repo: repo);
+      await tester.tap(find.text(formatMl(b.amountMl)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    testWidgets('takes it off the shelf', (tester) async {
+      final repo = await remove(tester, bottle('a', hoursAgo: 2, ml: 90));
+      expect(repo.deleted, ['a']);
+    });
+
+    testWidgets('with no undo and no message over the shelf', (tester) async {
+      // The bottle leaving the shelf is the confirmation. The old bar said so
+      // with an Undo, and stayed until tapped.
+      await remove(tester, bottle('a', hoursAgo: 2, ml: 90));
+
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.text('Undo'), findsNothing);
+    });
+  });
+
+  group('finishing one', () {
+    testWidgets('every bottle has the button, on its own card', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 5), bottle('b', hoursAgo: 1)],
+        size: const Size(834, 1194),
+      );
+      expect(find.widgetWithText(FilledButton, 'Finished'), findsNWidgets(2));
+    });
+
+    testWidgets('takes it off the shelf in one tap', (tester) async {
+      // The commonest thing done on this screen, and it used to be two taps:
+      // open the bottle, then Remove.
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('old', hoursAgo: 5, ml: 120),
+          bottle('new', hoursAgo: 1, ml: 60),
+        ],
+        repo: repo,
+        size: const Size(834, 1194),
+      );
+
+      await tester.tap(
+        find.descendant(
+          of: find.ancestor(of: find.text('120'), matching: find.byType(Card)),
+          matching: find.widgetWithText(FilledButton, 'Finished'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // That bottle, and only that one.
+      expect(repo.deleted, ['old']);
+    });
+
+    testWidgets('without opening the bottle or saying anything', (
+      tester,
+    ) async {
+      // A button of its own inside the card, so the press is never also a
+      // tap on the card. And no message: the bottle leaving is the answer.
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        repo: repo,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Finished'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit bottle'), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('and is there on a short shelf too', (tester) async {
+      // A phone on its side: the bottle moves beside its numbers, and the
+      // button stays at the foot of the card.
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        size: const Size(844, 390),
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.widgetWithText(FilledButton, 'Finished'), findsOneWidget);
+    });
+  });
+
+  group('each bottle is drawn filled to what is in it', () {
+    testWidgets('and every bottle stands at the same level', (tester) async {
+      // A note is an extra line. When the card grew for it, that bottle was
+      // pushed up above its neighbours — on a row whose point is comparing
+      // levels at a glance. The line is kept whether or not there is a note.
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('plain', hoursAgo: 5, ml: 120),
+          bottle('noted', hoursAgo: 3, ml: 90, notes: 'for daycare'),
+          bottle('tin', hoursAgo: 1, ml: 60, kind: BottleKind.formula),
+        ],
+        size: const Size(834, 1194),
+      );
+
+      final tops = tester
+          .widgetList<CustomPaint>(
+            find.byWidgetPredicate(
+              (w) => w is CustomPaint && w.painter is BottlePainter,
+            ),
+          )
+          .map((w) => tester.getRect(find.byWidget(w)).top)
+          .toList();
+      expect(tops, hasLength(3));
+      for (final top in tops) {
+        expect(top, moreOrLessEquals(tops.first, epsilon: 0.5));
+      }
+    });
+
+    BottlePainter painterFor(WidgetTester tester, String amount) {
+      final paint = tester.widget<CustomPaint>(
+        find.descendant(
+          of: find.ancestor(of: find.text(amount), matching: find.byType(Card)),
+          matching: find.byWidgetPredicate(
+            (w) => w is CustomPaint && w.painter is BottlePainter,
+          ),
+        ),
+      );
+      return paint.painter! as BottlePainter;
+    }
+
+    testWidgets('against the 120 ml the household\'s bottles hold', (
+      tester,
+    ) async {
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('half', hoursAgo: 5, ml: 60),
+          bottle('full', hoursAgo: 3, ml: 120),
+          bottle('quarter', hoursAgo: 1, ml: 30),
+        ],
+        size: const Size(834, 1194),
+      );
+
+      expect(painterFor(tester, '60').level, 0.5);
+      expect(painterFor(tester, '120').level, 1.0);
+      expect(painterFor(tester, '30').level, 0.25);
+    });
+
+    testWidgets('and says how full to a screen reader', (tester) async {
+      // The drawing is otherwise invisible to one. The card is a single
+      // tappable thing, so its label is merged into the card's own — which is
+      // what a screen reader should read out: the bottle, how full, and when.
+      final semantics = tester.ensureSemantics();
+      await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 2, ml: 90)]);
+
+      expect(find.bySemanticsLabel(RegExp('75% full')), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('in a different colour for formula', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('milk', hoursAgo: 5, ml: 90),
+          bottle('tin', hoursAgo: 1, ml: 60, kind: BottleKind.formula),
+        ],
+      );
+      expect(
+        painterFor(tester, '60').milk,
+        isNot(painterFor(tester, '90').milk),
+      );
+    });
+
+    testWidgets('standing above its numbers on a tall shelf', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        size: const Size(390, 844),
+      );
+      final drawing = tester.getRect(
+        find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is BottlePainter,
+        ),
+      );
+      expect(drawing.bottom, lessThan(tester.getRect(find.text('90')).top));
+    });
+
+    testWidgets('and beside them on a short one, without overflowing', (
+      tester,
+    ) async {
+      // A phone on its side: there is not the height for a bottle above four
+      // lines, so it moves beside them.
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        size: const Size(844, 390),
+      );
+      expect(tester.takeException(), isNull);
+
+      final drawing = tester.getRect(
+        find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is BottlePainter,
+        ),
+      );
+      expect(drawing.right, lessThan(tester.getRect(find.text('90')).left));
+    });
+
+    testWidgets('at every screen and text size, visibly', (tester) async {
+      // Checked for errors alone, this let through a shelf drawn at no height:
+      // a small phone at the largest text size, where the summary took nearly
+      // all the room, drew its bottles invisibly and threw nothing. So each
+      // card must also have real height, and the Finished button must not
+      // have wrapped into a tower — it once reached 160pt.
+      const sizes = [
+        Size(390, 844), // phone
+        Size(844, 390), // phone on its side
+        Size(320, 568), // small phone
+        Size(768, 1024), // tablet
+        Size(1024, 768), // tablet on its side
+      ];
+      for (final size in sizes) {
+        for (final scale in const [1.0, 1.5, 2.0]) {
+          await tester.pumpWidget(const SizedBox());
+          await pumpFridge(
+            tester,
+            bottles: [
+              bottle('a', hoursAgo: 2, ml: 90, notes: 'for daycare'),
+              bottle('b', hoursAgo: 1, ml: 120),
+            ],
+            size: size,
+            textScale: scale,
+          );
+          final where = '$size at ${scale}x';
+          expect(tester.takeException(), isNull, reason: where);
+          expect(
+            tester.getSize(find.byType(Card).first).height,
+            greaterThan(150),
+            reason: where,
+          );
+          expect(
+            tester.getSize(find.byType(FilledButton).first).height,
+            lessThan(60),
+            reason: where,
+          );
+        }
+      }
+    });
+
+    testWidgets('and the last one is not hidden under the Add button', (
+      tester,
+    ) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2, ml: 90)],
+        size: const Size(390, 844),
+      );
+      final card = tester.getRect(find.byType(Card));
+      final add = tester.getRect(find.byType(FloatingActionButton));
+      expect(card.bottom, lessThanOrEqualTo(add.top));
+    });
+  });
+
   group('adding one', () {
     testWidgets('opens on the last pump session', (tester) async {
       // Where the milk came from nine times in ten, so the sheet is usually
@@ -337,6 +619,96 @@ void main() {
       expect(find.text('135'), findsOneWidget);
     });
 
+    testWidgets('and says so, with a way back to now', (tester) async {
+      // It used to open on the session's time with nothing saying why, which
+      // read as a field stuck on the wrong value.
+      await pumpFridge(
+        tester,
+        pumps: [
+          PumpingEvent(
+            id: 'p1',
+            time: now.subtract(const Duration(minutes: 20)),
+            amountMl: 135,
+          ),
+        ],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('From your'), findsOneWidget);
+      expect(find.text('Start blank'), findsOneWidget);
+    });
+
+    testWidgets('and Start blank means now, and empty', (tester) async {
+      final pumped = now.subtract(const Duration(hours: 3));
+      await pumpFridge(
+        tester,
+        pumps: [PumpingEvent(id: 'p1', time: pumped, amountMl: 135)],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      final before = tester.widget<Text>(find.textContaining('Pumped').first);
+
+      await tester.tap(find.text('Start blank'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('135'), findsNothing);
+      expect(find.text('Start blank'), findsNothing);
+      // The time moved off the session's. Now comes from the real clock, so
+      // this checks that it changed rather than what it changed to.
+      final after = tester.widget<Text>(find.textContaining('Pumped').first);
+      expect(after.data, isNot(before.data));
+    });
+
+    testWidgets('and stays blank through a change of kind', (tester) async {
+      // The caregiver has said this bottle is not from that pump. Choosing
+      // Breast milk again must not bring the session back.
+      await pumpFridge(
+        tester,
+        pumps: [
+          PumpingEvent(
+            id: 'p1',
+            time: now.subtract(const Duration(minutes: 20)),
+            amountMl: 135,
+          ),
+        ],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start blank'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Formula').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Breast milk').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('135'), findsNothing);
+    });
+
+    testWidgets('but not on a session that is already in the fridge', (
+      tester,
+    ) async {
+      // Reported: every new bottle opened on the same pump time, long after
+      // that milk had been bottled. Once the session is on the shelf,
+      // opening on it again would offer to bottle it twice.
+      final pumped = now.subtract(const Duration(minutes: 20));
+      await pumpFridge(
+        tester,
+        bottles: [FridgeBottle(id: 'b1', filledAt: pumped, amountMl: 135)],
+        pumps: [PumpingEvent(id: 'p1', time: pumped, amountMl: 135)],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add a bottle'), findsOneWidget);
+      expect(find.textContaining('From your'), findsNothing);
+      // The shelf's own card shows 135; the sheet's field must not.
+      expect(
+        find.descendant(of: find.byType(TextField), matching: find.text('135')),
+        findsNothing,
+      );
+    });
+
     testWidgets('and on an empty amount when nothing has been pumped', (
       tester,
     ) async {
@@ -349,4 +721,32 @@ void main() {
       expect(find.text('135'), findsNothing);
     });
   });
+}
+
+/// A fridge that writes nothing and remembers what it was asked to write.
+///
+/// There is no Firestore fake in this project, and removing and undoing both
+/// need a repository to reach at all. This one stands in for the real thing
+/// at exactly the two calls those take.
+class _RecordingFridge extends FridgeRepository {
+  _RecordingFridge() : super(_NoFirestore(), 'baby1', 'alice');
+
+  final added = <FridgeBottle>[];
+  final deleted = <String>[];
+
+  @override
+  Future<String> add(FridgeBottle event) async {
+    added.add(event);
+    return 'restored';
+  }
+
+  @override
+  Future<void> delete(String id) async => deleted.add(id);
+}
+
+/// Never touched: [_RecordingFridge] overrides every call that would reach it.
+class _NoFirestore implements FirebaseFirestore {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }
