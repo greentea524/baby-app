@@ -26,9 +26,10 @@ class AmountSuggestionChips extends ConsumerWidget {
   /// the number will once it lands in the field.
   final VolumeUnit unit;
 
-  /// Called with the chip's exact millilitres — never with its label, which
-  /// in fluid ounces has already been rounded for display.
-  final ValueChanged<double> onPick;
+  /// Called with the chip tapped: its exact millilitres — never its label,
+  /// which in fluid ounces has already been rounded for display — and where
+  /// it came from, since a fridge chip is a bottle as well as an amount.
+  final ValueChanged<AmountSuggestion> onPick;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,7 +65,7 @@ class AmountSuggestionChips extends ConsumerWidget {
                 AmountSource.bottle => null,
               },
               label: Text('${unit.fieldText(s.millilitres)} ${unit.label}'),
-              onPressed: () => onPick(s.millilitres),
+              onPressed: () => onPick(s),
             ),
         ],
       ),
