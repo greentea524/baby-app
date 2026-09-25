@@ -1,12 +1,15 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:baby_app/core/auth/auth_providers.dart';
+import 'package:baby_app/core/format/volume_format.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
+import 'package:baby_app/data/repositories/fridge_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/fridge/fridge_screen.dart';
 
@@ -37,6 +40,7 @@ void main() {
     List<FridgeBottle> bottles = const [],
     List<PumpingEvent> pumps = const [],
     Size size = const Size(390, 844),
+    FridgeRepository? repo,
   }) async {
     SharedPreferences.setMockInitialValues({'unit_system': 'metric'});
     final stored = await SharedPreferences.getInstance();
@@ -53,6 +57,7 @@ void main() {
           // This is about what the shelf shows, not what it saves.
           authStateProvider.overrideWith((ref) => Stream.value(null)),
           fridgeBottlesProvider.overrideWith((ref) => Stream.value(bottles)),
+          if (repo != null) fridgeRepositoryProvider.overrideWithValue(repo),
           recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
         ],
         child: MaterialApp(home: FridgeScreen(now: now)),
@@ -316,6 +321,63 @@ void main() {
     });
   });
 
+  group('removing one', () {
+    Future<_RecordingFridge> remove(WidgetTester tester, FridgeBottle b) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(tester, bottles: [b], repo: repo);
+      await tester.tap(find.text(formatMl(b.amountMl)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    testWidgets('says so, with a way back', (tester) async {
+      final repo = await remove(tester, bottle('a', hoursAgo: 2, ml: 90));
+
+      expect(repo.deleted, ['a']);
+      expect(find.text('Bottle removed'), findsOneWidget);
+      expect(find.text('Undo'), findsOneWidget);
+    });
+
+    testWidgets('and the message leaves by itself', (tester) async {
+      // Reported: it stayed on screen indefinitely. Flutter now keeps any
+      // snack bar with a button up until the button is tapped.
+      await remove(tester, bottle('a', hoursAgo: 2, ml: 90));
+
+      await tester.pump(const Duration(seconds: 7));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bottle removed'), findsNothing);
+    });
+
+    testWidgets('and undo brings back the same bottle, kind and all', (
+      tester,
+    ) async {
+      // The copy undo used to write out field by field never learned about
+      // formula, so a formula bottle came back as breast milk.
+      final original = bottle(
+        'tin',
+        hoursAgo: 2,
+        ml: 60,
+        kind: BottleKind.formula,
+        position: 3,
+        notes: 'for daycare',
+      );
+      final repo = await remove(tester, original);
+
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+
+      final back = repo.added.single;
+      expect(back.kind, BottleKind.formula);
+      expect(back.amountMl, 60);
+      expect(back.filledAt, original.filledAt);
+      expect(back.position, 3);
+      expect(back.notes, 'for daycare');
+    });
+  });
+
   group('adding one', () {
     testWidgets('opens on the last pump session', (tester) async {
       // Where the milk came from nine times in ten, so the sheet is usually
@@ -349,4 +411,32 @@ void main() {
       expect(find.text('135'), findsNothing);
     });
   });
+}
+
+/// A fridge that writes nothing and remembers what it was asked to write.
+///
+/// There is no Firestore fake in this project, and removing and undoing both
+/// need a repository to reach at all. This one stands in for the real thing
+/// at exactly the two calls those take.
+class _RecordingFridge extends FridgeRepository {
+  _RecordingFridge() : super(_NoFirestore(), 'baby1', 'alice');
+
+  final added = <FridgeBottle>[];
+  final deleted = <String>[];
+
+  @override
+  Future<String> add(FridgeBottle event) async {
+    added.add(event);
+    return 'restored';
+  }
+
+  @override
+  Future<void> delete(String id) async => deleted.add(id);
+}
+
+/// Never touched: [_RecordingFridge] overrides every call that would reach it.
+class _NoFirestore implements FirebaseFirestore {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }

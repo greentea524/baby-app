@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../common/action_snack_bar.dart';
 import '../../data/models/baby.dart';
 import '../../data/models/caregiver_invite.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -300,16 +301,14 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
     // The moment the sender is about to message them is right now, so offer
     // the text here rather than leaving it to be found on the row later.
     messenger.showSnackBar(
-      SnackBar(
+      actionSnackBar(
         content: Text('$email added. They will not be notified — tell them.'),
         duration: const Duration(seconds: 8),
-        action: SnackBarAction(
-          label: 'Copy message',
-          onPressed: () => _copyInviteMessage(
-            messenger,
-            babyName: widget.baby.name,
-            email: email,
-          ),
+        actionLabel: 'Copy message',
+        onAction: () => _copyInviteMessage(
+          messenger,
+          babyName: widget.baby.name,
+          email: email,
         ),
       ),
     );

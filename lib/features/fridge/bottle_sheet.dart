@@ -9,6 +9,7 @@ import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
 import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/action_snack_bar.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import '../common/save_and_close.dart';
@@ -281,33 +282,32 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     );
     navigator.pop();
 
+    // Six seconds, then gone. Long enough to reach Undo with a bottle in
+    // the other hand, short enough that it is not still covering the shelf
+    // after the moment for undoing has passed.
     messenger.showSnackBar(
-      SnackBar(
+      actionSnackBar(
         content: const Text('Bottle removed'),
-        action: SnackBarAction(
-          label: 'Undo',
-          // Re-added rather than restored: the document is gone, so this is a
-          // new one carrying the same milk. It keeps its position, so it goes
-          // back to the slot on the shelf it came from.
-          onPressed: () => unawaited(
-            // The id `add` returns is of no use here, and a catchError on a
-            // Future<String> would have to invent one.
-            Future<void>.sync(() async {
-              await repo.add(
-                FridgeBottle(
-                  id: '',
-                  filledAt: bottle.filledAt,
-                  amountMl: bottle.amountMl,
-                  position: bottle.position,
-                  notes: bottle.notes,
-                ),
-              );
-            }).catchError((Object e) {
-              messenger.showSnackBar(
-                SnackBar(content: Text('Could not put it back: $e')),
-              );
-            }),
-          ),
+        actionLabel: 'Undo',
+        // Re-added rather than restored: the document is gone, so this is a
+        // new one carrying the same milk. It keeps its position, so it goes
+        // back to the slot on the shelf it came from.
+        //
+        // The removed bottle itself, not a copy spelled out field by field.
+        // It used to be the latter, and when formula arrived the copy never
+        // learned about `kind` — undoing a formula bottle brought it back as
+        // breast milk. `add` stores the fields and ignores the id, so handing
+        // it the original keeps every field, including ones not written yet.
+        onAction: () => unawaited(
+          // The id `add` returns is of no use here, and a catchError on a
+          // Future<String> would have to invent one.
+          Future<void>.sync(() async {
+            await repo.add(bottle);
+          }).catchError((Object e) {
+            messenger.showSnackBar(
+              SnackBar(content: Text('Could not put it back: $e')),
+            );
+          }),
         ),
       ),
     );
