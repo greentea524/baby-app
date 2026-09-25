@@ -187,13 +187,15 @@ so a narrower rule written above it can be silently overridden by the wildcard
 below. The suite catches that; reading the rules does not.
 
 Passing tests only mean the rules are correct, not that they are live — see
-[deploying them](#security-rules-deploy-by-hand).
+[deploying them](#security-rules-deploy).
 
 ## Continuous deployment
 
 `.github/workflows/deploy.yml` builds and deploys to Firebase Hosting on
-every push to `main` (after `flutter analyze` + `flutter test` pass). Pull
-requests run checks only, via `ci.yml`.
+every push to `main` (after `flutter analyze` + `flutter test` pass), then
+tests and releases `firestore.rules` — see
+[Security rules deploy](#security-rules-deploy). Pull requests run checks only,
+via `ci.yml`.
 
 **One-time setup** — add a Firebase service-account key as a repo secret so
 the Action can deploy:
@@ -209,12 +211,40 @@ After that, `git push` to `main` deploys the **app** automatically. (To also
 inject the push VAPID key, add `--dart-define=VAPID_KEY=${{ secrets.VAPID_KEY }}`
 to the build step and set that secret too.)
 
-### Security rules deploy by hand
+### Security rules deploy
 
-The workflow runs `action-hosting-deploy`, which publishes `build/web` and
-nothing else. **Changes to `firestore.rules` do not ship with it** — merging a
-rules change to `main` leaves `main` looking correct while the old rules are
-still the ones enforced in production. Deploy them yourself:
+`firestore.rules` ships with the app. Every push to `main` runs three jobs in
+`deploy.yml`:
+
+| Job | Runs | Does |
+|---|---|---|
+| `build-and-deploy` | straight away | analyze, test, build, publish Hosting |
+| `rules-test` | alongside it | the `rules-tests/` emulator suite |
+| `rules-deploy` | once both pass | `firebase deploy --only firestore:rules` |
+
+A failing rules test stops the rules and nothing else: the app still ships, on
+the rules already in production. Hosting never waits on either rules job. When
+`firestore.rules` hasn't changed, `rules-deploy` reuses the ruleset already live
+and creates nothing new.
+
+**One-time setup: let the service account release rules.** The key in
+`FIREBASE_SERVICE_ACCOUNT` was set up for Hosting and may not be allowed to
+touch rules. If `rules-deploy` fails with a permission error, open Google
+Cloud console → **IAM**, find the account (the `client_email` in the key
+file), and grant it **Firebase Rules Admin**. That is the only role the deploy
+uses — it calls the Firebase Rules API and nothing else. Until then, only this
+job goes red; releases carry on.
+
+Runs are queued one at a time in push order (`concurrency: deploy-main`), so
+two merges close together cannot finish out of order and leave older rules in
+force.
+
+Afterwards, **Firestore → Rules** in the Firebase console shows the ruleset
+actually live. `firestore.indexes.json` (`--only firestore:indexes`) and the
+reminder function in `functions/` (`npm run deploy`) are still deployed by
+hand.
+
+#### By hand, when you need to
 
 ```bash
 firebase deploy --only firestore:rules
@@ -235,22 +265,24 @@ or recreate the file with `firebase use --add`, picking the project and
 aliasing it `default`. Note that `--project` is a one-off flag and writes
 nothing — only `firebase use --add` creates `.firebaserc`.
 
-Afterwards, confirm the change is live in the Firebase console under
-**Firestore → Rules**, which shows the ruleset actually in force. The same
-applies to `firestore.indexes.json` (`--only firestore:indexes`) and to the
-reminder function in `functions/` (`npm run deploy`).
-
-#### Deploy the app before the rules, not after
+#### The app first, then the rules
 
 Rules validate what gets written (#22), so a rule that is stricter than the
 running client rejects writes the client still thinks are fine — and since
 sheets no longer wait for the write (#21), the caregiver sees the entry save
-and gets an error minutes later. Ship the app first, then the rules.
+and gets an error minutes later. Ship the app first, then the rules. That is
+the order the workflow runs them in.
 
-The reverse order is safe only when a rules change is purely a loosening.
+The cost falls on the other kind of change. A brand-new collection is purely a
+loosening, and until `rules-deploy` finishes — a minute or so after the app
+goes live — writes to it are refused: anything added in that window appears to
+save and is rejected on sync. If that matters for a particular change, release
+its rules by hand before merging. Releasing a loosening early is always safe.
+
 `rules-tests/` has a whole `describe("what the app writes today")` block whose
-job is to fail if a rule stops accepting a payload the client still sends —
-run `npm test` in `rules-tests/` before deploying either half.
+job is to fail if a rule stops accepting a payload the client still sends.
+The workflow runs it before every release; run `npm test` in `rules-tests/`
+before a manual one.
 
 ### Why `authDomain` follows the page rather than the project
 

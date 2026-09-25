@@ -1,11 +1,25 @@
-name: Deploy to Firebase Hosting
+name: Deploy to Firebase
 
 # On every push to main: analyze, test, build the web release, and publish
-# to Firebase Hosting (live channel). Requires the FIREBASE_SERVICE_ACCOUNT
-# repo secret (see README / the setup notes below).
+# to Firebase Hosting (live channel); then test and release firestore.rules.
+# Requires the FIREBASE_SERVICE_ACCOUNT repo secret (see README / the setup
+# notes below).
 on:
   push:
     branches: [main]
+
+# One deploy at a time, in push order. Without this, two merges close together
+# run side by side, and the older run's rules can finish last and overwrite
+# the newer ones — production quietly enforcing rules that are no longer on
+# main. Queued rather than cancelled, so a hosting deploy is never cut off
+# halfway.
+#
+# GitHub holds one waiting run per group: a third merge landing while one runs
+# and one waits replaces the waiting one, which then shows as cancelled. That
+# is intended — the newest run carries everything the dropped one would have.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -40,3 +54,88 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: baby-6f5b0
           channelId: live
+
+  # The rules suite against the emulator, alongside the app build rather than
+  # after it, so it adds nothing to how long the release takes. Its own job
+  # so that a failing rule stops the rules and nothing else: the app still
+  # ships, on the rules already in production.
+  rules-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rules-tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: rules-tests/package-lock.json
+
+      # The Firestore emulator is a Java program.
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install rules tooling
+        run: npm ci
+
+      - name: Test the rules against the emulator
+        run: npm test
+
+  # Releases firestore.rules once the app is live and the rules have passed.
+  #
+  # After the app, not before, as the README has always said to do it by
+  # hand: a rule that tightens validation must not reach production ahead of
+  # the client that satisfies it. The cost falls on the other kind of change
+  # — a brand-new collection, which is only a loosening — where writes to it
+  # are refused for the minute or so between the app going live and this job
+  # finishing. Everything already stored is untouched either way.
+  #
+  # Needs both jobs, so the two only ever move together: if the app did not
+  # ship, neither do its rules. Not the other way round — hosting does not
+  # wait on this job, so missing permissions here cannot hold up a release.
+  rules-deploy:
+    needs: [build-and-deploy, rules-test]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rules-tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: rules-tests/package-lock.json
+
+      # The same pinned firebase-tools the rules tests run on, so the CLI that
+      # releases the rules is the one that just tested them.
+      - name: Install rules tooling
+        run: npm ci
+
+      # Last step before the deploy, and only in this job, so the service
+      # account's key is never in the environment while anything else runs.
+      - name: Authenticate
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      # When firestore.rules has not changed, the CLI finds the live ruleset
+      # identical and reuses it, so the many pushes that do not touch the
+      # rules create nothing new.
+      - name: Deploy Firestore rules
+        run: >-
+          npx firebase deploy
+          --only firestore:rules
+          --config ../firebase.json
+          --project baby-6f5b0
+          --non-interactive
