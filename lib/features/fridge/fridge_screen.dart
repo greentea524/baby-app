@@ -8,6 +8,7 @@ import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../feeding/feeding_format.dart';
+import '../feeding/feeding_quick_log.dart';
 import 'bottle_gauge.dart';
 import 'bottle_sheet.dart';
 import 'fridge_button.dart';
@@ -174,7 +175,7 @@ class _Shelf extends ConsumerWidget {
               index: i,
               units: units,
               now: now,
-              onFinished: () => _finish(context, ref, shelf[i]),
+              onFinished: () => _finish(context, ref, shelf[i], now),
             ),
           ),
         ),
@@ -209,22 +210,59 @@ class _Shelf extends ConsumerWidget {
   }
 }
 
-/// Takes a finished bottle off the shelf, straight from its card.
+/// Logs a finished bottle as a feed, and takes it off the shelf.
 ///
-/// Not through `saveAndClose`, which closes a sheet — there is no sheet here,
-/// and popping would take the whole fridge screen with it. The same shape
-/// otherwise: the write starts and the shelf updates from the local cache at
-/// once, and only a failure says anything, whenever it arrives.
-void _finish(BuildContext context, WidgetRef ref, FridgeBottle bottle) {
+/// Opens the bottle form with this bottle in it rather than removing it on
+/// the spot: a bottle out of the fridge is a feed, and removing it without
+/// logging one meant logging it again by hand from Home. The bottle leaves
+/// the shelf when the feed is saved, and stays if the sheet is closed — so
+/// a mistaken press costs nothing. A bottle poured away rather than fed
+/// is removed from its own sheet, under the card.
+///
+/// The removal is not through `saveAndClose`, which is the feed sheet's to
+/// call. Otherwise the same shape: started at once, the shelf updates from the
+/// local cache, and only a failure says anything, on this screen, which is
+/// still underneath when the sheet has gone.
+void _finish(
+  BuildContext context,
+  WidgetRef ref,
+  FridgeBottle bottle,
+  DateTime now,
+) {
   final repo = ref.read(fridgeRepositoryProvider);
-  if (repo == null) return;
   final messenger = ScaffoldMessenger.of(context);
-  unawaited(
-    Future.sync(() => repo.delete(bottle.id)).catchError((Object e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Could not remove the bottle: $e')),
-      );
-    }),
+  final when = FeedingFormat.clockStamp(context, bottle.filledAt, now: now);
+  final notes = [
+    // The feed has no kind of milk of its own, and once the bottle is gone
+    // this is the only place formula would still be written down.
+    if (bottle.kind == BottleKind.formula) bottle.kind.label,
+    if (bottle.notes?.trim() case final n? when n.isNotEmpty) n,
+  ].join(' · ');
+
+  showFeedingQuickLog(
+    context,
+    draft: BottleDraft(
+      amountMl: bottle.amountMl,
+      source:
+          'From the fridge, ${bottle.kind.filledLabel.toLowerCase()} $when. '
+          'Saving takes it off the shelf.',
+      notes: notes.isEmpty ? null : notes,
+      onSaved: () {
+        if (repo == null) return;
+        unawaited(
+          Future.sync(() => repo.delete(bottle.id)).catchError((Object e) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  'The feed is logged, but the bottle could not be taken '
+                  'off the shelf: $e',
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    ),
   );
 }
 
@@ -243,7 +281,7 @@ class _BottleCard extends StatelessWidget {
   final UnitSystem units;
   final DateTime now;
 
-  /// The bottle has been fed, or poured away: take it off the shelf.
+  /// The bottle has been fed: log it, and take it off the shelf.
   final VoidCallback onFinished;
 
   @override
