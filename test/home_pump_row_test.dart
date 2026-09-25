@@ -120,6 +120,32 @@ void main() {
     expect(find.text('Last pumped'), findsNothing);
   });
 
+  testWidgets('leads to the fridge', (tester) async {
+    // The question a pumping household asks straight after "when did I last
+    // pump", answered from where they are already looking.
+    await pumpCard(tester, pumping: pumps);
+
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('Last pumped'),
+          matching: find.byType(InkWell),
+        ),
+        matching: find.byIcon(Icons.chevron_right),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('and the rows that lead nowhere say so by having no chevron', (
+    tester,
+  ) async {
+    // A row that looks tappable and is not is worse than one that plainly
+    // only reports.
+    await pumpCard(tester, pumping: pumps);
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+  });
+
   testWidgets('gets its own card in the separate layout', (tester) async {
     await pumpCard(
       tester,

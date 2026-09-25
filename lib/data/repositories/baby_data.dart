@@ -20,7 +20,7 @@ class BabyData {
 
   /// The subcollections a baby owns, named rather than discovered.
   ///
-  /// The same five events `firestore.rules` names one at a time (#22), plus
+  /// The same six events `firestore.rules` names one at a time (#22), plus
   /// invites. A wildcard sweep would be the same mistake in the other
   /// direction: something nobody meant to delete, deleted anyway.
   static const collections = <String>[
@@ -28,6 +28,7 @@ class BabyData {
     'diapers',
     'growth',
     'pumps',
+    'bottles',
     'appointments',
     'invites',
   ];
@@ -40,6 +41,7 @@ class BabyData {
     'diapers': ('diaper change', 'diaper changes'),
     'growth': ('growth measurement', 'growth measurements'),
     'pumps': ('pumping session', 'pumping sessions'),
+    'bottles': ('bottle in the fridge', 'bottles in the fridge'),
     'appointments': ('appointment', 'appointments'),
   };
 

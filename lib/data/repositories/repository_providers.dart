@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_providers.dart';
 // sharedPreferencesProvider lives with the theme provider (both are prefs-backed).
 import '../../core/theme/theme_mode_provider.dart';
+import '../../features/fridge/fridge_order.dart';
 import '../models/baby.dart';
 import '../models/caregiver_invite.dart';
 import '../models/diaper_event.dart';
 import '../models/feeding_event.dart';
+import '../models/fridge_bottle.dart';
 import '../models/appointment.dart';
 import '../models/growth_measurement.dart';
 import '../models/notification_prefs.dart';
@@ -18,6 +20,7 @@ import 'baby_data.dart';
 import 'babies_repository.dart';
 import 'diaper_repository.dart';
 import 'feeding_repository.dart';
+import 'fridge_repository.dart';
 import 'growth_repository.dart';
 import 'notification_prefs_repository.dart';
 import 'pumping_repository.dart';
@@ -214,6 +217,31 @@ final pumpingForDayProvider = StreamProvider<List<PumpingEvent>>((ref) {
   if (repo == null) return Stream.value(const []);
   return repo.watchForDay(ref.watch(selectedDayProvider));
 });
+
+// --- The fridge -------------------------------------------------------------
+
+final fridgeRepositoryProvider = Provider<FridgeRepository?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final baby = ref.watch(currentBabyProvider);
+  if (user == null || baby == null) return null;
+  return FridgeRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+});
+
+/// Everything in the fridge, in the order Firestore hands it back.
+///
+/// Raw. Anything drawing the shelf wants [fridgeShelfProvider], which applies
+/// the hand-arranged order on top; this exists so that sort runs once per
+/// change rather than once per widget that asks.
+final fridgeBottlesProvider = StreamProvider<List<FridgeBottle>>((ref) {
+  final repo = ref.watch(fridgeRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchAll();
+});
+
+/// The shelf as it is drawn, leftmost first. See [shelfOrder].
+final fridgeShelfProvider = Provider<List<FridgeBottle>>(
+  (ref) => shelfOrder(ref.watch(fridgeBottlesProvider).value ?? const []),
+);
 
 // --- Growth (KAN-136) ------------------------------------------------------
 

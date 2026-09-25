@@ -94,6 +94,17 @@ const pump = (over = {}) => ({
   ...over,
 });
 
+// A bottle standing in the fridge. `position` is null until the shelf is
+// arranged by hand, which is how the app writes it most of the time.
+const bottle = (over = {}) => ({
+  pumpedAt: AT,
+  amountMl: 90,
+  position: null,
+  notes: null,
+  ...stamped(),
+  ...over,
+});
+
 const appointment = (over = {}) => ({
   at: AT,
   kind: "checkup",
@@ -336,6 +347,7 @@ describe("what the app writes today", () => {
     diapers: diaper,
     growth: growth,
     pumps: pump,
+    bottles: bottle,
     appointments: appointment,
   };
 
@@ -385,6 +397,34 @@ describe("what the app writes today", () => {
           side: "left",
           isSnack: true,
         }),
+      ),
+    );
+  });
+
+  it("accepts a bottle numbered onto the shelf", async () => {
+    // What saveOrder writes: a position, on every bottle, in one batch.
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "bottles", "placed"),
+        bottle({ position: 3 }),
+      ),
+    );
+  });
+
+  it("rejects a bottle with nothing in it", async () => {
+    // The one required amount in the whole file. A bottle of 0 ml is not a
+    // bottle, and a split is stopped client-side from making one — this is
+    // the same rule held from the other side.
+    await assertFails(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "bottles", "empty"),
+        bottle({ amountMl: 0 }),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "bottles", "missing"),
+        bottle({ amountMl: null }),
       ),
     );
   });

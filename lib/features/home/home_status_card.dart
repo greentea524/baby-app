@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/format/unit_system.dart';
+import '../../core/router/app_router.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../diaper/diaper_due.dart';
@@ -248,6 +250,10 @@ class HomeStatusCard extends ConsumerWidget {
               state,
               Theme.of(context).colorScheme.surfaceContainerLow,
             ),
+      // The one row on this card that leads somewhere. What is in the fridge
+      // is the question a pumping household asks straight after "when did I
+      // last pump", and this row is where they are already looking.
+      onTap: () => context.push(AppRoutes.fridge),
       icon: PumpingFormat.icon,
       label: 'Last pumped',
       value: FeedingFormat.timeAgo(last.time, now: now),
@@ -468,7 +474,15 @@ class _StatusRow extends StatelessWidget {
     this.detail,
     this.footer,
     this.tint,
+    this.onTap,
   });
+
+  /// Where the row leads, for the rows that lead anywhere.
+  ///
+  /// Null for most of them: a row that looks tappable and is not is worse
+  /// than one that plainly only reports. The chevron is drawn only when this
+  /// is set, so the two can never disagree.
+  final VoidCallback? onTap;
 
   final IconData icon;
   final String label;
@@ -498,7 +512,7 @@ class _StatusRow extends StatelessWidget {
     // needing a bang operator on every use.
     final detailText = detail;
 
-    return ColoredBox(
+    final row = ColoredBox(
       color: tint ?? Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -531,10 +545,19 @@ class _StatusRow extends StatelessWidget {
                 ],
               ),
             ),
+            if (onTap != null)
+              Icon(
+                Icons.chevron_right,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
           ],
         ),
       ),
     );
+
+    // Inside the tint rather than around it, so the ripple covers the same
+    // band the colour does.
+    return onTap == null ? row : InkWell(onTap: onTap, child: row);
   }
 }
 

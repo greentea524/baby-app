@@ -22,10 +22,23 @@ bool isFutureLogTime(DateTime time, {DateTime? now}) =>
 /// the next feed is predicted from a feed nobody has given, and the day's
 /// totals land on the wrong day.
 class EventTimeRow extends StatefulWidget {
-  const EventTimeRow({super.key, required this.time, required this.onChanged});
+  const EventTimeRow({
+    super.key,
+    required this.time,
+    required this.onChanged,
+    this.label,
+  });
 
   final DateTime time;
   final ValueChanged<DateTime> onChanged;
+
+  /// What this time means, when the form cannot say it any other way.
+  ///
+  /// Left off by default: on a feed or a diaper sheet the row is the only
+  /// time on screen and needs no naming. A bottle in the fridge does — its
+  /// timestamp is when the milk was expressed, not when the bottle was
+  /// written down, and that difference is the whole point of the shelf.
+  final String? label;
 
   @override
   State<EventTimeRow> createState() => _EventTimeRowState();
@@ -92,7 +105,12 @@ class _EventTimeRowState extends State<EventTimeRow> {
             const Icon(Icons.schedule, size: 20),
             const SizedBox(width: 8),
             Expanded(
-              child: Text('${widget.time.month}/${widget.time.day} · $local'),
+              child: Text(
+                [
+                  ?widget.label,
+                  '${widget.time.month}/${widget.time.day} · $local',
+                ].join('  '),
+              ),
             ),
             TextButton(
               onPressed: () => _pickDate(context),
