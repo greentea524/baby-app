@@ -72,8 +72,8 @@ double totalMl(List<FridgeBottle> bottles) =>
 ///
 /// Absent rather than zero for a kind the fridge holds none of: the summary
 /// line reads the keys, and "0 ml of formula" is a line about nothing.
-Map<BottleKind, double> totalByKind(List<FridgeBottle> bottles) {
-  final totals = <BottleKind, double>{};
+Map<MilkKind, double> totalByKind(List<FridgeBottle> bottles) {
+  final totals = <MilkKind, double>{};
   for (final b in bottles) {
     totals[b.kind] = (totals[b.kind] ?? 0) + b.amountMl;
   }
@@ -120,7 +120,7 @@ bool isBottled(
   final from = minute(pumpedAt);
   final until = nextPumpAt == null ? null : minute(nextPumpAt);
   return shelf.any((b) {
-    if (b.kind != BottleKind.expressed) return false;
+    if (b.kind != MilkKind.expressed) return false;
     final at = minute(b.filledAt);
     return !at.isBefore(from) && (until == null || at.isBefore(until));
   });

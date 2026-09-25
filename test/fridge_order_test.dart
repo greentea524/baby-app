@@ -14,7 +14,7 @@ void main() {
     required int atHour,
     double ml = 100,
     int? position,
-    BottleKind kind = BottleKind.expressed,
+    MilkKind kind = MilkKind.expressed,
   }) => FridgeBottle(
     id: id,
     filledAt: base.add(Duration(hours: atHour)),
@@ -133,44 +133,44 @@ void main() {
       // different fact from how much there is.
       final totals = totalByKind([
         bottle('a', atHour: 1, ml: 90),
-        bottle('b', atHour: 2, ml: 60, kind: BottleKind.formula),
+        bottle('b', atHour: 2, ml: 60, kind: MilkKind.formula),
         bottle('c', atHour: 3, ml: 30),
       ]);
-      expect(totals[BottleKind.expressed], 120);
-      expect(totals[BottleKind.formula], 60);
+      expect(totals[MilkKind.expressed], 120);
+      expect(totals[MilkKind.formula], 60);
     });
 
     test('and a kind nothing is stored under is absent, not zero', () {
       // The summary line reads these keys, and "Formula 0 ml" is a line about
       // nothing.
       expect(totalByKind([bottle('a', atHour: 1, ml: 90)]).keys, [
-        BottleKind.expressed,
+        MilkKind.expressed,
       ]);
     });
 
     test('a stored kind reads back', () {
-      expect(BottleKind.fromName('formula'), BottleKind.formula);
-      expect(BottleKind.fromName('expressed'), BottleKind.expressed);
+      expect(MilkKind.fromName('formula'), MilkKind.formula);
+      expect(MilkKind.fromName('expressed'), MilkKind.expressed);
     });
 
     test('and anything else reads as expressed', () {
       // A bottle written before formula was a kind, and one written by a
       // version that knows something this one does not. Expressed is the
       // commoner kind and the one the shelf started life holding.
-      expect(BottleKind.fromName(null), BottleKind.expressed);
-      expect(BottleKind.fromName('oat milk'), BottleKind.expressed);
+      expect(MilkKind.fromName(null), MilkKind.expressed);
+      expect(MilkKind.fromName('oat milk'), MilkKind.expressed);
     });
 
     test('each says what its own timestamp means', () {
       // "Pumped 11:00" and "Made up 11:00" are different facts. A bottle that
       // claims the wrong one is worse than one that says neither.
-      expect(BottleKind.expressed.filledLabel, 'Pumped');
-      expect(BottleKind.formula.filledLabel, 'Made up');
+      expect(MilkKind.expressed.filledLabel, 'Pumped');
+      expect(MilkKind.formula.filledLabel, 'Made up');
     });
 
     test('and the two look different on a shelf', () {
-      expect(BottleKind.formula.icon, isNot(BottleKind.expressed.icon));
-      expect(BottleKind.formula.label, isNot(BottleKind.expressed.label));
+      expect(MilkKind.formula.icon, isNot(MilkKind.expressed.icon));
+      expect(MilkKind.formula.label, isNot(MilkKind.expressed.label));
     });
   });
 
@@ -192,10 +192,8 @@ void main() {
 
   group('whether a pump session is already in a bottle', () {
     final pumped = DateTime(2026, 9, 25, 9, 5, 33);
-    FridgeBottle filled(
-      DateTime at, {
-      BottleKind kind = BottleKind.expressed,
-    }) => FridgeBottle(id: 'a', filledAt: at, amountMl: 90, kind: kind);
+    FridgeBottle filled(DateTime at, {MilkKind kind = MilkKind.expressed}) =>
+        FridgeBottle(id: 'a', filledAt: at, amountMl: 90, kind: kind);
 
     test('a bottle filled after it is that milk', () {
       // Bottles are stamped when they go in the fridge, now, which is after
@@ -232,7 +230,7 @@ void main() {
     test('and formula made up after it is not that milk', () {
       expect(
         isBottled(pumped, [
-          filled(DateTime(2026, 9, 25, 9, 40), kind: BottleKind.formula),
+          filled(DateTime(2026, 9, 25, 9, 40), kind: MilkKind.formula),
         ]),
         isFalse,
       );

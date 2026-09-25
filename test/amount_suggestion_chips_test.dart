@@ -422,7 +422,7 @@ void main() {
               id: 'b',
               filledAt: DateTime(2026, 8, 30, 7),
               amountMl: 150,
-              kind: BottleKind.formula,
+              kind: MilkKind.formula,
             ),
           ],
         ),

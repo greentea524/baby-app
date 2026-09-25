@@ -100,7 +100,7 @@ void main() {
     final session = pumps.added.single;
     final bottle = fridge.added.single;
     expect(bottle.amountMl, 110);
-    expect(bottle.kind, BottleKind.expressed);
+    expect(bottle.kind, MilkKind.expressed);
     // As old as the pumping, and matched to its session by that time.
     expect(bottle.filledAt, session.time);
   });

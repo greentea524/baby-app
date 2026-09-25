@@ -24,7 +24,7 @@ void main() {
     String id,
     double ml, {
     int hour = 0,
-    BottleKind kind = BottleKind.expressed,
+    MilkKind kind = MilkKind.expressed,
   }) => FridgeBottle(
     id: id,
     filledAt: base.add(Duration(hours: hour)),
@@ -190,21 +190,19 @@ void main() {
     expect(fridge.deleted, isEmpty);
   });
 
-  testWidgets('a formula bottle writes formula into the notes', (tester) async {
-    // As finishing it from the shelf does: the feed has no kind of milk of
-    // its own.
+  testWidgets('and the feed is of whatever the bottle held', (tester) async {
+    // As finishing it from the shelf does. The notes are left alone: the
+    // feed says what it was of in its own field now.
     await openBottleForm(
       tester,
-      shelf: [bottle('tin', 150, kind: BottleKind.formula)],
+      shelf: [bottle('tin', 150, kind: MilkKind.formula)],
     );
     await tester.tap(chip('150 ml'));
     await tester.pumpAndSettle();
-    expect(notes(tester), 'Formula');
-
-    // And takes it back out if the bottle is let go.
-    await tester.tap(find.byTooltip('Leave it in the fridge'));
-    await tester.pumpAndSettle();
     expect(notes(tester), isEmpty);
+    await save(tester);
+
+    expect(feeds.added.single.milk, MilkKind.formula);
   });
 
   testWidgets('editing a feed already logged takes nothing out', (

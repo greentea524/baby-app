@@ -1,40 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
 
 import 'baby_event.dart';
+import 'milk_kind.dart';
 
-/// What is in the bottle.
-///
-/// Worth distinguishing beyond labelling, because the two do not keep the
-/// same way: expressed milk sits in a fridge for days, made-up formula for
-/// hours. This screen does not put a number on either — how long is guidance
-/// that belongs with whoever gave it, not baked into an app — but it has to
-/// at least say which kind of clock a bottle is on.
-enum BottleKind {
-  /// Pumped. The timestamp is when it was expressed.
-  expressed('Breast milk', 'Pumped', Icons.opacity),
-
-  /// Powder and water. The timestamp is when it was mixed.
-  formula('Formula', 'Made up', Icons.local_drink_outlined);
-
-  const BottleKind(this.label, this.filledLabel, this.icon);
-
-  /// What it is, for a card and a chooser.
-  final String label;
-
-  /// What its timestamp means. "Pumped 11:00" and "Made up 11:00" are
-  /// different facts, and a bottle that says the wrong one is worse than one
-  /// that says neither.
-  final String filledLabel;
-
-  final IconData icon;
-
-  /// Expressed for anything stored before formula was supported, and for a
-  /// value this version does not recognise. It is the commoner kind and the
-  /// one the screen started life holding.
-  static BottleKind fromName(String? name) =>
-      values.asNameMap()[name] ?? BottleKind.expressed;
-}
+export 'milk_kind.dart';
 
 /// One bottle standing in the fridge. Stored at
 /// `babies/{babyId}/bottles/{id}`.
@@ -51,7 +20,7 @@ class FridgeBottle implements BabyEvent {
     required this.id,
     required this.filledAt,
     required this.amountMl,
-    this.kind = BottleKind.expressed,
+    this.kind = MilkKind.expressed,
     this.position,
     this.notes,
   });
@@ -64,12 +33,12 @@ class FridgeBottle implements BabyEvent {
   /// question the shelf answers.
   ///
   /// One field for both kinds rather than two half-used ones. What it means
-  /// is [BottleKind.filledLabel]'s job to say.
+  /// is [MilkKind.filledLabel]'s job to say.
   final DateTime filledAt;
 
   final double amountMl;
 
-  final BottleKind kind;
+  final MilkKind kind;
 
   /// Where this bottle sits on the shelf, or null while the shelf is still in
   /// age order.
@@ -85,7 +54,7 @@ class FridgeBottle implements BabyEvent {
   FridgeBottle copyWith({
     DateTime? filledAt,
     double? amountMl,
-    BottleKind? kind,
+    MilkKind? kind,
     int? position,
     String? notes,
   }) => FridgeBottle(
@@ -103,7 +72,7 @@ class FridgeBottle implements BabyEvent {
       id: doc.id,
       filledAt: (data['filledAt'] as Timestamp).toDate(),
       amountMl: (data['amountMl'] as num).toDouble(),
-      kind: BottleKind.fromName(data['kind'] as String?),
+      kind: MilkKind.fromName(data['kind'] as String?),
       position: (data['position'] as num?)?.toInt(),
       notes: data['notes'] as String?,
     );

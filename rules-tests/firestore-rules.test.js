@@ -387,6 +387,26 @@ describe("what the app writes today", () => {
     );
   });
 
+  for (const milk of ["expressed", "formula", "wholeMilk"]) {
+    it(`accepts a bottle feed of ${milk}`, async () => {
+      await assertSucceeds(
+        setDoc(
+          doc(asAlice(), "babies", BABY, "feedings", `milk-${milk}`),
+          feeding({ milk }),
+        ),
+      );
+    });
+  }
+
+  it("accepts a bottle feed logged before milk was asked", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "feedings", "no-milk"),
+        feeding({ milk: null }),
+      ),
+    );
+  });
+
   it("accepts a breast feed with a duration and a side", async () => {
     await assertSucceeds(
       setDoc(
@@ -435,6 +455,15 @@ describe("what the app writes today", () => {
       setDoc(
         doc(asAlice(), "babies", BABY, "bottles", "formula"),
         bottle({ kind: "formula" }),
+      ),
+    );
+  });
+
+  it("accepts a whole milk bottle", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "bottles", "whole"),
+        bottle({ kind: "wholeMilk" }),
       ),
     );
   });
@@ -526,6 +555,7 @@ describe("malformed entries", () => {
     "a feed type nobody defined": feeding({ type: "telepathy" }),
     "a side nobody defined": feeding({ side: "middle" }),
     "isSnack as a string": feeding({ isSnack: "yes" }),
+    "a milk nobody defined": feeding({ milk: "apple juice" }),
     "notes longer than anything a person types": feeding({
       notes: "x".repeat(1001),
     }),

@@ -16,12 +16,12 @@ import 'fridge_order.dart';
 ///
 /// Coloured by kind, from the theme rather than chosen by hand, so it follows
 /// the accent and the dark theme like everything else: breast milk in the
-/// primary colours, formula in the tertiary.
+/// primary colours, formula in the tertiary, whole milk in the secondary.
 class BottleGauge extends StatelessWidget {
   const BottleGauge({super.key, required this.amountMl, required this.kind});
 
   final double amountMl;
-  final BottleKind kind;
+  final MilkKind kind;
 
   /// Width to height: a feeding bottle, tall and narrow.
   static const aspectRatio = 0.5;
@@ -31,8 +31,9 @@ class BottleGauge extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final level = fullness(amountMl);
     final (milk, surface) = switch (kind) {
-      BottleKind.expressed => (scheme.primaryContainer, scheme.primary),
-      BottleKind.formula => (scheme.tertiaryContainer, scheme.tertiary),
+      MilkKind.expressed => (scheme.primaryContainer, scheme.primary),
+      MilkKind.formula => (scheme.tertiaryContainer, scheme.tertiary),
+      MilkKind.wholeMilk => (scheme.secondaryContainer, scheme.secondary),
     };
 
     // The drawing carries nothing a screen reader could use, so it says the

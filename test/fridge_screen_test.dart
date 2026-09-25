@@ -28,7 +28,7 @@ void main() {
     double ml = 100,
     int? position,
     String? notes,
-    BottleKind kind = BottleKind.expressed,
+    MilkKind kind = MilkKind.expressed,
   }) => FridgeBottle(
     id: id,
     filledAt: now.subtract(Duration(hours: hoursAgo)),
@@ -144,7 +144,7 @@ void main() {
         tester,
         bottles: [
           bottle('milk', hoursAgo: 5, ml: 90),
-          bottle('tin', hoursAgo: 1, ml: 60, kind: BottleKind.formula),
+          bottle('tin', hoursAgo: 1, ml: 60, kind: MilkKind.formula),
         ],
       );
 
@@ -161,7 +161,7 @@ void main() {
         tester,
         bottles: [
           bottle('milk', hoursAgo: 5, ml: 90),
-          bottle('tin', hoursAgo: 1, ml: 60, kind: BottleKind.formula),
+          bottle('tin', hoursAgo: 1, ml: 60, kind: MilkKind.formula),
         ],
       );
 
@@ -223,12 +223,24 @@ void main() {
       expect(find.text('135'), findsOneWidget);
     });
 
-    testWidgets('and a split formula bottle stays formula', (tester) async {
+    testWidgets('and whole milk stands there too, poured', (tester) async {
       await pumpFridge(
         tester,
         bottles: [
-          bottle('tin', hoursAgo: 1, ml: 100, kind: BottleKind.formula),
+          bottle('jug', hoursAgo: 1, ml: 150, kind: MilkKind.wholeMilk),
         ],
+      );
+      expect(find.text('Whole milk'), findsOneWidget);
+      await tester.tap(find.text('150'));
+      await tester.pumpAndSettle();
+      // Its time means when it was poured.
+      expect(find.textContaining('Poured'), findsOneWidget);
+    });
+
+    testWidgets('and a split formula bottle stays formula', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('tin', hoursAgo: 1, ml: 100, kind: MilkKind.formula)],
       );
       await tester.tap(find.text('100'));
       await tester.pumpAndSettle();
@@ -507,9 +519,9 @@ void main() {
       expect(repo.deleted, isEmpty);
     });
 
-    testWidgets('writes formula down on the feed', (tester) async {
-      // The feed has no kind of milk of its own; once the bottle is gone, the
-      // note is the only record that it was formula.
+    testWidgets('logs the feed as whatever the bottle held', (tester) async {
+      // Once the bottle is gone, the feed is the only record that it was
+      // formula — as its milk, with the bottle's notes left as they were.
       final feeds = _RecordingFeeds();
       await pumpFridge(
         tester,
@@ -518,7 +530,7 @@ void main() {
             'tin',
             hoursAgo: 1,
             ml: 60,
-            kind: BottleKind.formula,
+            kind: MilkKind.formula,
             notes: 'for daycare',
           ),
         ],
@@ -532,7 +544,8 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
-      expect(feeds.added.single.notes, 'Formula · for daycare');
+      expect(feeds.added.single.milk, MilkKind.formula);
+      expect(feeds.added.single.notes, 'for daycare');
     });
 
     testWidgets('never opens the bottle itself', (tester) async {
@@ -573,7 +586,7 @@ void main() {
         bottles: [
           bottle('plain', hoursAgo: 5, ml: 120),
           bottle('noted', hoursAgo: 3, ml: 90, notes: 'for daycare'),
-          bottle('tin', hoursAgo: 1, ml: 60, kind: BottleKind.formula),
+          bottle('tin', hoursAgo: 1, ml: 60, kind: MilkKind.formula),
         ],
         size: const Size(834, 1194),
       );
@@ -638,7 +651,7 @@ void main() {
         tester,
         bottles: [
           bottle('milk', hoursAgo: 5, ml: 90),
-          bottle('tin', hoursAgo: 1, ml: 60, kind: BottleKind.formula),
+          bottle('tin', hoursAgo: 1, ml: 60, kind: MilkKind.formula),
         ],
       );
       expect(

@@ -11,6 +11,7 @@ import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
+import '../common/milk_chooser.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
 import '../feeding/feeding_format.dart';
@@ -48,7 +49,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   final _notes = TextEditingController();
   late DateTime _filledAt;
   late VolumeUnit _unit;
-  late BottleKind _kind;
+  late MilkKind _kind;
 
   /// The session this bottle's amount is filled in from, if any.
   PumpingEvent? get _prefill => widget.prefillFrom;
@@ -79,7 +80,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     // Expressed to begin with, because the prefill below only makes sense for
     // it and because a household that pumps is the one that has a fridge full
     // of bottles to keep track of. Formula is one tap away.
-    _kind = BottleKind.expressed;
+    _kind = MilkKind.expressed;
 
     // Now, always. It used to open on the pump session's time, which read as
     // a field stuck on an old value — and was plainly wrong whenever the
@@ -109,11 +110,11 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   /// and choosing Breast milk puts it back. Only while nobody has typed in
   /// it: an amount typed by hand is an answer, and moving it would be
   /// overruling the person holding the bottle.
-  void _setKind(BottleKind kind) {
+  void _setKind(MilkKind kind) {
     setState(() {
       _kind = kind;
       if (!_amountEdited) {
-        final ml = kind == BottleKind.expressed ? _prefill?.amountMl : null;
+        final ml = kind == MilkKind.expressed ? _prefill?.amountMl : null;
         _storedMl = ml;
         _amount.text = ml == null ? '' : _unit.fieldText(ml);
       }
@@ -170,14 +171,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
         const SizedBox(height: 16),
         // First, because it changes what the fields under it mean — and, for
         // a new bottle, what they start out holding.
-        SegmentedButton<BottleKind>(
-          segments: [
-            for (final k in BottleKind.values)
-              ButtonSegment(value: k, icon: Icon(k.icon), label: Text(k.label)),
-          ],
-          selected: {_kind},
-          onSelectionChanged: (s) => _setKind(s.first),
-        ),
+        MilkChooser(value: _kind, onChanged: _setKind),
         const SizedBox(height: 16),
         VolumeField(
           controller: _amount,
@@ -201,7 +195,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
         ),
         // Says where the amount came from, while it still does.
         if (_prefill case final session?
-            when _kind == BottleKind.expressed &&
+            when _kind == MilkKind.expressed &&
                 !_amountEdited &&
                 session.amountMl != null)
           _FromPump(session: session),
