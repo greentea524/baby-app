@@ -10,7 +10,7 @@ import '../pumping/pumping_format.dart';
 import 'bottle_sheet.dart';
 import 'fridge_order.dart';
 
-/// What expressed milk is in the fridge, laid out the way the shelf is.
+/// What bottles are in the fridge, laid out the way the shelf is.
 ///
 /// A row rather than a list, and left to right rather than top to bottom,
 /// because the point is to match something physical: you are standing at an
@@ -79,6 +79,7 @@ class _Shelf extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final units = ref.watch(unitSystemProvider);
+    final byKind = totalByKind(shelf);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -95,6 +96,19 @@ class _Shelf extends ConsumerWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              // Broken out only when there is something to break out: on a
+              // shelf of one kind this would repeat the total above it.
+              if (byKind.length > 1)
+                Text(
+                  byKind.entries
+                      .map(
+                        (e) => '${e.key.label} ${formatVolume(e.value, units)}',
+                      )
+                      .join('  ·  '),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
               const SizedBox(height: 2),
               Text(
                 byHand
@@ -175,8 +189,21 @@ class _BottleCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(PumpingFormat.icon, size: 18, color: scheme.primary),
-                  const Spacer(),
+                  Icon(bottle.kind.icon, size: 18, color: scheme.primary),
+                  const SizedBox(width: 4),
+                  // Named, not left to the icon. Which kind a bottle is
+                  // changes how long it keeps, so it is not something to
+                  // infer from an 18pt glyph across a kitchen.
+                  Expanded(
+                    child: Text(
+                      bottle.kind.label,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   // The handle is the whole point of turning the default ones
                   // off: dragging is deliberate, tapping opens the bottle,
                   // and neither can be mistaken for the other.
@@ -213,13 +240,13 @@ class _BottleCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                FeedingFormat.clockStamp(context, bottle.pumpedAt, now: now),
+                FeedingFormat.clockStamp(context, bottle.filledAt, now: now),
                 style: theme.textTheme.bodyMedium,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                FeedingFormat.timeAgo(bottle.pumpedAt, now: now),
+                FeedingFormat.timeAgo(bottle.filledAt, now: now),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),
@@ -271,8 +298,9 @@ class _EmptyFridge extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Add a bottle as you put one in. It opens on your last '
-              'pump session, so it is usually one tap.',
+              'Add a bottle as you put one in — pumped or made up. A '
+              'pumped one opens on your last session, so it is usually one '
+              'tap.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

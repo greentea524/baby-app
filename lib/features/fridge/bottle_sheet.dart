@@ -45,8 +45,13 @@ class _BottleSheet extends ConsumerStatefulWidget {
 class _BottleSheetState extends ConsumerState<_BottleSheet> {
   final _amount = TextEditingController();
   final _notes = TextEditingController();
-  late DateTime _pumpedAt;
+  late DateTime _filledAt;
   late VolumeUnit _unit;
+  late BottleKind _kind;
+
+  /// Whether the time has been picked by hand, so switching kind knows
+  /// whether it may move it. See [_setKind].
+  bool _timeEdited = false;
 
   /// Guards a second tap landing while the sheet closes, as the other sheets
   /// do — there is no spinner to hide behind (#21).
@@ -63,12 +68,18 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     _unit = VolumeUnit.initial;
     final e = widget.existing;
     if (e != null) {
-      _pumpedAt = e.pumpedAt;
+      _kind = e.kind;
+      _filledAt = e.filledAt;
       _storedMl = e.amountMl;
       _amount.text = _unit.fieldText(e.amountMl);
       if (e.notes != null) _notes.text = e.notes!;
       return;
     }
+
+    // Expressed to begin with, because the prefill below only makes sense for
+    // it and because a household that pumps is the one that has a fridge full
+    // of bottles to keep track of. Formula is one tap away.
+    _kind = BottleKind.expressed;
 
     // A new bottle almost always holds the session just logged, so it opens
     // on that session's time and yield rather than on now and empty. Taken
@@ -76,7 +87,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     // and a field that changed under the caregiver mid-edit would be worse
     // than one that started blank.
     final last = widget.prefillFrom;
-    _pumpedAt = last?.time ?? DateTime.now();
+    _filledAt = last?.time ?? DateTime.now();
     _storedMl = last?.amountMl;
     if (last?.amountMl != null) _amount.text = _unit.fieldText(last!.amountMl!);
   }
@@ -86,6 +97,30 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     _amount.dispose();
     _notes.dispose();
     super.dispose();
+  }
+
+  /// Switches kind, taking the fields that no longer apply with it.
+  ///
+  /// A formula bottle stamped with a pump session's time and yield would be
+  /// wrong data, quietly — so choosing Formula clears what was prefilled from
+  /// the pump, and choosing Breast milk puts it back. Only the fields nobody
+  /// has touched: an amount or a time typed by hand is an answer, and moving
+  /// it would be overruling the person holding the bottle.
+  void _setKind(BottleKind kind) {
+    setState(() {
+      _kind = kind;
+      final prefill = widget.prefillFrom;
+      if (!_amountEdited) {
+        final ml = kind == BottleKind.expressed ? prefill?.amountMl : null;
+        _storedMl = ml;
+        _amount.text = ml == null ? '' : _unit.fieldText(ml);
+      }
+      if (!_timeEdited) {
+        _filledAt = kind == BottleKind.expressed
+            ? (prefill?.time ?? DateTime.now())
+            : DateTime.now();
+      }
+    });
   }
 
   double? get _amountMl => resolveAmountMl(
@@ -104,8 +139,9 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     final existing = widget.existing;
     final bottle = FridgeBottle(
       id: existing?.id ?? '',
-      pumpedAt: _pumpedAt,
+      filledAt: _filledAt,
       amountMl: ml,
+      kind: _kind,
       position: existing?.position,
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
@@ -124,7 +160,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     final ml = _amountMl;
     // Zero is not a bottle, and the rules reject one. Checked here so the
     // button is dead rather than the save failing after the sheet has gone.
-    final canSave = ml != null && ml > 0 && !isFutureLogTime(_pumpedAt);
+    final canSave = ml != null && ml > 0 && !isFutureLogTime(_filledAt);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -133,6 +169,17 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
         Text(
           isEdit ? 'Edit bottle' : 'Add a bottle',
           style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 16),
+        // First, because it changes what the fields under it mean — and, for
+        // a new bottle, what they start out holding.
+        SegmentedButton<BottleKind>(
+          segments: [
+            for (final k in BottleKind.values)
+              ButtonSegment(value: k, icon: Icon(k.icon), label: Text(k.label)),
+          ],
+          selected: {_kind},
+          onSelectionChanged: (s) => _setKind(s.first),
         ),
         const SizedBox(height: 16),
         VolumeField(
@@ -146,14 +193,17 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
           onChanged: (_) => setState(() => _amountEdited = true),
         ),
         const SizedBox(height: 12),
-        // Labelled for what it means here. The field is the same one every
-        // sheet uses, but on a bottle the time is not when it was written
-        // down — it is how old the milk is, which is the question the shelf
-        // exists to answer.
+        // Labelled for what it means here, and the label changes with the
+        // kind: the field is the same one every sheet uses, but "Pumped
+        // 11:00" and "Made up 11:00" are different facts, and on a bottle
+        // that fact is how old the milk is.
         EventTimeRow(
-          time: _pumpedAt,
-          label: 'Pumped',
-          onChanged: (t) => setState(() => _pumpedAt = t),
+          time: _filledAt,
+          label: _kind.filledLabel,
+          onChanged: (t) => setState(() {
+            _filledAt = t;
+            _timeEdited = true;
+          }),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -246,7 +296,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
               await repo.add(
                 FridgeBottle(
                   id: '',
-                  pumpedAt: bottle.pumpedAt,
+                  filledAt: bottle.filledAt,
                   amountMl: bottle.amountMl,
                   position: bottle.position,
                   notes: bottle.notes,
@@ -336,8 +386,9 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
         const SizedBox(height: 8),
         Text(
           divisible
-              ? 'Both bottles keep the time it was pumped — the milk is no '
-                    'younger for being poured into two.'
+              ? 'Both bottles stay ${widget.bottle.kind.label.toLowerCase()}, '
+                    'and both keep the time on this one — it is no younger '
+                    'for being poured into two.'
               : 'There is not enough here to divide.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,

@@ -19,7 +19,7 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
   String get collection => 'bottles';
 
   @override
-  String get timeField => 'pumpedAt';
+  String get timeField => 'filledAt';
 
   @override
   FridgeBottle fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) =>
@@ -72,10 +72,11 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
   /// Splits [bottle] so that [firstMl] stays where it is and the rest becomes
   /// a second bottle beside it.
   ///
-  /// The two halves keep the original's timestamp: one pour became two
-  /// containers, and the milk is no younger for having been moved. They also
-  /// add up — the amounts are not rounded on the way through, so a 155 ml
-  /// bottle split in two is 78 and 77, never 80 and 75.
+  /// The two halves keep the original's timestamp and kind: one pour became
+  /// two containers, and the milk is neither younger nor a different thing for
+  /// having been moved. They also add up — the amounts are not rounded on the
+  /// way through, so a 155 ml bottle split in two is 78 and 77, never 80 and
+  /// 75.
   ///
   /// [shelf] is the order on screen. Needed only when the shelf is arranged by
   /// hand, and then it is needed badly: the new bottle has to appear next to
@@ -95,8 +96,9 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
     final at = ordered.indexWhere((b) => b.id == bottle.id);
     final sibling = FridgeBottle(
       id: fresh.id,
-      pumpedAt: bottle.pumpedAt,
+      filledAt: bottle.filledAt,
       amountMl: bottle.amountMl - firstMl,
+      kind: bottle.kind,
       notes: bottle.notes,
     );
     ordered.insert(at + 1, sibling);

@@ -12,11 +12,13 @@ void main() {
     required int atHour,
     double ml = 100,
     int? position,
+    BottleKind kind = BottleKind.expressed,
   }) => FridgeBottle(
     id: id,
-    pumpedAt: base.add(Duration(hours: atHour)),
+    filledAt: base.add(Duration(hours: atHour)),
     amountMl: ml,
     position: position,
+    kind: kind,
   );
 
   List<String> idsOf(List<FridgeBottle> shelf) =>
@@ -121,5 +123,52 @@ void main() {
       155,
     );
     expect(totalMl(const []), 0);
+  });
+
+  group('what kind of bottle', () {
+    test('the two are counted apart', () {
+      // They do not keep the same way, so how much of each there is is a
+      // different fact from how much there is.
+      final totals = totalByKind([
+        bottle('a', atHour: 1, ml: 90),
+        bottle('b', atHour: 2, ml: 60, kind: BottleKind.formula),
+        bottle('c', atHour: 3, ml: 30),
+      ]);
+      expect(totals[BottleKind.expressed], 120);
+      expect(totals[BottleKind.formula], 60);
+    });
+
+    test('and a kind nothing is stored under is absent, not zero', () {
+      // The summary line reads these keys, and "Formula 0 ml" is a line about
+      // nothing.
+      expect(totalByKind([bottle('a', atHour: 1, ml: 90)]).keys, [
+        BottleKind.expressed,
+      ]);
+    });
+
+    test('a stored kind reads back', () {
+      expect(BottleKind.fromName('formula'), BottleKind.formula);
+      expect(BottleKind.fromName('expressed'), BottleKind.expressed);
+    });
+
+    test('and anything else reads as expressed', () {
+      // A bottle written before formula was a kind, and one written by a
+      // version that knows something this one does not. Expressed is the
+      // commoner kind and the one the shelf started life holding.
+      expect(BottleKind.fromName(null), BottleKind.expressed);
+      expect(BottleKind.fromName('oat milk'), BottleKind.expressed);
+    });
+
+    test('each says what its own timestamp means', () {
+      // "Pumped 11:00" and "Made up 11:00" are different facts. A bottle that
+      // claims the wrong one is worse than one that says neither.
+      expect(BottleKind.expressed.filledLabel, 'Pumped');
+      expect(BottleKind.formula.filledLabel, 'Made up');
+    });
+
+    test('and the two look different on a shelf', () {
+      expect(BottleKind.formula.icon, isNot(BottleKind.expressed.icon));
+      expect(BottleKind.formula.label, isNot(BottleKind.expressed.label));
+    });
   });
 }

@@ -22,12 +22,14 @@ void main() {
     double ml = 100,
     int? position,
     String? notes,
+    BottleKind kind = BottleKind.expressed,
   }) => FridgeBottle(
     id: id,
-    pumpedAt: now.subtract(Duration(hours: hoursAgo)),
+    filledAt: now.subtract(Duration(hours: hoursAgo)),
     amountMl: ml,
     position: position,
     notes: notes,
+    kind: kind,
   );
 
   Future<void> pumpFridge(
@@ -111,6 +113,107 @@ void main() {
         bottles: [bottle('a', hoursAgo: 3, notes: 'for daycare')],
       );
       expect(find.text('for daycare'), findsOneWidget);
+    });
+  });
+
+  group('formula', () {
+    testWidgets('stands on the same shelf, named as itself', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('milk', hoursAgo: 5, ml: 90),
+          bottle('tin', hoursAgo: 1, ml: 60, kind: BottleKind.formula),
+        ],
+      );
+
+      expect(find.text('Breast milk'), findsOneWidget);
+      expect(find.text('Formula'), findsOneWidget);
+    });
+
+    testWidgets('and the total is broken down when both are in', (
+      tester,
+    ) async {
+      // How much of each is a different question from how much there is,
+      // because the two do not keep the same way.
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('milk', hoursAgo: 5, ml: 90),
+          bottle('tin', hoursAgo: 1, ml: 60, kind: BottleKind.formula),
+        ],
+      );
+
+      expect(find.text('2 bottles · 150 ml'), findsOneWidget);
+      expect(find.text('Breast milk 90 ml  ·  Formula 60 ml'), findsOneWidget);
+    });
+
+    testWidgets('but not when the fridge holds only one kind', (tester) async {
+      // It would only repeat the total above it.
+      await pumpFridge(tester, bottles: [bottle('milk', hoursAgo: 5, ml: 90)]);
+
+      expect(find.text('1 bottle · 90 ml'), findsOneWidget);
+      expect(find.text('Breast milk 90 ml'), findsNothing);
+    });
+
+    testWidgets('and is a choice when adding, which relabels the time', (
+      tester,
+    ) async {
+      await pumpFridge(tester);
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+
+      // Expressed to begin with: it is the kind the prefill makes sense for.
+      expect(find.textContaining('Pumped'), findsOneWidget);
+
+      await tester.tap(find.text('Formula'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Made up'), findsOneWidget);
+      expect(find.textContaining('Pumped'), findsNothing);
+    });
+
+    testWidgets('and choosing it drops a prefill that was never its own', (
+      tester,
+    ) async {
+      // A formula bottle carrying a pump session's yield would be wrong data,
+      // quietly. Choosing Formula clears it; choosing Breast milk puts it
+      // back.
+      await pumpFridge(
+        tester,
+        pumps: [
+          PumpingEvent(
+            id: 'p1',
+            time: now.subtract(const Duration(minutes: 20)),
+            amountMl: 135,
+          ),
+        ],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      expect(find.text('135'), findsOneWidget);
+
+      await tester.tap(find.text('Formula'));
+      await tester.pumpAndSettle();
+      expect(find.text('135'), findsNothing);
+
+      await tester.tap(find.text('Breast milk'));
+      await tester.pumpAndSettle();
+      expect(find.text('135'), findsOneWidget);
+    });
+
+    testWidgets('and a split formula bottle stays formula', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('tin', hoursAgo: 1, ml: 100, kind: BottleKind.formula),
+        ],
+      );
+      await tester.tap(find.text('100'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Split'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Both bottles stay formula'), findsOneWidget);
     });
   });
 

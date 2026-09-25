@@ -97,8 +97,9 @@ const pump = (over = {}) => ({
 // A bottle standing in the fridge. `position` is null until the shelf is
 // arranged by hand, which is how the app writes it most of the time.
 const bottle = (over = {}) => ({
-  pumpedAt: AT,
+  filledAt: AT,
   amountMl: 90,
+  kind: "expressed",
   position: null,
   notes: null,
   ...stamped(),
@@ -425,6 +426,35 @@ describe("what the app writes today", () => {
       setDoc(
         doc(asAlice(), "babies", BABY, "bottles", "missing"),
         bottle({ amountMl: null }),
+      ),
+    );
+  });
+
+  it("accepts a formula bottle", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "bottles", "formula"),
+        bottle({ kind: "formula" }),
+      ),
+    );
+  });
+
+  it("accepts a bottle written before formula was a kind", async () => {
+    // `kind` is optional so the field could ship without a rules deploy
+    // ahead of it; the client reads a missing one as expressed.
+    await assertSucceeds(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "bottles", "legacy"),
+        bottle({ kind: null }),
+      ),
+    );
+  });
+
+  it("rejects a bottle of something else entirely", async () => {
+    await assertFails(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "bottles", "juice"),
+        bottle({ kind: "apple juice" }),
       ),
     );
   });

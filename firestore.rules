@@ -11,7 +11,7 @@ rules_version = '2';
 //   babies/{babyId}/diapers/{eventId}
 //   babies/{babyId}/growth/{eventId}
 //   babies/{babyId}/pumps/{eventId}
-//   babies/{babyId}/bottles/{eventId}   (expressed milk in the fridge)
+//   babies/{babyId}/bottles/{eventId}   (bottles in the fridge)
 //   babies/{babyId}/appointments/{eventId}
 //   babies/{babyId}/invites/{email}       (pending caregiver invitations)
 //
@@ -283,11 +283,18 @@ service cloud.firestore {
         function bottleShape() {
           let d = request.resource.data;
           // Required, unlike every other amount in this file: a bottle with
-          // no milk in it is not a bottle. Splitting enforces the same thing
+          // nothing in it is not a bottle. Splitting enforces the same thing
           // client-side, so neither half can come out empty.
-          return d.pumpedAt is timestamp
+          //
+          // `filledAt` covers both kinds — expressed or mixed — because what
+          // the timestamp means is the app's to label, not the shape's.
+          // `kind` is optional so a document written before formula was
+          // supported still passes; the client reads a missing one as
+          // expressed.
+          return d.filledAt is timestamp
             && d.amountMl is number
             && d.amountMl > 0
+            && optional(d.get('kind', null), ['expressed', 'formula'])
             && count(d.get('position', null))
             && text(d.get('notes', null));
         }

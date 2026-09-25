@@ -44,7 +44,7 @@ List<FridgeBottle> shelfOrder(List<FridgeBottle> bottles) {
   }
 
   ordered.sort((a, b) {
-    final byAge = a.pumpedAt.compareTo(b.pumpedAt);
+    final byAge = a.filledAt.compareTo(b.filledAt);
     return byAge != 0 ? byAge : a.id.compareTo(b.id);
   });
   return ordered;
@@ -65,3 +65,15 @@ List<FridgeBottle> reordered(List<FridgeBottle> shelf, int from, int to) {
 /// What is in the fridge altogether.
 double totalMl(List<FridgeBottle> bottles) =>
     bottles.fold(0, (sum, b) => sum + b.amountMl);
+
+/// How much of each kind, for the kinds that are actually there.
+///
+/// Absent rather than zero for a kind the fridge holds none of: the summary
+/// line reads the keys, and "0 ml of formula" is a line about nothing.
+Map<BottleKind, double> totalByKind(List<FridgeBottle> bottles) {
+  final totals = <BottleKind, double>{};
+  for (final b in bottles) {
+    totals[b.kind] = (totals[b.kind] ?? 0) + b.amountMl;
+  }
+  return totals;
+}
