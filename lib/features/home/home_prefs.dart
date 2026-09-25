@@ -189,6 +189,31 @@ class ShowPumpingActionNotifier extends Notifier<bool> {
   }
 }
 
+const _pumpToFridgeKey = 'pump_to_fridge';
+
+/// Whether a logged pump session also goes in the fridge as a bottle.
+///
+/// Remembered, because it is a habit rather than a per-session decision: a
+/// household that bottles what it pumps does so every time, and one that
+/// feeds it fresh does that every time. Off by default — a bottle nobody put
+/// in the fridge is a wrong answer on the shelf, where a missing one only
+/// costs a tap to add. Per device, like the other switches here: the phone
+/// by the pump may bottle when the one in the nursery does not.
+final pumpToFridgeProvider = NotifierProvider<PumpToFridgeNotifier, bool>(
+  PumpToFridgeNotifier.new,
+);
+
+class PumpToFridgeNotifier extends Notifier<bool> {
+  @override
+  bool build() =>
+      ref.read(sharedPreferencesProvider).getBool(_pumpToFridgeKey) ?? false;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await ref.read(sharedPreferencesProvider).setBool(_pumpToFridgeKey, value);
+  }
+}
+
 const _displayModeKey = 'display_mode';
 
 /// Whether the app is being held or propped up (#29).

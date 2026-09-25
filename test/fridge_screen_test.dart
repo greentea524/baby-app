@@ -45,6 +45,7 @@ void main() {
     Size size = const Size(390, 844),
     FridgeRepository? repo,
     FeedingRepository? feeds,
+    List<FeedingEvent> fed = const [],
     double textScale = 1.0,
   }) async {
     SharedPreferences.setMockInitialValues({'unit_system': 'metric'});
@@ -64,7 +65,7 @@ void main() {
           fridgeBottlesProvider.overrideWith((ref) => Stream.value(bottles)),
           if (repo != null) fridgeRepositoryProvider.overrideWithValue(repo),
           if (feeds != null) feedingRepositoryProvider.overrideWithValue(feeds),
-          recentFeedingsProvider.overrideWith((ref) => Stream.value([])),
+          recentFeedingsProvider.overrideWith((ref) => Stream.value(fed)),
           recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
         ],
         child: MaterialApp(
@@ -756,9 +757,7 @@ void main() {
       expect(find.text('135'), findsOneWidget);
     });
 
-    testWidgets('and says so, with a way back to now', (tester) async {
-      // It used to open on the session's time with nothing saying why, which
-      // read as a field stuck on the wrong value.
+    testWidgets('and says the amount came from it', (tester) async {
       await pumpFridge(
         tester,
         pumps: [
@@ -772,34 +771,45 @@ void main() {
       await tester.tap(find.text('Add bottle'));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('From your'), findsOneWidget);
-      expect(find.text('Start blank'), findsOneWidget);
-    });
-
-    testWidgets('and Start blank means now, and empty', (tester) async {
-      final pumped = now.subtract(const Duration(hours: 3));
-      await pumpFridge(
-        tester,
-        pumps: [PumpingEvent(id: 'p1', time: pumped, amountMl: 135)],
-      );
-      await tester.tap(find.text('Add bottle'));
-      await tester.pumpAndSettle();
-      final before = tester.widget<Text>(find.textContaining('Pumped').first);
-
-      await tester.tap(find.text('Start blank'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('135'), findsNothing);
+      expect(find.textContaining('Amount from your'), findsOneWidget);
+      // Taken out: it did not earn its place. Typing over the amount does
+      // the same job.
       expect(find.text('Start blank'), findsNothing);
-      // The time moved off the session's. Now comes from the real clock, so
-      // this checks that it changed rather than what it changed to.
-      final after = tester.widget<Text>(find.textContaining('Pumped').first);
-      expect(after.data, isNot(before.data));
     });
 
-    testWidgets('and stays blank through a change of kind', (tester) async {
-      // The caregiver has said this bottle is not from that pump. Choosing
-      // Breast milk again must not bring the session back.
+    testWidgets("but starts the time at now, not the session's", (
+      tester,
+    ) async {
+      // Reported: the time sat on the pump's, when the bottle is going in
+      // the fridge now.
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        pumps: [
+          PumpingEvent(
+            id: 'p1',
+            time: DateTime.now().subtract(const Duration(hours: 3)),
+            amountMl: 135,
+          ),
+        ],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Add to fridge'));
+      await tester.pumpAndSettle();
+
+      final added = repo.added.single;
+      expect(added.amountMl, 135);
+      expect(
+        DateTime.now().difference(added.filledAt).inMinutes.abs(),
+        lessThan(2),
+      );
+    });
+
+    testWidgets('and drops the note once the amount is typed over', (
+      tester,
+    ) async {
       await pumpFridge(
         tester,
         pumps: [
@@ -812,38 +822,63 @@ void main() {
       );
       await tester.tap(find.text('Add bottle'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Start blank'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Formula').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Breast milk').last);
+      await tester.enterText(find.widgetWithText(TextField, '135'), '60');
       await tester.pumpAndSettle();
 
-      expect(find.text('135'), findsNothing);
+      expect(find.textContaining('Amount from your'), findsNothing);
     });
 
     testWidgets('but not on a session that is already in the fridge', (
       tester,
     ) async {
-      // Reported: every new bottle opened on the same pump time, long after
-      // that milk had been bottled. Once the session is on the shelf,
-      // opening on it again would offer to bottle it twice.
-      final pumped = now.subtract(const Duration(minutes: 20));
+      // Reported: every new bottle opened on the same pump, long after that
+      // milk had been bottled. A bottle filled after the session is that
+      // session's milk.
+      final pumped = now.subtract(const Duration(minutes: 40));
       await pumpFridge(
         tester,
-        bottles: [FridgeBottle(id: 'b1', filledAt: pumped, amountMl: 135)],
+        bottles: [
+          FridgeBottle(
+            id: 'b1',
+            filledAt: pumped.add(const Duration(minutes: 10)),
+            amountMl: 135,
+          ),
+        ],
         pumps: [PumpingEvent(id: 'p1', time: pumped, amountMl: 135)],
       );
       await tester.tap(find.text('Add bottle'));
       await tester.pumpAndSettle();
 
       expect(find.text('Add a bottle'), findsOneWidget);
-      expect(find.textContaining('From your'), findsNothing);
+      expect(find.textContaining('Amount from your'), findsNothing);
       // The shelf's own card shows 135; the sheet's field must not.
       expect(
         find.descendant(of: find.byType(TextField), matching: find.text('135')),
         findsNothing,
       );
+    });
+
+    testWidgets('nor on one that has been fed since', (tester) async {
+      // Bottled, then finished: the bottle is off the shelf, and the feed
+      // it was logged as is what says the session is dealt with.
+      final pumped = now.subtract(const Duration(hours: 3));
+      await pumpFridge(
+        tester,
+        pumps: [PumpingEvent(id: 'p1', time: pumped, amountMl: 135)],
+        fed: [
+          FeedingEvent(
+            id: 'f1',
+            type: FeedingType.bottle,
+            startTime: now.subtract(const Duration(hours: 1)),
+            amountMl: 135,
+          ),
+        ],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Amount from your'), findsNothing);
+      expect(find.text('135'), findsNothing);
     });
 
     testWidgets('and on an empty amount when nothing has been pumped', (

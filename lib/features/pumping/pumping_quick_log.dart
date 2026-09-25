@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/format/unit_system.dart';
 import '../../core/format/volume_entry.dart';
+import '../../core/format/volume_format.dart';
 import '../../data/models/feeding_event.dart' show BreastSide;
+import '../../data/models/fridge_bottle.dart';
 import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
@@ -10,6 +15,7 @@ import '../common/event_time_row.dart';
 import '../common/number_input.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
+import '../home/home_prefs.dart';
 
 /// Opens the pumping quick-log sheet (KAN-145). Pass [existing] to edit.
 Future<void> showPumpingQuickLog(
@@ -92,13 +98,52 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
       durationMinutes: int.tryParse(_duration.text.trim()),
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
+    // Only for a new session with milk to bottle. Editing a session is not
+    // pumping it again, and a bottle of nothing is not a bottle.
+    final bottle = _toFridge && event.amountMl != null && event.amountMl! > 0
+        ? FridgeBottle(
+            id: '',
+            // The session's own time: the milk is as old as the pumping,
+            // and it is how the shelf knows which session this bottle is.
+            filledAt: event.time,
+            amountMl: event.amountMl!,
+          )
+        : null;
+    final fridge = ref.read(fridgeRepositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
+
     _saving = true;
-    saveAndClose(
-      context,
-      () => widget.existing != null ? repo.update(event) : repo.add(event),
-      failure: 'Could not save the pumping session',
-    );
+    saveAndClose(context, () {
+      final write = widget.existing != null
+          ? repo.update(event)
+          : repo.add(event);
+      // Alongside rather than after: offline, the session's write does not
+      // finish until the device is back online, and the bottle should be on
+      // the shelf now. Reports its own failure, since the session itself was
+      // saved.
+      if (bottle != null && fridge != null) {
+        unawaited(
+          Future.sync(() => fridge.add(bottle)).catchError((Object e) {
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  'The session is logged, but the bottle could not be '
+                  'added to the fridge: $e',
+                ),
+              ),
+            );
+            return '';
+          }),
+        );
+      }
+      return write;
+    }, failure: 'Could not save the pumping session');
   }
+
+  /// Whether this session goes in the fridge too. New sessions only; see
+  /// [pumpToFridgeProvider] for why it is remembered.
+  bool get _toFridge =>
+      widget.existing == null && ref.read(pumpToFridgeProvider);
 
   /// The amount to store: what was typed, converted, or the stored value
   /// untouched when the field was never edited.
@@ -141,8 +186,10 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
             _unit = unit;
             _amount.text = text;
           }),
-          onChanged: (_) => _amountEdited = true,
+          onChanged: (_) => setState(() => _amountEdited = true),
         ),
+        // Under the amount, because the amount is what goes in the bottle.
+        if (!isEdit) _FridgeToggle(amountMl: _amountMl()),
         const SizedBox(height: 12),
         TextField(
           controller: _duration,
@@ -172,6 +219,38 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
           child: Text(isEdit ? 'Save changes' : 'Save'),
         ),
       ],
+    );
+  }
+}
+
+/// "Add to the fridge", remembered from one session to the next.
+///
+/// Says what it will do with this session rather than only that it is on: a
+/// switch left on from yesterday is easy to forget, and the subtitle is where
+/// it is noticed. With no amount yet it says the bottle is waiting on one,
+/// rather than looking on while the save quietly adds nothing.
+class _FridgeToggle extends ConsumerWidget {
+  const _FridgeToggle({required this.amountMl});
+
+  final double? amountMl;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(pumpToFridgeProvider);
+    final units = ref.watch(unitSystemProvider);
+    final ml = amountMl;
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      secondary: const Icon(Icons.kitchen_outlined),
+      title: const Text('Add to the fridge'),
+      subtitle: Text(switch ((on, ml)) {
+        (false, _) => 'Also store it as a bottle on the shelf',
+        (true, final ml?) when ml > 0 =>
+          'As a ${formatVolume(ml, units)} bottle',
+        (true, _) => 'Once there is an amount',
+      }),
+      value: on,
+      onChanged: (v) => ref.read(pumpToFridgeProvider.notifier).set(v),
     );
   }
 }

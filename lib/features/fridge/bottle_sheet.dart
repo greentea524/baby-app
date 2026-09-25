@@ -17,8 +17,8 @@ import '../feeding/feeding_format.dart';
 
 /// Adds a bottle to the fridge, or edits one already in it.
 ///
-/// [prefillFrom] is the session a new bottle opens on — where the milk came
-/// from nine times in ten. Passed in rather than read from a provider inside
+/// [prefillFrom] is the session a new bottle takes its amount from — where the
+/// milk came from nine times in ten. Passed in rather than read from a provider inside
 /// the sheet: the last-pump stream is only live while something is watching
 /// it, and a sheet that reached for it itself would find it still loading and
 /// silently open blank.
@@ -50,21 +50,8 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   late VolumeUnit _unit;
   late BottleKind _kind;
 
-  /// Whether the time has been picked by hand, so switching kind knows
-  /// whether it may move it. See [_setKind].
-  bool _timeEdited = false;
-
-  /// Whether this bottle is still being filled in from the last pump session.
-  ///
-  /// True from the start whenever there is a session to open on, and false for
-  /// good once the caregiver says this bottle is not from it — see
-  /// [_startBlank]. The prefill used to be unannounced and unshakeable: the
-  /// time sat on the session's time with nothing saying why, which read as a
-  /// field stuck on the wrong value.
-  late bool _usePrefill = widget.prefillFrom != null;
-
-  /// The session this bottle is being filled in from, if it still is.
-  PumpingEvent? get _prefill => _usePrefill ? widget.prefillFrom : null;
+  /// The session this bottle's amount is filled in from, if any.
+  PumpingEvent? get _prefill => widget.prefillFrom;
 
   /// Guards a second tap landing while the sheet closes, as the other sheets
   /// do — there is no spinner to hide behind (#21).
@@ -94,13 +81,16 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     // of bottles to keep track of. Formula is one tap away.
     _kind = BottleKind.expressed;
 
-    // A new bottle almost always holds the session just logged, so it opens
-    // on that session's time and yield rather than on now and empty. Taken
-    // once here rather than watched: these are starting values to correct,
-    // and a field that changed under the caregiver mid-edit would be worse
-    // than one that started blank.
+    // Now, always. It used to open on the pump session's time, which read as
+    // a field stuck on an old value — and was plainly wrong whenever the
+    // bottle was not that session's milk.
+    _filledAt = DateTime.now();
+
+    // A new bottle usually holds the session just logged, so it opens on
+    // that session's yield rather than empty. Taken once here rather than
+    // watched: a starting value to correct, and a field that changed under
+    // the caregiver mid-edit would be worse than one that started blank.
     final last = widget.prefillFrom;
-    _filledAt = last?.time ?? DateTime.now();
     _storedMl = last?.amountMl;
     if (last?.amountMl != null) _amount.text = _unit.fieldText(last!.amountMl!);
   }
@@ -112,45 +102,21 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     super.dispose();
   }
 
-  /// Switches kind, taking the fields that no longer apply with it.
+  /// Switches kind, taking the amount with it if it no longer applies.
   ///
-  /// A formula bottle stamped with a pump session's time and yield would be
-  /// wrong data, quietly — so choosing Formula clears what was prefilled from
-  /// the pump, and choosing Breast milk puts it back. Only the fields nobody
-  /// has touched: an amount or a time typed by hand is an answer, and moving
-  /// it would be overruling the person holding the bottle.
+  /// A formula bottle holding a pump session's yield would be wrong data,
+  /// quietly — so choosing Formula clears the amount prefilled from the pump,
+  /// and choosing Breast milk puts it back. Only while nobody has typed in
+  /// it: an amount typed by hand is an answer, and moving it would be
+  /// overruling the person holding the bottle.
   void _setKind(BottleKind kind) {
     setState(() {
       _kind = kind;
-      final prefill = _prefill;
       if (!_amountEdited) {
-        final ml = kind == BottleKind.expressed ? prefill?.amountMl : null;
+        final ml = kind == BottleKind.expressed ? _prefill?.amountMl : null;
         _storedMl = ml;
         _amount.text = ml == null ? '' : _unit.fieldText(ml);
       }
-      if (!_timeEdited) {
-        _filledAt = kind == BottleKind.expressed
-            ? (prefill?.time ?? DateTime.now())
-            : DateTime.now();
-      }
-    });
-  }
-
-  /// Not from that pump: now, and an empty amount.
-  ///
-  /// Both together, and regardless of edits, because they arrived together.
-  /// The session's time and yield are one claim — this bottle is that milk —
-  /// and a bottle that is not that milk is wrong about both. It stays blank
-  /// afterwards, through any switch of kind, since the caregiver has said
-  /// where this bottle did not come from.
-  void _startBlank() {
-    setState(() {
-      _usePrefill = false;
-      _filledAt = DateTime.now();
-      _timeEdited = false;
-      _storedMl = null;
-      _amount.text = '';
-      _amountEdited = false;
     });
   }
 
@@ -231,16 +197,14 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
         EventTimeRow(
           time: _filledAt,
           label: _kind.filledLabel,
-          onChanged: (t) => setState(() {
-            _filledAt = t;
-            _timeEdited = true;
-          }),
+          onChanged: (t) => setState(() => _filledAt = t),
         ),
-        // Says where the time and amount came from, and offers a way out.
-        // Without it the sheet opened on an old time with nothing explaining
-        // it, and there was no way back to now short of picking it by hand.
-        if (_prefill case final session? when _kind == BottleKind.expressed)
-          _FromPump(session: session, onStartBlank: _startBlank),
+        // Says where the amount came from, while it still does.
+        if (_prefill case final session?
+            when _kind == BottleKind.expressed &&
+                !_amountEdited &&
+                session.amountMl != null)
+          _FromPump(session: session),
         const SizedBox(height: 12),
         TextField(
           controller: _notes,
@@ -439,46 +403,37 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
   }
 }
 
-/// "From your 9:05 AM pump · Start blank", under the time row.
-class _FromPump extends ConsumerWidget {
-  const _FromPump({required this.session, required this.onStartBlank});
+/// "Amount from your 9:05 AM pump", under the time row.
+class _FromPump extends StatelessWidget {
+  const _FromPump({required this.session});
 
   final PumpingEvent session;
-  final VoidCallback onStartBlank;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final units = ref.watch(unitSystemProvider);
-    final amount = session.amountMl;
     final when = FeedingFormat.clockStamp(context, session.time);
 
-    return Row(
-      children: [
-        Icon(
-          Icons.info_outline,
-          size: 18,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            amount == null
-                ? 'From your $when pump'
-                : 'From your $when pump · ${formatVolume(amount, units)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Amount from your $when pump',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
-        ),
-        // Compact, so the line sits close under the time it is explaining
-        // rather than a button's height away from it.
-        TextButton(
-          onPressed: onStartBlank,
-          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-          child: const Text('Start blank'),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

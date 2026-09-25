@@ -7,6 +7,7 @@ import 'package:baby_app/core/auth/auth_providers.dart';
 import 'package:baby_app/core/format/volume_entry.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
+import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/feeding/amount_suggestion_chips.dart';
@@ -77,12 +78,41 @@ void main() {
         matching: find.byIcon(PumpingFormat.icon),
       );
       expect(marked, findsOneWidget);
-      // And only that one — the others are habit, not milk in the fridge.
+      // And only that one — the others are habit, not milk there is.
       expect(find.byIcon(PumpingFormat.icon), findsOneWidget);
     });
 
+    testWidgets('mark the ones on the fridge shelf with the fridge', (
+      tester,
+    ) async {
+      await pumpChips(
+        tester,
+        offered: const [
+          AmountSuggestion(95, AmountSource.pump),
+          AmountSuggestion(110, AmountSource.fridge),
+          AmountSuggestion(120, AmountSource.bottle),
+        ],
+      );
+
+      final fridge = find.descendant(
+        of: find.widgetWithText(ActionChip, '110 ml'),
+        matching: find.byIcon(Icons.kitchen_outlined),
+      );
+      expect(fridge, findsOneWidget);
+      expect(find.byIcon(Icons.kitchen_outlined), findsOneWidget);
+      // Told apart from fresh milk, which keeps the pump.
+      expect(
+        find.descendant(
+          of: find.widgetWithText(ActionChip, '95 ml'),
+          matching: find.byIcon(PumpingFormat.icon),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('In the fridge'), findsOneWidget);
+    });
+
     testWidgets('mark both of them when two pumps are offered', (tester) async {
-      // Two sessions still in the fridge: both are milk in hand, so both
+      // Two fresh sessions, neither fed yet: both are milk in hand, so both
       // carry the mark that says so.
       await pumpChips(
         tester,
@@ -319,6 +349,7 @@ void main() {
 
     Future<List<AmountSuggestion>> suggestionsWith({
       required bool pumpingShown,
+      List<FridgeBottle> fridge = const [],
     }) async {
       SharedPreferences.setMockInitialValues({
         'show_pumping_action': pumpingShown,
@@ -331,6 +362,7 @@ void main() {
           recentPumpingProvider.overrideWith(
             (ref) => Stream.value([freshPump]),
           ),
+          fridgeBottlesProvider.overrideWith((ref) => Stream.value(fridge)),
         ],
       );
       addTearDown(container.dispose);
@@ -344,6 +376,7 @@ void main() {
       container.listen(recentPumpingProvider, (_, _) {});
       await container.read(recentFeedingsProvider.future);
       await container.read(recentPumpingProvider.future);
+      await container.read(fridgeBottlesProvider.future);
       return container.read(bottleAmountSuggestionsProvider);
     }
 
@@ -352,6 +385,48 @@ void main() {
         AmountSuggestion(120, AmountSource.bottle),
         AmountSuggestion(130, AmountSource.pump),
       ]);
+    });
+
+    test('the fridge, alongside the fresh pump', () async {
+      expect(
+        await suggestionsWith(
+          pumpingShown: true,
+          fridge: [
+            FridgeBottle(
+              id: 'b',
+              filledAt: DateTime(2026, 8, 30, 7),
+              amountMl: 100,
+            ),
+          ],
+        ),
+        const [
+          AmountSuggestion(100, AmountSource.fridge),
+          AmountSuggestion(120, AmountSource.bottle),
+          AmountSuggestion(130, AmountSource.pump),
+        ],
+      );
+    });
+
+    test('the fridge even with pumping switched off', () async {
+      // A bottle on the shelf is milk in the house — formula, perhaps —
+      // whether or not anyone here pumps.
+      expect(
+        await suggestionsWith(
+          pumpingShown: false,
+          fridge: [
+            FridgeBottle(
+              id: 'b',
+              filledAt: DateTime(2026, 8, 30, 7),
+              amountMl: 150,
+              kind: BottleKind.formula,
+            ),
+          ],
+        ),
+        const [
+          AmountSuggestion(120, AmountSource.bottle),
+          AmountSuggestion(150, AmountSource.fridge),
+        ],
+      );
     });
 
     test('bottles only, once pumping is switched off', () async {
