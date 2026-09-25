@@ -8,7 +8,9 @@
 /// order, so age has to stop deciding the moment it is overruled.
 library;
 
+import '../../data/models/feeding_event.dart';
 import '../../data/models/fridge_bottle.dart';
+import '../../data/models/pumping_event.dart';
 
 /// Whether the shelf has been arranged by hand.
 ///
@@ -94,24 +96,51 @@ const double bottleCapacityMl = 120;
 double fullness(double amountMl) =>
     (amountMl / bottleCapacityMl).clamp(0.0, 1.0);
 
-/// Whether milk pumped at [pumpedAt] is already standing on [shelf].
+/// Whether milk pumped at [pumpedAt] has gone into a bottle on [shelf].
 ///
-/// A bottle made from a pump session carries that session's time, which is
-/// how it is recognised: the add sheet opens on the last session, and once
-/// that session is in the fridge, opening on it again would offer to bottle
-/// the same milk twice.
+/// Read off the times: a breast-milk bottle filled at or after the session,
+/// and before the next one, is that session's milk. A bottle used to carry
+/// its session's own time, and was matched on it; it is now stamped when it
+/// goes in the fridge, which is after the session, so the match is a window
+/// rather than a moment. Bottles from before the change carry the session's
+/// time and still land in it.
 ///
-/// Matched to the minute rather than exactly. The session is stamped to the
-/// second when it is logged, and a bottle whose time was re-picked lands on
-/// the minute — still the same milk.
+/// [nextPumpAt] closes the window. Without it, for the latest session, any
+/// later bottle counts — there is no later milk it could be.
 ///
-/// Breast milk only: formula made up in the same minute is not that
-/// session's milk.
-bool isOnShelf(DateTime pumpedAt, List<FridgeBottle> shelf) {
+/// To the minute, since a time picked by hand has no seconds. Breast milk
+/// only: formula made up after a session is not that session's milk.
+bool isBottled(
+  DateTime pumpedAt,
+  List<FridgeBottle> shelf, {
+  DateTime? nextPumpAt,
+}) {
   DateTime minute(DateTime t) =>
       DateTime(t.year, t.month, t.day, t.hour, t.minute);
-  final target = minute(pumpedAt);
-  return shelf.any(
-    (b) => b.kind == BottleKind.expressed && minute(b.filledAt) == target,
+  final from = minute(pumpedAt);
+  final until = nextPumpAt == null ? null : minute(nextPumpAt);
+  return shelf.any((b) {
+    if (b.kind != BottleKind.expressed) return false;
+    final at = minute(b.filledAt);
+    return !at.isBefore(from) && (until == null || at.isBefore(until));
+  });
+}
+
+/// The last pump session, while its milk is still to be accounted for:
+/// neither bottled nor given as a feed since.
+///
+/// What a new fridge bottle's amount is filled in from. Both tests, because
+/// either way the milk is gone: into a bottle already on the shelf, or into
+/// the baby — and a finished fridge bottle is logged as a feed, so that one
+/// is caught here too, where the shelf no longer shows it.
+PumpingEvent? unbottledPump(
+  PumpingEvent? last, {
+  required List<FridgeBottle> shelf,
+  required List<FeedingEvent> feeds,
+}) {
+  if (last == null || isBottled(last.time, shelf)) return null;
+  final fedSince = feeds.any(
+    (f) => f.type == FeedingType.bottle && f.startTime.isAfter(last.time),
   );
+  return fedSince ? null : last;
 }

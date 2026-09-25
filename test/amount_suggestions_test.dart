@@ -437,6 +437,40 @@ void main() {
       expect(picked, const [AmountSuggestion(80, AmountSource.fridge)]);
     });
 
+    test('and one bottled later, as bottles now are', () {
+      // Stamped when it went in the fridge, twenty minutes after the pump.
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: [pump(110, atHour: 4)],
+        fridge: [
+          inFridge(
+            110,
+            atHour: 4,
+          ).copyWith(filledAt: base.add(const Duration(hours: 4, minutes: 20))),
+        ],
+      );
+      expect(picked, const [AmountSuggestion(110, AmountSource.fridge)]);
+    });
+
+    test('while a bottle of the later session leaves the earlier fresh', () {
+      // Pumped at one and at three; the three o'clock milk went in the
+      // fridge at half past. The one o'clock milk is still in hand.
+      final picked = suggestedAmounts(
+        feeds: const [],
+        pumps: [pump(95, atHour: 1), pump(120, atHour: 3)],
+        fridge: [
+          inFridge(
+            120,
+            atHour: 3,
+          ).copyWith(filledAt: base.add(const Duration(hours: 3, minutes: 30))),
+        ],
+      );
+      expect(picked, const [
+        AmountSuggestion(95, AmountSource.pump),
+        AmountSuggestion(120, AmountSource.fridge),
+      ]);
+    });
+
     test('but not formula made up in the same minute as a pump', () {
       final pumped = pump(100, atHour: 4);
       final picked = suggestedAmounts(

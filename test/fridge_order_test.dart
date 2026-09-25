@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:baby_app/data/models/feeding_event.dart';
+import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/features/fridge/fridge_order.dart';
 
@@ -188,60 +190,120 @@ void main() {
     });
   });
 
-  group('whether a pump session is already on the shelf', () {
+  group('whether a pump session is already in a bottle', () {
     final pumped = DateTime(2026, 9, 25, 9, 5, 33);
+    FridgeBottle filled(
+      DateTime at, {
+      BottleKind kind = BottleKind.expressed,
+    }) => FridgeBottle(id: 'a', filledAt: at, amountMl: 90, kind: kind);
 
-    test('a bottle carrying its time is that milk', () {
-      expect(
-        isOnShelf(pumped, [
-          FridgeBottle(id: 'a', filledAt: pumped, amountMl: 90),
-        ]),
-        isTrue,
-      );
+    test('a bottle filled after it is that milk', () {
+      // Bottles are stamped when they go in the fridge, now, which is after
+      // the session rather than at it.
+      expect(isBottled(pumped, [filled(DateTime(2026, 9, 25, 9, 40))]), isTrue);
     });
 
-    test('to the minute, since a re-picked time loses the seconds', () {
-      expect(
-        isOnShelf(pumped, [
-          FridgeBottle(
-            id: 'a',
-            filledAt: DateTime(2026, 9, 25, 9, 5),
-            amountMl: 90,
-          ),
-        ]),
-        isTrue,
-      );
+    test('and so is one carrying its own time, as bottles once did', () {
+      expect(isBottled(pumped, [filled(pumped)]), isTrue);
+      // To the minute: a time picked by hand has no seconds.
+      expect(isBottled(pumped, [filled(DateTime(2026, 9, 25, 9, 5))]), isTrue);
     });
 
-    test('a bottle from another time is not', () {
+    test('a bottle filled before it is not', () {
+      expect(isBottled(pumped, [filled(DateTime(2026, 9, 25, 9, 4))]), isFalse);
+    });
+
+    test('nor one filled after the next session', () {
+      // That bottle is the later session's milk.
       expect(
-        isOnShelf(pumped, [
-          FridgeBottle(
-            id: 'a',
-            filledAt: DateTime(2026, 9, 25, 9, 6),
-            amountMl: 90,
-          ),
-        ]),
+        isBottled(pumped, [
+          filled(DateTime(2026, 9, 25, 12, 30)),
+        ], nextPumpAt: DateTime(2026, 9, 25, 12)),
         isFalse,
       );
+      expect(
+        isBottled(pumped, [
+          filled(DateTime(2026, 9, 25, 11, 30)),
+        ], nextPumpAt: DateTime(2026, 9, 25, 12)),
+        isTrue,
+      );
     });
 
-    test('and formula made the same minute is not that milk', () {
+    test('and formula made up after it is not that milk', () {
       expect(
-        isOnShelf(pumped, [
-          FridgeBottle(
-            id: 'a',
-            filledAt: pumped,
-            amountMl: 90,
-            kind: BottleKind.formula,
-          ),
+        isBottled(pumped, [
+          filled(DateTime(2026, 9, 25, 9, 40), kind: BottleKind.formula),
         ]),
         isFalse,
       );
     });
 
     test('and an empty fridge holds nothing', () {
-      expect(isOnShelf(pumped, const []), isFalse);
+      expect(isBottled(pumped, const []), isFalse);
+    });
+  });
+
+  group('the pump a new bottle takes its amount from', () {
+    final session = PumpingEvent(
+      id: 'p',
+      time: DateTime(2026, 9, 25, 9, 5),
+      amountMl: 110,
+    );
+    FeedingEvent feed(DateTime at, {FeedingType type = FeedingType.bottle}) =>
+        FeedingEvent(id: 'f', type: type, startTime: at, amountMl: 110);
+
+    test('is the last session, while nothing has happened to it', () {
+      expect(unbottledPump(session, shelf: const [], feeds: const []), session);
+    });
+
+    test('but not once it is in a bottle', () {
+      expect(
+        unbottledPump(
+          session,
+          shelf: [
+            FridgeBottle(
+              id: 'a',
+              filledAt: DateTime(2026, 9, 25, 9, 20),
+              amountMl: 110,
+            ),
+          ],
+          feeds: const [],
+        ),
+        isNull,
+      );
+    });
+
+    test('nor once a bottle has been fed since', () {
+      // Reported: the add sheet kept offering a session that had long since
+      // been bottled and drunk. Finishing the bottle took it off the shelf,
+      // and with it the only sign the session had been dealt with; the feed
+      // it logged is the sign that stays.
+      expect(
+        unbottledPump(
+          session,
+          shelf: const [],
+          feeds: [feed(DateTime(2026, 9, 25, 11))],
+        ),
+        isNull,
+      );
+    });
+
+    test('though a feed from before it, or of solids, changes nothing', () {
+      expect(
+        unbottledPump(
+          session,
+          shelf: const [],
+          feeds: [
+            feed(DateTime(2026, 9, 25, 8)),
+            feed(DateTime(2026, 9, 25, 11), type: FeedingType.solids),
+          ],
+        ),
+        session,
+      );
+    });
+
+    test('and there is none when nothing has been pumped', () {
+      expect(unbottledPump(null, shelf: const [], feeds: const []), isNull);
     });
   });
 }

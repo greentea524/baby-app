@@ -172,8 +172,8 @@ List<double> _fridgeMl(List<FridgeBottle> shelf) {
 ///
 /// A session that is on the shelf is the fridge's chip, not this one: the
 /// milk is in a bottle now, and offering it twice, once as each, would be two
-/// chips for one pour. Recognised by the time the bottle carries — see
-/// [isOnShelf] — which also covers a session split into two bottles.
+/// chips for one pour. Recognised by a bottle filled between it and the next
+/// session — see [isBottled] — which also covers one split into two.
 ///
 /// A session counts only while it postdates the last bottle. Milk pumped at
 /// seven and given at nine is not what you are holding at two, and offering
@@ -199,17 +199,21 @@ List<double> _freshMl(
   List<FridgeBottle> shelf,
 ) {
   final lastBottle = bottles.isEmpty ? null : bottles.first.startTime;
-  final inHand =
-      pumps
-          .where(
-            (p) =>
-                p.amountMl != null &&
-                p.amountMl! > 0 &&
-                (lastBottle == null || p.time.isAfter(lastBottle)) &&
-                !isOnShelf(p.time, shelf),
-          )
-          .toList()
-        ..sort((a, b) => b.time.compareTo(a.time));
+  // Newest first, over every session, so each one's window closes at the
+  // session after it — whether or not that one has an amount.
+  final all = [...pumps]..sort((a, b) => b.time.compareTo(a.time));
+  final inHand = [
+    for (var i = 0; i < all.length; i++)
+      if (all[i].amountMl != null &&
+          all[i].amountMl! > 0 &&
+          (lastBottle == null || all[i].time.isAfter(lastBottle)) &&
+          !isBottled(
+            all[i].time,
+            shelf,
+            nextPumpAt: i == 0 ? null : all[i - 1].time,
+          ))
+        all[i],
+  ];
 
   final out = <double>[];
   for (final p in inHand) {

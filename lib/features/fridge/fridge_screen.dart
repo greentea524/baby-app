@@ -38,6 +38,7 @@ class FridgeScreen extends ConsumerWidget {
     // Subscribed for the whole visit so the session is resolved before
     // anybody taps Add — see the FAB below.
     final lastPump = ref.watch(lastPumpingProvider);
+    final feeds = ref.watch(recentFeedingsProvider).value ?? const [];
 
     return Scaffold(
       appBar: AppBar(
@@ -55,15 +56,12 @@ class FridgeScreen extends ConsumerWidget {
         // Watched here, not read inside the sheet: this keeps the last-pump
         // stream live for as long as the screen is open, so the prefill is
         // already in hand by the time the sheet asks for it.
-        // The last session only while it is not already in the fridge. Once
-        // it is, opening on it again would offer to bottle the same milk
-        // twice, and every bottle after it would open on a time and amount
-        // that had nothing to do with it.
+        // The last session only while its milk is unaccounted for. Once it
+        // is in a bottle, or has been fed, offering its amount again would
+        // put the same milk in the fridge twice.
         onPressed: () => showBottleSheet(
           context,
-          prefillFrom: lastPump == null || isOnShelf(lastPump.time, shelf)
-              ? null
-              : lastPump,
+          prefillFrom: unbottledPump(lastPump, shelf: shelf, feeds: feeds),
         ),
         icon: const Icon(Icons.add),
         label: const Text('Add bottle'),
