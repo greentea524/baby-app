@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../timeline/timeline_format.dart';
+import 'milk_charts.dart';
+import 'milk_mix.dart';
 import 'range_stats.dart';
 
 /// The export report's tables, on screen (#30).
@@ -71,6 +73,8 @@ class _Overview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mix = MilkMix.of(stats.totalBottleMlByMilk);
+    final coverage = mix.pumpCoverage(stats.totalPumpedMl);
     final rows = <(String, String)>[
       ('Total feeds', '${stats.totalFeeds}'),
       ('Feeds per day (avg)', stats.feedsPerDay.toStringAsFixed(1)),
@@ -79,6 +83,14 @@ class _Overview extends StatelessWidget {
         TimelineFormat.interval(stats.avgFeedIntervalMinutes),
       ),
       ('Bottle total', _volume(stats.totalBottleMl)),
+      // Each milk that was fed, in the order the charts draw them.
+      if (mix.totalMl > 0)
+        for (final k in milkOrder)
+          if (mix.ml(k) > 0)
+            (
+              '  ${milkLabel(k)}',
+              '${_volume(mix.ml(k))} · ${(mix.share(k) * 100).round()}%',
+            ),
       ('Breastfeeding total', '${stats.totalBreastMinutes} min'),
       // Its own rows, never folded into the bottle total: pumping is output
       // from the parent, and the same milk usually comes back as a bottle
@@ -86,6 +98,8 @@ class _Overview extends StatelessWidget {
       if (stats.totalPumps > 0) ...[
         ('Pump sessions', '${stats.totalPumps}'),
         ('Pumped total', _volume(stats.totalPumpedMl)),
+        if (coverage != null)
+          ('Pumped vs breast milk fed', '${(coverage * 100).round()}%'),
       ],
       // Apart from the feed count on purpose: a feeds-per-day figure should
       // not have top-ups folded into it, though the volume above does.
@@ -115,12 +129,17 @@ class _Overview extends StatelessWidget {
                   child: Text(rows[i].$1, style: theme.textTheme.bodyMedium),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  rows[i].$2,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                // Flexible so a long value — a volume in both units with a
+                // share after it — wraps under itself instead of running off
+                // a phone. The label keeps the larger share of the row.
+                Flexible(
+                  child: Text(
+                    rows[i].$2,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.right,
                   ),
-                  textAlign: TextAlign.right,
                 ),
               ],
             ),

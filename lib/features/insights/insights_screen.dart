@@ -7,12 +7,16 @@ import '../../core/router/app_router.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../home/home_prefs.dart';
 import '../timeline/timeline_format.dart';
+import 'chart_palette.dart';
 import 'day_timeline_strip.dart';
 import 'day_view_data.dart';
 import 'diaper_mix_bar.dart';
 import 'feed_pattern_data.dart';
 import 'insights_providers.dart';
+import 'milk_charts.dart';
+import 'milk_mix.dart';
 import 'range_stats.dart';
 import 'report_tables.dart';
 import 'trend_chart.dart';
@@ -224,7 +228,7 @@ class _Trends extends ConsumerWidget {
           labels: labels,
           days: [for (final d in stats.days) d.day],
         ),
-        if (stats.totalBottleMl > 0)
+        if (stats.totalBottleMl > 0) ...[
           _ChartSection(
             title: units.isMetric
                 ? 'Bottle per day (ml)'
@@ -233,7 +237,27 @@ class _Trends extends ConsumerWidget {
             labels: labels,
             secondaryFormat: units.isMetric ? null : formatFlOz,
             days: [for (final d in stats.days) d.day],
+            // Split by milk, so a move from breast milk to formula, or on to
+            // whole milk, shows as the colours changing up the bars.
+            segments: [
+              for (final k in milkOrder)
+                TrendSegment(
+                  label: milkLabel(k),
+                  colour: DayColours.of(
+                    context,
+                  ).milk(k, Theme.of(context).colorScheme),
+                  values: [
+                    for (final d in stats.days) d.stats.bottleMlByMilk[k] ?? 0,
+                  ],
+                ),
+            ],
           ),
+          _MilkSections(
+            mix: MilkMix.of(stats.totalBottleMlByMilk),
+            pumpedMl: stats.totalPumpedMl,
+            scope: 'over these ${range.days} days',
+          ),
+        ],
         if (stats.totalBreastMinutes > 0)
           _ChartSection(
             title: 'Breastfeeding per day (min)',
@@ -303,6 +327,17 @@ class _Today extends ConsumerWidget {
             now: today,
           ),
         ),
+        _MilkSections(
+          mix: MilkMix.of(data.stats.totalBottleMlByMilk),
+          pumpedMl: data.stats.totalPumpedMl,
+          scope: 'today',
+          // A day is a noisy window for this: milk pumped in the evening is
+          // often drunk the next morning. Saying so, and where the steadier
+          // figure is, beats letting a 60% morning look like a problem.
+          pumpNote:
+              'Milk pumped today is often fed tomorrow — the Week view '
+              'evens this out.',
+        ),
         if (data.stats.totalFeeds == 0 && data.diapers.isEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
@@ -311,6 +346,55 @@ class _Today extends ConsumerWidget {
               style: theme.textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
+          ),
+      ],
+    );
+  }
+}
+
+/// The two milk charts: bottles by milk, and pumped against breast milk fed.
+///
+/// Shared by the day and the range views, which ask the same two questions
+/// of different windows. Each hides when it has nothing to say — the milk
+/// split with no bottles, the pump comparison with pumping switched off or
+/// neither side logged.
+class _MilkSections extends ConsumerWidget {
+  const _MilkSections({
+    required this.mix,
+    required this.pumpedMl,
+    required this.scope,
+    this.pumpNote,
+  });
+
+  final MilkMix mix;
+  final double pumpedMl;
+
+  /// "today" or "over these 7 days", for the subtitles.
+  final String scope;
+
+  /// A line under the pump comparison's title, when the window needs one.
+  final String? pumpNote;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final units = ref.watch(unitSystemProvider);
+    final pumping = ref.watch(showPumpingActionProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (mix.totalMl > 0)
+          _DaySection(
+            title: 'Bottles by milk',
+            // Bottles only: a breastfeed has minutes and no volume, so it
+            // cannot be a share of millilitres.
+            subtitle: 'Bottle feeds $scope, by volume',
+            child: MilkMixBar(mix: mix, units: units),
+          ),
+        if (pumping && (pumpedMl > 0 || mix.breastMilkMl > 0))
+          _DaySection(
+            title: 'Pumped vs fed',
+            subtitle: pumpNote ?? 'Breast milk $scope',
+            child: PumpedVsFed(pumpedMl: pumpedMl, mix: mix, units: units),
           ),
       ],
     );
@@ -451,10 +535,14 @@ class _ChartSection extends ConsumerWidget {
     this.axisFormat,
     this.secondaryFormat,
     this.days,
+    this.segments,
   });
 
   final String title;
   final List<double> values;
+
+  /// See [TrendChart.segments].
+  final List<TrendSegment>? segments;
   final List<String> labels;
 
   /// The date behind each bar, when there is one.
@@ -500,6 +588,7 @@ class _ChartSection extends ConsumerWidget {
             valueFormat: valueFormat,
             axisFormat: axisFormat,
             secondaryFormat: secondaryFormat,
+            segments: segments,
             // A spike in a trend is a question about a day, and the Timeline
             // is where that day is answered. Setting the day before pushing
             // is what makes the two screens meet.

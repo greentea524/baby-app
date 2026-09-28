@@ -1,5 +1,6 @@
 import '../../data/models/diaper_event.dart';
 import '../../data/models/feeding_event.dart';
+import '../../data/models/milk_kind.dart';
 import '../../data/models/pumping_event.dart';
 
 /// Summary statistics for one day's events (KAN-153). Pure/derivable so it
@@ -17,6 +18,7 @@ class DayStats {
     required this.bothCount,
     this.pumpCount = 0,
     this.pumpedMl = 0,
+    this.bottleMlByMilk = const {},
   });
 
   /// Full feeds — top-ups are counted separately in [snackCount], so a day
@@ -41,6 +43,10 @@ class DayStats {
 
   final int pumpCount;
   final double pumpedMl;
+
+  /// [bottleMl] split by what was in the bottles, null for bottles logged
+  /// before feeds recorded it. Only kinds that were fed appear.
+  final Map<MilkKind?, double> bottleMlByMilk;
 
   factory DayStats.from(
     List<FeedingEvent> feedings,
@@ -68,11 +74,14 @@ class DayStats {
 
     var breastMinutes = 0;
     var bottleMl = 0.0;
+    final byMilk = <MilkKind?, double>{};
     for (final f in feeds) {
       if (f.type == FeedingType.breast) {
         breastMinutes += f.durationMinutes ?? 0;
       } else if (f.type == FeedingType.bottle) {
-        bottleMl += f.amountMl ?? 0;
+        final ml = f.amountMl ?? 0;
+        bottleMl += ml;
+        if (ml > 0) byMilk[f.milk] = (byMilk[f.milk] ?? 0) + ml;
       }
     }
 
@@ -105,6 +114,7 @@ class DayStats {
       bothCount: both,
       pumpCount: pumps.length,
       pumpedMl: pumpedMl,
+      bottleMlByMilk: byMilk,
     );
   }
 }

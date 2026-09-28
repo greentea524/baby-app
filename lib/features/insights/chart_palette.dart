@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../data/models/milk_kind.dart';
+
 /// Category colours for the day charts.
 ///
 /// Deliberately spelled out rather than taken from the [ColorScheme], for the
@@ -22,6 +24,8 @@ class DayColours {
     required this.diaper,
     required this.pump,
     required this.wet,
+    required this.formula,
+    required this.wholeMilk,
   });
 
   factory DayColours.of(BuildContext context) =>
@@ -44,11 +48,36 @@ class DayColours {
   /// at one chart does not read as the other.
   final Color wet;
 
+  /// Green. Formula, in the milk charts.
+  final Color formula;
+
+  /// Blue. Whole milk, in the milk charts.
+  final Color wholeMilk;
+
+  /// The colour for bottles of [kind] — breast milk in the pump's own
+  /// magenta, because it is the same milk, so the pumped and the fed read
+  /// as one thing across the two charts that show them. Unrecorded milk
+  /// ([kind] null) is neutral: it is an absence of an answer, not a fourth
+  /// kind of milk, and a hue would claim otherwise.
+  ///
+  /// The three hues were checked together for colour-vision separation, on
+  /// both surfaces. Formula's green sits near the diaper amber for a
+  /// protanope, but the two never share a chart, and every segment is named
+  /// in words beside it.
+  Color milk(MilkKind? kind, ColorScheme scheme) => switch (kind) {
+    MilkKind.expressed => pump,
+    MilkKind.formula => formula,
+    MilkKind.wholeMilk => wholeMilk,
+    null => scheme.outline,
+  };
+
   static const _light = DayColours(
     feed: Color(0xFF2B4BD8),
     diaper: Color(0xFFB4690E),
     pump: Color(0xFF9B3B8F),
     wet: Color(0xFF0F7F73),
+    formula: Color(0xFF3B7F1F),
+    wholeMilk: Color(0xFF0B6FA8),
   );
 
   // Lifted and desaturated for a dark surface: the light values are legible
@@ -58,6 +87,8 @@ class DayColours {
     diaper: Color(0xFFF0A93A),
     pump: Color(0xFFC36BE0),
     wet: Color(0xFF1FB09A),
+    formula: Color(0xFF6E9E1E),
+    wholeMilk: Color(0xFF3C8FD6),
   );
 
   /// A diaper that was both: literally both colours, split down the middle.
@@ -75,8 +106,10 @@ class DayColours {
       other.feed == feed &&
       other.diaper == diaper &&
       other.pump == pump &&
-      other.wet == wet;
+      other.wet == wet &&
+      other.formula == formula &&
+      other.wholeMilk == wholeMilk;
 
   @override
-  int get hashCode => Object.hash(feed, diaper, pump, wet);
+  int get hashCode => Object.hash(feed, diaper, pump, wet, formula, wholeMilk);
 }
