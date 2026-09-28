@@ -4,6 +4,20 @@ import 'package:flutter/semantics.dart';
 import '../common/chart_semantics.dart';
 import '../common/chart_text.dart';
 
+/// One part of a stacked bar: what it is, its colour, and its value on each
+/// day. The parts of a day add up to that day's total in [TrendChart.values].
+class TrendSegment {
+  const TrendSegment({
+    required this.label,
+    required this.colour,
+    required this.values,
+  });
+
+  final String label;
+  final Color colour;
+  final List<double> values;
+}
+
 /// A compact bar chart of one metric across a date range (KAN-166).
 ///
 /// Hand-painted for the same reason as the growth chart: it keeps the app
@@ -29,6 +43,7 @@ class TrendChart extends StatefulWidget {
     this.axisFormat,
     this.secondaryFormat,
     this.onOpenBar,
+    this.segments,
   });
 
   /// One value per day, earliest first. Days with no activity are zeros.
@@ -69,6 +84,15 @@ class TrendChart extends StatefulWidget {
   /// screen before you could read what you just asked for.
   final void Function(int index)? onOpenBar;
 
+  /// Draws each bar as a stack of these, bottom first, instead of one block.
+  ///
+  /// [values] stays the total — the height of the whole bar — so the scale,
+  /// the spoken summary and everything else about the chart are unchanged;
+  /// the segments only say what each bar is made of. A legend is drawn
+  /// underneath naming the ones that appear, and the tapped day's caption
+  /// breaks its total down by them.
+  final List<TrendSegment>? segments;
+
   static String trim(double v) =>
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 
@@ -98,7 +122,14 @@ class _TrendChartState extends State<TrendChart> {
     final second = widget.secondaryFormat;
     final suffix = second == null ? '' : ' (${second(widget.values[i])})';
     final label = i < widget.labels.length ? widget.labels[i] : 'Bar ${i + 1}';
-    return '$label · $value$suffix';
+    final parts = [
+      for (final s in widget.segments ?? const <TrendSegment>[])
+        if (i < s.values.length && s.values[i] > 0)
+          '${s.label} ${format(s.values[i])}',
+    ];
+    // Only worth breaking down when there is more than one part to name.
+    final breakdown = parts.length > 1 ? ' — ${parts.join(' · ')}' : '';
+    return '$label · $value$suffix$breakdown';
   }
 
   @override
@@ -169,6 +200,8 @@ class _TrendChartState extends State<TrendChart> {
                       geometry: geometry,
                       scale: scale,
                       bar: theme.colorScheme.primary,
+                      segments: widget.segments,
+                      gap: theme.colorScheme.surface,
                       highlight: theme.colorScheme.tertiary,
                       grid: theme.colorScheme.outlineVariant,
                       text: labels,
@@ -189,6 +222,7 @@ class _TrendChartState extends State<TrendChart> {
             },
           ),
         ),
+        if (widget.segments case final segments?) _SegmentKey(segments),
         const SizedBox(height: 4),
         // The caption doubles as the tooltip: the bars are too narrow to label
         // individually, and a tap target that reveals nothing is worse than
@@ -333,6 +367,8 @@ class _TrendChartPainter extends CustomPainter {
     required this.describe,
     required this.select,
     this.secondary,
+    this.segments,
+    this.gap = const Color(0x00000000),
   });
 
   final List<double> values;
@@ -350,6 +386,10 @@ class _TrendChartPainter extends CustomPainter {
   /// Selects a bar, for the semantics activation above.
   final void Function(int) select;
   final String Function(double)? secondary;
+  final List<TrendSegment>? segments;
+
+  /// The surface, for the hairline between stacked segments.
+  final Color gap;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -390,6 +430,10 @@ class _TrendChartPainter extends CustomPainter {
       if (values[i] <= 0) continue;
       final h = plot.height * (values[i] / scale.top);
       final cx = plot.left + slot * (i + 0.5);
+      if (segments case final parts?) {
+        _paintStack(canvas, parts, i, cx, barWidth, plot);
+        continue;
+      }
       final rect = Rect.fromLTWH(
         cx - barWidth / 2,
         plot.bottom - h,
@@ -406,6 +450,60 @@ class _TrendChartPainter extends CustomPainter {
       );
     }
 
+    _paintLabels(canvas, plot, slot);
+  }
+
+  /// One day's bar as a stack, bottom up, split by a hairline of surface so
+  /// two neighbouring parts read as two. Only the top part is rounded: it is
+  /// the end of the bar, and the joins are not.
+  ///
+  /// The tapped day keeps its colours — they are the content — and is marked
+  /// by the band behind it instead.
+  void _paintStack(
+    Canvas canvas,
+    List<TrendSegment> parts,
+    int i,
+    double cx,
+    double barWidth,
+    Rect plot,
+  ) {
+    final shown = [
+      for (final p in parts)
+        if (i < p.values.length && p.values[i] > 0) p,
+    ];
+    var bottom = plot.bottom;
+    for (final (n, p) in shown.indexed) {
+      final h = plot.height * (p.values[i] / scale.top);
+      final top = bottom - h;
+      final isTop = n == shown.length - 1;
+      final rect = Rect.fromLTRB(
+        cx - barWidth / 2,
+        top,
+        cx + barWidth / 2,
+        bottom,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndCorners(
+          rect,
+          topLeft: isTop ? const Radius.circular(2) : Radius.zero,
+          topRight: isTop ? const Radius.circular(2) : Radius.zero,
+        ),
+        Paint()..color = p.colour,
+      );
+      if (!isTop && h > 3) {
+        canvas.drawLine(
+          Offset(rect.left, top),
+          Offset(rect.right, top),
+          Paint()
+            ..color = gap
+            ..strokeWidth = 2,
+        );
+      }
+      bottom = top;
+    }
+  }
+
+  void _paintLabels(Canvas canvas, Rect plot, double slot) {
     // X labels: as many as fit without colliding, rather than a fixed three.
     // Measure a real label instead of guessing — "12/31" is wider than "7/4",
     // and the widest one is what decides the spacing. At a larger text size
@@ -464,6 +562,7 @@ class _TrendChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(_TrendChartPainter old) =>
       old.values != values ||
+      old.segments != segments ||
       old.selected != selected ||
       old.bar != bar ||
       old.text != text ||
@@ -473,4 +572,50 @@ class _TrendChartPainter extends CustomPainter {
   @override
   bool shouldRebuildSemantics(_TrendChartPainter old) =>
       old.values != values || old.selected != selected || old.labels != labels;
+}
+
+/// Names the parts of a stacked chart that appear in it, under the plot.
+class _SegmentKey extends StatelessWidget {
+  const _SegmentKey(this.segments);
+
+  final List<TrendSegment> segments;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // A key for something that is not on the chart is a question with no
+    // answer, so parts with nothing in them are left out.
+    final shown = [
+      for (final s in segments)
+        if (s.values.any((v) => v > 0)) s,
+    ];
+    if (shown.length < 2) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: ExcludeSemantics(
+        child: Wrap(
+          spacing: 14,
+          runSpacing: 4,
+          children: [
+            for (final s in shown)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: s.colour,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(s.label, style: theme.textTheme.bodySmall),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

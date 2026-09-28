@@ -1,5 +1,6 @@
 import '../../data/models/diaper_event.dart';
 import '../../data/models/feeding_event.dart';
+import '../../data/models/milk_kind.dart';
 import '../../data/models/pumping_event.dart';
 import '../timeline/day_stats.dart';
 
@@ -25,6 +26,7 @@ class RangeStats {
     required this.avgFeedIntervalMinutes,
     required this.feedsPerDay,
     required this.diapersPerDay,
+    this.totalBottleMlByMilk = const {},
   });
 
   /// One row per calendar day in the window, earliest first.
@@ -52,6 +54,9 @@ class RangeStats {
   /// honest "typical day" figure for the range.
   final double feedsPerDay;
   final double diapersPerDay;
+
+  /// [totalBottleMl] split by milk — see `DayStats.bottleMlByMilk`.
+  final Map<MilkKind?, double> totalBottleMlByMilk;
 
   bool get isEmpty =>
       totalFeeds == 0 && totalDiapers == 0 && totalPumpedMl == 0;
@@ -118,9 +123,13 @@ class RangeStats {
     var diaperCount = 0;
     var snackCount = 0;
     var pumpCount = 0;
+    final byMilk = <MilkKind?, double>{};
     final intervals = <int>[];
     for (final row in days) {
       bottleMl += row.stats.bottleMl;
+      for (final MapEntry(:key, :value) in row.stats.bottleMlByMilk.entries) {
+        byMilk[key] = (byMilk[key] ?? 0) + value;
+      }
       breastMinutes += row.stats.breastMinutes;
       pumpedMl += row.stats.pumpedMl;
       feedCount += row.stats.feedCount;
@@ -147,6 +156,7 @@ class RangeStats {
       avgFeedIntervalMinutes: avgInterval,
       feedsPerDay: days.isEmpty ? 0 : feedCount / days.length,
       diapersPerDay: days.isEmpty ? 0 : diaperCount / days.length,
+      totalBottleMlByMilk: byMilk,
     );
   }
 }
