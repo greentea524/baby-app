@@ -7,6 +7,7 @@ import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_filter.dart';
 import '../activity/activity_tile.dart';
+import '../insights/milk_mix.dart';
 import 'day_stats.dart';
 import 'timeline_format.dart';
 
@@ -229,6 +230,18 @@ class _StatsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final units = ref.watch(unitSystemProvider);
+    final mix = MilkMix.of(stats.bottleMlByMilk);
+    final coverage = mix.pumpCoverage(stats.pumpedMl);
+    final bottleDetail = [
+      if (!units.isMetric) '${formatFlOz(stats.bottleMl)} fl oz',
+      ?milkShares(mix),
+    ].join(' · ');
+    final pumpDetail = [
+      '${stats.pumpCount}x',
+      if (!units.isMetric) '${formatFlOz(stats.pumpedMl)} fl oz',
+      // The same figure as Insights' "Pumped vs fed", for the day.
+      if (coverage != null) '${(coverage * 100).round()}% of breast milk fed',
+    ].join(' · ');
     final diaperDetail = [
       if (stats.wetCount > 0) '${stats.wetCount} wet',
       if (stats.dirtyCount > 0) '${stats.dirtyCount} dirty',
@@ -271,18 +284,14 @@ class _StatsCard extends ConsumerWidget {
               icon: Icons.local_drink,
               label: 'Bottle',
               value: '${TimelineFormat.ml(stats.bottleMl)} ml',
-              detail: units.isMetric
-                  ? null
-                  : '${formatFlOz(stats.bottleMl)} fl oz',
+              detail: bottleDetail.isEmpty ? null : bottleDetail,
             ),
           if (stats.pumpCount > 0)
             _StatChip(
               icon: Icons.opacity,
               label: 'Pumped',
               value: '${TimelineFormat.ml(stats.pumpedMl)} ml',
-              detail: units.isMetric
-                  ? '${stats.pumpCount}x'
-                  : '${stats.pumpCount}x · ${formatFlOz(stats.pumpedMl)} fl oz',
+              detail: pumpDetail,
             ),
           _StatChip(
             icon: Icons.baby_changing_station,
