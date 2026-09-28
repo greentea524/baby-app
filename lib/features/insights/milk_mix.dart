@@ -59,3 +59,23 @@ class MilkMix {
   double? pumpCoverage(double pumpedMl) =>
       breastMilkMl == 0 ? null : pumpedMl / breastMilkMl;
 }
+
+/// "80% breast milk · 20% formula": each milk's share of the bottles whose
+/// milk is known, largest first. Null when none is known.
+///
+/// Measured against the known bottles, as the Insights headline is, so an
+/// old day of unrecorded bottles does not read as mostly "something else".
+/// A single milk is said as "all breast milk" rather than "100% breast milk".
+String? milkShares(MilkMix mix) {
+  final known = mix.totalMl - mix.unknownMl;
+  if (known <= 0) return null;
+  final kinds = [
+    for (final k in MilkKind.values)
+      if (mix.ml(k) > 0) k,
+  ]..sort((a, b) => mix.ml(b).compareTo(mix.ml(a)));
+  if (kinds.length == 1) return 'all ${kinds.single.label.toLowerCase()}';
+  return [
+    for (final k in kinds)
+      '${(mix.ml(k) / known * 100).round()}% ${k.label.toLowerCase()}',
+  ].join(' · ');
+}
