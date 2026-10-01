@@ -15,6 +15,7 @@ import '../common/milk_chooser.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
 import '../feeding/feeding_format.dart';
+import 'slot_picker.dart';
 
 /// Adds a bottle to the fridge, or edits one already in it.
 ///
@@ -158,12 +159,20 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
     final layout = ref.read(fridgeLayoutProvider);
+    // Checked again now: another caregiver may have filled the letter while
+    // this sheet was open. Then a new bottle goes to Other and an edited one
+    // stays where it was — neither lands on top of the bottle now there.
+    final slot = layout.canTake(_slot, existing)
+        ? _slot
+        : existing == null
+        ? FridgeSlot.other
+        : layout.slotOf(existing) ?? FridgeSlot.other;
     _saving = true;
     saveAndClose(
       context,
       () => existing != null
-          ? repo.saveIn(bottle, _slot, layout: layout)
-          : repo.addTo(bottle, _slot, layout: layout),
+          ? repo.saveIn(bottle, slot, layout: layout)
+          : repo.addTo(bottle, slot, layout: layout),
       failure: 'Could not save the bottle',
     );
   }
@@ -217,7 +226,8 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
                 session.amountMl != null)
           _FromPump(session: session),
         const SizedBox(height: 16),
-        _SlotPicker(
+        FridgeSlotPicker(
+          title: 'Slot in the fridge',
           slot: _slot,
           bottle: existing,
           onChanged: (s) => setState(() => _slot = s),
@@ -413,76 +423,6 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
           FilledButton(
             onPressed: _split,
             child: const Text('Split into two bottles'),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// Which slot the bottle stands in: A, B, C or Other.
-///
-/// Says what choosing a taken letter will do, before it is done: a new
-/// bottle sends the one already there to Other, and a moved one swaps with
-/// it. Nothing is moved without the sheet having said so.
-class _SlotPicker extends ConsumerWidget {
-  const _SlotPicker({
-    required this.slot,
-    required this.bottle,
-    required this.onChanged,
-  });
-
-  final FridgeSlot slot;
-
-  /// The bottle being edited, or null for a new one.
-  final FridgeBottle? bottle;
-  final ValueChanged<FridgeSlot> onChanged;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final units = ref.watch(unitSystemProvider);
-    final layout = ref.watch(fridgeLayoutProvider);
-    final occupant = layout.labelled[slot];
-    final from = bottle == null ? null : layout.slotOf(bottle!);
-
-    String? note;
-    if (occupant != null && occupant.id != bottle?.id) {
-      final what =
-          'the ${formatVolume(occupant.amountMl, units)} '
-          '${occupant.kind.label.toLowerCase()} bottle';
-      note = bottle == null
-          ? '${slot.label} has $what. It moves to Other.'
-          : from == null || from == FridgeSlot.other
-          ? '${slot.label} has $what. It moves to Other.'
-          : 'Swaps with $what in ${slot.label}, which moves to '
-                '${from.label}.';
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('Slot in the fridge', style: theme.textTheme.labelLarge),
-        const SizedBox(height: 6),
-        SegmentedButton<FridgeSlot>(
-          segments: [
-            for (final s in FridgeSlot.values)
-              ButtonSegment(
-                value: s,
-                label: Text(s.label, maxLines: 1, softWrap: false),
-              ),
-          ],
-          selected: {slot},
-          showSelectedIcon: false,
-          onSelectionChanged: (s) => onChanged(s.first),
-        ),
-        if (note != null) ...[
-          const SizedBox(height: 6),
-          Text(
-            note,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
           ),
         ],
       ],

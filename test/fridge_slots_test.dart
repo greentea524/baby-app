@@ -183,4 +183,19 @@ void main() {
     expect(map.containsKey('slottedAt'), isTrue);
     expect(bottle('y', hour: 1).toMap().containsKey('slottedAt'), isFalse);
   });
+
+  test('which slots a bottle can be put in', () {
+    final a = bottle('a', hour: 1, slot: FridgeSlot.a);
+    final layout = layoutShelf([a]);
+    // A new bottle: empty letters and Other, never a taken letter.
+    expect(layout.canTake(FridgeSlot.a), isFalse);
+    expect(layout.canTake(FridgeSlot.b), isTrue);
+    expect(layout.canTake(FridgeSlot.other), isTrue);
+    // The bottle already there: its own letter too.
+    expect(layout.canTake(FridgeSlot.a, a), isTrue);
+    expect(
+      layout.canTake(FridgeSlot.a, bottle('b', hour: 2, slot: FridgeSlot.b)),
+      isFalse,
+    );
+  });
 }
