@@ -4,6 +4,10 @@ import '../../features/fridge/fridge_slots.dart';
 import '../models/fridge_bottle.dart';
 import 'event_repository.dart';
 
+/// Whether the fridge on this device is in step with the server — see
+/// [FridgeRepository.watchSync].
+typedef FridgeSync = ({bool fromCache, bool pending});
+
 /// What is standing in the fridge, for one baby:
 /// `babies/{babyId}/bottles/{id}`.
 ///
@@ -39,6 +43,22 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
   /// tidy-up.
   Stream<List<FridgeBottle>> watchAll() =>
       col.orderBy(timeField).snapshots().map(parse);
+
+  /// Whether this device is in step with everyone else's fridge: showing
+  /// what is only in its own cache, or holding changes not sent yet.
+  ///
+  /// The same query as [watchAll], so Firestore serves both from one
+  /// listener; asked for metadata changes, so it says when a pending write
+  /// has gone, not only when a bottle changes.
+  Stream<FridgeSync> watchSync() => col
+      .orderBy(timeField)
+      .snapshots(includeMetadataChanges: true)
+      .map(
+        (s) => (
+          fromCache: s.metadata.isFromCache,
+          pending: s.metadata.hasPendingWrites,
+        ),
+      );
 
   /// Stores places worked out on screen — see [ShelfLayout.toSave].
   Future<void> place(Map<String, FridgeSlot> slots) {

@@ -238,6 +238,14 @@ final fridgeBottlesProvider = StreamProvider<List<FridgeBottle>>((ref) {
   return repo.watchAll();
 });
 
+/// Whether this device's fridge is in step with everyone else's; null
+/// before it is known, or with nobody signed in.
+final fridgeSyncProvider = StreamProvider<FridgeSync?>((ref) {
+  final repo = ref.watch(fridgeRepositoryProvider);
+  if (repo == null) return Stream.value(null);
+  return repo.watchSync();
+});
+
 /// The fridge laid out in its slots. See [layoutShelf].
 final fridgeLayoutProvider = Provider<ShelfLayout>(
   (ref) => layoutShelf(ref.watch(fridgeBottlesProvider).value ?? const []),

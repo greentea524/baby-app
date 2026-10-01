@@ -56,7 +56,7 @@ ShelfLayout layoutShelf(List<FridgeBottle> bottles) {
   final other = <FridgeBottle>[];
   final toSave = <String, FridgeSlot>{};
 
-  final byAge = [...bottles]..sort((a, b) => a.filledAt.compareTo(b.filledAt));
+  final byAge = [...bottles]..sort(_byAge);
   for (final b in byAge) {
     switch (b.slot) {
       case final slot? when slot.isLabelled:
@@ -85,6 +85,15 @@ ShelfLayout layoutShelf(List<FridgeBottle> bottles) {
     toSave[b.id] = slot;
   }
 
-  other.sort((a, b) => a.filledAt.compareTo(b.filledAt));
+  other.sort(_byAge);
   return ShelfLayout(labelled: labelled, other: other, toSave: toSave);
+}
+
+/// Oldest first, and between two filled at the same moment — both halves
+/// of a split always are — by id. Without the tiebreak, which of the two
+/// came first was down to the order each device happened to receive them
+/// in, and two phones could draw Other in two different orders.
+int _byAge(FridgeBottle a, FridgeBottle b) {
+  final byTime = a.filledAt.compareTo(b.filledAt);
+  return byTime != 0 ? byTime : a.id.compareTo(b.id);
 }

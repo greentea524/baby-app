@@ -56,8 +56,19 @@ class _FridgeScreenState extends ConsumerState<FridgeScreen> {
     _placing.addAll(fresh.keys);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final repo = ref.read(fridgeRepositoryProvider);
-      if (repo == null) return;
-      unawaited(Future.sync(() => repo.place(fresh)).catchError((_) {}));
+      if (repo == null || !mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      unawaited(
+        Future.sync(() => repo.place(fresh)).catchError((Object e) {
+          // Said, not swallowed: an unsaved place is drawn here but not on
+          // anyone else's phone, which is exactly the mismatch it is for.
+          // Let go of the ids so the next build tries again.
+          _placing.removeAll(fresh.keys);
+          messenger.showSnackBar(
+            SnackBar(content: Text('Could not save the fridge slots: $e')),
+          );
+        }),
+      );
     });
   }
 
@@ -174,6 +185,7 @@ class _Shelf extends ConsumerWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
+          const _SyncLine(),
           const SizedBox(height: 2),
           Text(
             'Bottles stay in their slot. Drag one by its handle to move it.',
@@ -185,9 +197,23 @@ class _Shelf extends ConsumerWidget {
       ),
     );
 
-    void move(FridgeBottle bottle, FridgeSlot slot) => ref
-        .read(fridgeRepositoryProvider)
-        ?.moveTo(bottle, slot, layout: layout);
+    // A failed move puts the bottle back where it was on this screen, and
+    // never reaches anyone else's — so it says so, rather than leaving two
+    // phones quietly disagreeing.
+    void move(FridgeBottle bottle, FridgeSlot slot) {
+      final repo = ref.read(fridgeRepositoryProvider);
+      if (repo == null) return;
+      final messenger = ScaffoldMessenger.of(context);
+      unawaited(
+        Future.sync(() => repo.moveTo(bottle, slot, layout: layout)).catchError(
+          (Object e) {
+            messenger.showSnackBar(
+              SnackBar(content: Text('Could not move the bottle: $e')),
+            );
+          },
+        ),
+      );
+    }
 
     Widget card(FridgeBottle b) => _BottleCard(
       bottle: b,
@@ -261,6 +287,45 @@ class _Shelf extends ConsumerWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+/// Says when this device's fridge is not in step with everyone else's —
+/// offline, or holding a change it has not sent yet — and nothing when it is.
+///
+/// Two phones showing different fridges is either one of these, or one of
+/// them running an older version of the app; this line rules the first out
+/// at a glance, and Settings shows the version for the second.
+class _SyncLine extends ConsumerWidget {
+  const _SyncLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sync = ref.watch(fridgeSyncProvider).value;
+    if (sync == null) return const SizedBox.shrink();
+    final (icon, text) = switch (sync) {
+      (pending: true, fromCache: _) => (
+        Icons.cloud_upload_outlined,
+        'Not sent yet — other devices will see this once it is.',
+      ),
+      (pending: false, fromCache: true) => (
+        Icons.cloud_off_outlined,
+        'Offline — showing the fridge as it was last synced.',
+      ),
+      _ => (null, null),
+    };
+    if (icon == null || text == null) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+        ],
+      ),
     );
   }
 }

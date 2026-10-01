@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/build/build_info.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/format/unit_system.dart';
 import '../../core/theme/app_accent.dart';
@@ -101,6 +102,18 @@ class SettingsScreen extends ConsumerWidget {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
             onTap: () => ref.read(authRepositoryProvider).signOut(),
+          ),
+          // Last, small, and out of the way: it is only for comparing two
+          // devices, or for telling someone which build a problem is on.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Text(
+              appVersionLine,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ),
         ],
       ),

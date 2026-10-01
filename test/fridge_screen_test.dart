@@ -51,6 +51,7 @@ void main() {
     FridgeRepository? repo,
     FeedingRepository? feeds,
     List<FeedingEvent> fed = const [],
+    FridgeSync? sync,
     double textScale = 1.0,
   }) async {
     SharedPreferences.setMockInitialValues({'unit_system': 'metric'});
@@ -71,6 +72,7 @@ void main() {
           if (repo != null) fridgeRepositoryProvider.overrideWithValue(repo),
           if (feeds != null) feedingRepositoryProvider.overrideWithValue(feeds),
           recentFeedingsProvider.overrideWith((ref) => Stream.value(fed)),
+          fridgeSyncProvider.overrideWith((ref) => Stream.value(sync)),
           recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
         ],
         child: MaterialApp(
@@ -323,6 +325,65 @@ void main() {
       await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 5)]);
       expect(find.textContaining('days old'), findsNothing);
       expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
+    });
+  });
+
+  group('keeping devices in step', () {
+    testWidgets('says nothing while in step', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2)],
+        sync: (fromCache: false, pending: false),
+      );
+      expect(find.textContaining('Offline'), findsNothing);
+      expect(find.textContaining('Not sent yet'), findsNothing);
+    });
+
+    testWidgets('says when it is offline', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2)],
+        sync: (fromCache: true, pending: false),
+      );
+      expect(
+        find.text('Offline — showing the fridge as it was last synced.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('and when a change has not been sent yet', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 2)],
+        sync: (fromCache: true, pending: true),
+      );
+      expect(
+        find.text('Not sent yet — other devices will see this once it is.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a move that fails says so', (tester) async {
+      // Before, it was dropped without a word: the bottle slid back on this
+      // phone, and never reached the other.
+      final repo = _RecordingFridge()..failMoves = true;
+      await pumpFridge(
+        tester,
+        repo: repo,
+        size: const Size(1200, 900),
+        bottles: [bottle('x', hoursAgo: 5, ml: 120, slot: FridgeSlot.c)],
+      );
+      final handle = tester.getCenter(find.byIcon(Icons.drag_indicator));
+      final target = tester.getCenter(find.text('Empty').first);
+      final gesture = await tester.startGesture(handle);
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.moveTo(target);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Could not move the bottle'), findsOneWidget);
     });
   });
 
@@ -1184,12 +1245,17 @@ class _RecordingFridge extends FridgeRepository {
     required ShelfLayout layout,
   }) async => savedIn.add((bottle: bottle, slot: slot));
 
+  bool failMoves = false;
+
   @override
   Future<void> moveTo(
     FridgeBottle bottle,
     FridgeSlot slot, {
     required ShelfLayout layout,
-  }) async => moved.add((bottle: bottle, slot: slot));
+  }) async {
+    if (failMoves) throw StateError('permission-denied');
+    moved.add((bottle: bottle, slot: slot));
+  }
 }
 
 class _RecordingFeeds extends FeedingRepository {
