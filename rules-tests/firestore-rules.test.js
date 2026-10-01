@@ -459,6 +459,26 @@ describe("what the app writes today", () => {
     );
   });
 
+  for (const slot of ["a", "b", "c", "other"]) {
+    it(`accepts a bottle in slot ${slot}`, async () => {
+      await assertSucceeds(
+        setDoc(
+          doc(asAlice(), "babies", BABY, "bottles", `slot-${slot}`),
+          bottle({ slot }),
+        ),
+      );
+    });
+  }
+
+  it("rejects a slot nobody defined", async () => {
+    await assertFails(
+      setDoc(
+        doc(asAlice(), "babies", BABY, "bottles", "slot-z"),
+        bottle({ slot: "z" }),
+      ),
+    );
+  });
+
   it("accepts a whole milk bottle", async () => {
     await assertSucceeds(
       setDoc(

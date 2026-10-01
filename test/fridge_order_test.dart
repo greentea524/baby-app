@@ -92,41 +92,6 @@ void main() {
     });
   });
 
-  group('moving one', () {
-    final shelf = [
-      bottle('a', atHour: 1),
-      bottle('b', atHour: 2),
-      bottle('c', atHour: 3),
-    ];
-
-    test('rightwards', () {
-      // The indices onReorderItem reports are already counted with the
-      // dragged bottle lifted out, so this is a plain remove and insert.
-      expect(idsOf(reordered(shelf, 0, 2)), ['b', 'c', 'a']);
-    });
-
-    test('leftwards', () {
-      expect(idsOf(reordered(shelf, 2, 0)), ['c', 'a', 'b']);
-    });
-
-    test('nowhere', () {
-      expect(idsOf(reordered(shelf, 1, 1)), ['a', 'b', 'c']);
-    });
-
-    test('without disturbing the list it was given', () {
-      reordered(shelf, 0, 2);
-      expect(idsOf(shelf), ['a', 'b', 'c']);
-    });
-  });
-
-  test('the total is what is in the fridge', () {
-    expect(
-      totalMl([bottle('a', atHour: 1, ml: 90), bottle('b', atHour: 2, ml: 65)]),
-      155,
-    );
-    expect(totalMl(const []), 0);
-  });
-
   group('what kind of bottle', () {
     test('the two are counted apart', () {
       // They do not keep the same way, so how much of each there is is a

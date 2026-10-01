@@ -15,6 +15,7 @@ import 'package:baby_app/data/repositories/fridge_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/fridge/bottle_gauge.dart';
 import 'package:baby_app/features/fridge/fridge_screen.dart';
+import 'package:baby_app/features/fridge/fridge_slots.dart';
 
 /// The fridge shelf: what is in it, in what order, and what you can do to it.
 void main() {
@@ -29,6 +30,7 @@ void main() {
     int? position,
     String? notes,
     MilkKind kind = MilkKind.expressed,
+    FridgeSlot? slot,
   }) => FridgeBottle(
     id: id,
     filledAt: now.subtract(Duration(hours: hoursAgo)),
@@ -36,6 +38,7 @@ void main() {
     position: position,
     notes: notes,
     kind: kind,
+    slot: slot,
   );
 
   Future<void> pumpFridge(
@@ -262,47 +265,214 @@ void main() {
     });
   });
 
-  group('the order', () {
-    testWidgets('follows positions once they are set', (tester) async {
+  group('the slots', () {
+    Rect labelRect(WidgetTester tester, String label) =>
+        tester.getRect(find.text(label));
+
+    testWidgets('A, B and C take the first three, the rest go under Other', (
+      tester,
+    ) async {
+      // Bottles saved before slots existed: oldest first into the letters,
+      // and the places stored once so every device agrees.
+      final repo = _RecordingFridge();
       await pumpFridge(
         tester,
+        repo: repo,
+        size: const Size(1200, 900),
         bottles: [
-          bottle('old', hoursAgo: 9, ml: 120, position: 1),
-          bottle('new', hoursAgo: 1, ml: 60, position: 0),
+          bottle('d', hoursAgo: 1, ml: 40),
+          bottle('a', hoursAgo: 9, ml: 120),
+          bottle('c', hoursAgo: 3, ml: 60),
+          bottle('b', hoursAgo: 5, ml: 90),
         ],
       );
 
-      expect(
-        tester.getRect(find.text('60')).left,
-        lessThan(tester.getRect(find.text('120')).left),
-        reason: 'the hand-arranged order wins over age',
-      );
+      for (final (label, amount) in [
+        ('A', '120'),
+        ('B', '90'),
+        ('C', '60'),
+        ('Other', '40'),
+      ]) {
+        expect(
+          tester.getRect(find.text(amount)).left,
+          moreOrLessEquals(labelRect(tester, label).left, epsilon: 80),
+          reason: '$amount ml stands under $label',
+        );
+      }
+      expect(repo.placed, {
+        'a': FridgeSlot.a,
+        'b': FridgeSlot.b,
+        'c': FridgeSlot.c,
+        'd': FridgeSlot.other,
+      });
     });
 
-    testWidgets('and offers a way back to age order, but only then', (
-      tester,
-    ) async {
-      // A button that resets an order nobody has changed would be a button
-      // that does nothing.
-      await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 2)]);
-      expect(find.text('Sort by age'), findsNothing);
-      expect(find.text('Oldest on the left — the end to take from.'), findsOne);
-
-      // Torn down between the two: pumping a second widget tree reuses the
-      // ProviderScope, which updates in place rather than re-resolving the
-      // overridden stream.
-      await tester.pumpWidget(const SizedBox());
+    testWidgets('a finished bottle leaves its slot empty', (tester) async {
+      // Nothing slides along: B is still in B, and A says it is empty.
       await pumpFridge(
         tester,
-        bottles: [bottle('a', hoursAgo: 2, position: 0)],
+        size: const Size(1200, 900),
+        bottles: [
+          bottle('b', hoursAgo: 5, ml: 90, slot: FridgeSlot.b),
+          bottle('c', hoursAgo: 3, ml: 60, slot: FridgeSlot.c),
+        ],
       );
-      expect(find.text('Sort by age'), findsOneWidget);
-      expect(find.text('Arranged by hand, to match your fridge.'), findsOne);
+
+      expect(find.text('Empty'), findsOneWidget);
+      final a = labelRect(tester, 'A');
+      final empty = tester.getRect(find.text('Empty'));
+      expect(empty.center.dx, moreOrLessEquals(a.center.dx, epsilon: 2));
+      expect(
+        tester.getRect(find.text('90')).left,
+        moreOrLessEquals(labelRect(tester, 'B').left, epsilon: 80),
+      );
     });
 
-    testWidgets('and every bottle carries a drag handle', (tester) async {
-      // Dragging is deliberate and tapping opens the bottle. The default
-      // long-press handles would make those two the same gesture.
+    testWidgets('a new bottle goes in the first empty slot', (tester) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        bottles: [bottle('b', hoursAgo: 5, ml: 90, slot: FridgeSlot.b)],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+
+      final picker = tester.widget<SegmentedButton<FridgeSlot>>(
+        find.byType(SegmentedButton<FridgeSlot>),
+      );
+      expect(picker.selected, {FridgeSlot.a});
+
+      await tester.enterText(find.widgetWithText(TextField, 'Amount'), '70');
+      final save = find.widgetWithText(FilledButton, 'Add to fridge');
+      await tester.ensureVisible(save);
+      await tester.pumpAndSettle();
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(repo.addedTo.single.slot, FridgeSlot.a);
+      expect(repo.addedTo.single.bottle.amountMl, 70);
+    });
+
+    testWidgets('Add here opens on that slot', (tester) async {
+      await pumpFridge(
+        tester,
+        size: const Size(1200, 900),
+        bottles: [bottle('a', hoursAgo: 5, ml: 90, slot: FridgeSlot.a)],
+      );
+      // B and C are empty; C's button is the second.
+      await tester.tap(find.text('Add here').last);
+      await tester.pumpAndSettle();
+
+      final picker = tester.widget<SegmentedButton<FridgeSlot>>(
+        find.byType(SegmentedButton<FridgeSlot>),
+      );
+      expect(picker.selected, {FridgeSlot.c});
+    });
+
+    testWidgets('moving to a taken slot says it swaps, then swaps', (
+      tester,
+    ) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        size: const Size(1200, 900),
+        bottles: [
+          bottle('x', hoursAgo: 5, ml: 120, slot: FridgeSlot.a),
+          bottle('y', hoursAgo: 3, ml: 60, slot: FridgeSlot.c),
+        ],
+      );
+      await tester.tap(find.text('60'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SegmentedButton<FridgeSlot>),
+          matching: find.text('A'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Swaps with the 120 ml breast milk bottle in A, which moves to C.',
+        ),
+        findsOneWidget,
+      );
+      final save = find.widgetWithText(FilledButton, 'Save changes');
+      await tester.ensureVisible(save);
+      await tester.pumpAndSettle();
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(repo.savedIn.single.bottle.id, 'y');
+      expect(repo.savedIn.single.slot, FridgeSlot.a);
+    });
+
+    testWidgets('dragging a bottle by its handle onto a slot moves it', (
+      tester,
+    ) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        size: const Size(1200, 900),
+        bottles: [bottle('x', hoursAgo: 5, ml: 120, slot: FridgeSlot.c)],
+      );
+
+      final handle = tester.getCenter(find.byIcon(Icons.drag_indicator));
+      final target = tester.getCenter(find.text('Empty').first);
+      final gesture = await tester.startGesture(handle);
+      await gesture.moveBy(const Offset(-20, 0));
+      await tester.pump();
+      await gesture.moveTo(target);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(repo.moved.single.bottle.id, 'x');
+      expect(repo.moved.single.slot, FridgeSlot.a);
+    });
+
+    testWidgets('lettered and Other cards take the same shape', (tester) async {
+      // Reported in a render: a bigger letter label left B and C a few
+      // points shorter than Other, and they drew side-on beside upright
+      // Other bottles.
+      for (final size in const [Size(1024, 768), Size(834, 1194)]) {
+        await tester.pumpWidget(const SizedBox());
+        await pumpFridge(
+          tester,
+          size: size,
+          // Two kinds, so the summary carries its breakdown line too — the
+          // shelf as tall as it was when the bug showed.
+          bottles: [
+            bottle('b', hoursAgo: 9, ml: 110, slot: FridgeSlot.b),
+            bottle(
+              'c',
+              hoursAgo: 6,
+              ml: 90,
+              slot: FridgeSlot.c,
+              kind: MilkKind.formula,
+            ),
+            bottle('o', hoursAgo: 3, ml: 120, slot: FridgeSlot.other),
+          ],
+        );
+        final heights = [
+          for (final e in find.byType(BottleGauge).evaluate())
+            tester.getSize(find.byWidget(e.widget)).height,
+        ];
+        expect(heights, hasLength(3));
+        for (final h in heights) {
+          expect(
+            h,
+            moreOrLessEquals(heights.first, epsilon: 0.5),
+            reason: 'at $size',
+          );
+        }
+      }
+    });
+
+    testWidgets('every bottle carries a drag handle', (tester) async {
+      // Dragging is deliberate and tapping opens the bottle. Dragging from
+      // anywhere would make those two the same gesture.
       await pumpFridge(
         tester,
         bottles: [bottle('a', hoursAgo: 2), bottle('b', hoursAgo: 5)],
@@ -918,6 +1088,10 @@ class _RecordingFridge extends FridgeRepository {
 
   final added = <FridgeBottle>[];
   final deleted = <String>[];
+  final placed = <String, FridgeSlot>{};
+  final addedTo = <({FridgeBottle bottle, FridgeSlot slot})>[];
+  final savedIn = <({FridgeBottle bottle, FridgeSlot slot})>[];
+  final moved = <({FridgeBottle bottle, FridgeSlot slot})>[];
 
   @override
   Future<String> add(FridgeBottle event) async {
@@ -927,6 +1101,34 @@ class _RecordingFridge extends FridgeRepository {
 
   @override
   Future<void> delete(String id) async => deleted.add(id);
+
+  @override
+  Future<void> place(Map<String, FridgeSlot> slots) async =>
+      placed.addAll(slots);
+
+  @override
+  Future<void> addTo(
+    FridgeBottle bottle,
+    FridgeSlot slot, {
+    required ShelfLayout layout,
+  }) async {
+    added.add(bottle);
+    addedTo.add((bottle: bottle, slot: slot));
+  }
+
+  @override
+  Future<void> saveIn(
+    FridgeBottle bottle,
+    FridgeSlot slot, {
+    required ShelfLayout layout,
+  }) async => savedIn.add((bottle: bottle, slot: slot));
+
+  @override
+  Future<void> moveTo(
+    FridgeBottle bottle,
+    FridgeSlot slot, {
+    required ShelfLayout layout,
+  }) async => moved.add((bottle: bottle, slot: slot));
 }
 
 class _RecordingFeeds extends FeedingRepository {
