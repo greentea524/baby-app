@@ -312,8 +312,9 @@ void main() {
       );
       expect(find.byIcon(Icons.schedule), findsOneWidget);
       expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
-      expect(find.text('2 days ago'), findsOneWidget);
-      expect(find.text('3 days ago'), findsOneWidget);
+      // In hours, however old: "2 days" hid the 24 hours between 48 and 71.
+      expect(find.text('50 hr ago'), findsOneWidget);
+      expect(find.text('80 hr ago'), findsOneWidget);
       // At the top too, where a bottle scrolled out of sight is still named.
       expect(find.text('1 is 3+ days old · 1 is 2+ days old'), findsOneWidget);
     });

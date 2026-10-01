@@ -289,4 +289,21 @@ void main() {
       expect(ageAt(const Duration(days: 9)), BottleAge.old);
     });
   });
+
+  group('how long ago, in hours', () {
+    final now = DateTime(2026, 10, 2, 12);
+    String ago(Duration d) => hoursAgo(now.subtract(d), now);
+
+    test('hours and minutes past a day, never "1 day ago"', () {
+      expect(ago(const Duration(hours: 33, minutes: 13)), '33 hr 13 min ago');
+      expect(ago(const Duration(hours: 24)), '24 hr ago');
+      expect(ago(const Duration(hours: 80)), '80 hr ago');
+    });
+
+    test('and as before within the day', () {
+      expect(ago(const Duration(hours: 15, minutes: 33)), '15 hr 33 min ago');
+      expect(ago(const Duration(minutes: 20)), '20 min ago');
+      expect(ago(const Duration(seconds: 30)), 'just now');
+    });
+  });
 }

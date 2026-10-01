@@ -156,3 +156,18 @@ enum BottleAge {
     return fresh;
   }
 }
+
+/// How long ago a bottle was filled, in hours however long it has been:
+/// "33 hr 13 min ago" rather than "1 day ago".
+///
+/// Hours because that is how milk in a fridge is judged — "1 day ago" covers
+/// anything from 24 to 47 hours, which is the difference between fine and
+/// about to turn yellow. Under an hour it is minutes, as everywhere else.
+String hoursAgo(DateTime filledAt, DateTime now) {
+  final diff = now.difference(filledAt);
+  if (diff.inSeconds < 60) return 'just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+  final h = diff.inHours;
+  final m = diff.inMinutes.remainder(60);
+  return m == 0 ? '$h hr ago' : '$h hr $m min ago';
+}
