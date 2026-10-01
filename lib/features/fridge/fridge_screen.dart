@@ -646,18 +646,26 @@ class _BottleCard extends StatelessWidget {
           // it sits beside them instead, because a bottle squeezed to a sliver
           // above four lines of text is neither.
           //
-          // The threshold grows with the text, since it is the text that has
-          // to fit under the bottle. The short shape fills the shelf's height;
-          // the tall one only takes what it needs and stands at the bottom.
+          // In the tall shape the bottle gives way to the text, not the other
+          // way round: it is drawn as large as the height left over allows,
+          // up to the card's full width. It used to insist on full width —
+          // about 250pt — and a phone upright rarely had that to spare, so
+          // most phones got the short shape, whose numbers are squeezed into
+          // the narrow column beside the bottle and shrunk to fit. The times
+          // are what this screen is read for, so they keep the full width.
+          //
+          // The short shape is left for when even a small bottle will not
+          // fit above the text: a phone on its side, or the largest text.
           child: LayoutBuilder(
             builder: (context, c) {
               final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-              // The bottle is as wide as the card and as tall as its shape
-              // makes that, so its height is known before it is laid out.
-              // Everything else is text, and grows with the text size.
-              final bottleHeight = c.maxWidth / BottleGauge.aspectRatio;
-              final tall =
-                  c.maxHeight >= bottleHeight + 50 + (130 + 50) * scale;
+              // Everything but the bottle is text, and grows with the text
+              // size: the header, the amount, the two time lines, the note,
+              // the button and the gaps between them.
+              final textHeight = 50 + (130 + 50) * scale;
+              final fullBottle = c.maxWidth / BottleGauge.aspectRatio;
+              final bottleRoom = c.maxHeight - textHeight;
+              final tall = bottleRoom >= _minBottleHeight;
 
               if (tall) {
                 return Column(
@@ -666,7 +674,14 @@ class _BottleCard extends StatelessWidget {
                   children: [
                     header,
                     const SizedBox(height: 8),
-                    gauge,
+                    Center(
+                      child: SizedBox(
+                        height: bottleRoom < fullBottle
+                            ? bottleRoom
+                            : fullBottle,
+                        child: gauge,
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     _Facts(bottle: bottle, units: units, now: now),
                     const SizedBox(height: 10),
@@ -782,11 +797,10 @@ class _AgeLine extends StatelessWidget {
     if (state == null) {
       return Text(
         ago,
-        style: theme.textTheme.bodySmall?.copyWith(
+        style: theme.textTheme.bodyMedium?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
         maxLines: 1,
-        overflow: TextOverflow.ellipsis,
       );
     }
     final colours = dueColors(context, state);
@@ -796,24 +810,39 @@ class _AgeLine extends StatelessWidget {
       children: [
         Icon(
           old ? Icons.warning_amber_rounded : Icons.schedule,
-          size: 14,
+          size: 16,
           color: colours.foreground,
         ),
-        const SizedBox(width: 3),
-        Flexible(
-          child: Text(
-            ago,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colours.foreground,
-              fontWeight: FontWeight.w700,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+        const SizedBox(width: 4),
+        Text(
+          ago,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colours.foreground,
+            fontWeight: FontWeight.w700,
           ),
+          maxLines: 1,
         ),
       ],
     );
   }
+}
+
+/// The smallest the bottle is drawn above the text before the card turns on
+/// its side instead. Below this a bottle's level is hard to judge by eye.
+const double _minBottleHeight = 110;
+
+/// One line of the card, shrunk to fit its width rather than cut short.
+class _FitLine extends StatelessWidget {
+  const _FitLine({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
+    alignment: Alignment.centerLeft,
+    child: child,
+  );
 }
 
 /// What the bottle says in words: how much, when, how long ago.
@@ -874,13 +903,20 @@ class _Facts extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          FeedingFormat.clockStamp(context, bottle.filledAt, now: now),
-          style: theme.textTheme.bodyMedium,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        // The when and the how-long-ago are what this screen is read for at
+        // an open fridge, at arm's length — so a size up from body text, and
+        // scaled down to fit rather than cut off with an ellipsis: "Sep 30,
+        // 5:06 AM" with its last characters missing is a different time.
+        _FitLine(
+          child: Text(
+            FeedingFormat.clockStamp(context, bottle.filledAt, now: now),
+            style: theme.textTheme.titleMedium,
+            maxLines: 1,
+          ),
         ),
-        _AgeLine(bottle: bottle, now: now),
+        _FitLine(
+          child: _AgeLine(bottle: bottle, now: now),
+        ),
         // The line is kept whether or not there is a note to put on it, so
         // every card is the same height and every bottle stands at the same
         // level. Without it, a card with a note grew a line and pushed its
