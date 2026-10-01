@@ -28,6 +28,18 @@ class ShelfLayout {
     return other.any((b) => b.id == bottle.id) ? FridgeSlot.other : null;
   }
 
+  /// Whether [slot] can be chosen for [bottle] — a new one when null.
+  ///
+  /// Other always can. A letter can when it is empty, or when it is the
+  /// bottle's own. A letter with another bottle in it cannot: picking it
+  /// used to move that bottle out, which read as one bottle overwriting
+  /// another. Swapping two is done by dragging on the shelf instead.
+  bool canTake(FridgeSlot slot, [FridgeBottle? bottle]) {
+    if (!slot.isLabelled) return true;
+    final occupant = labelled[slot];
+    return occupant == null || occupant.id == bottle?.id;
+  }
+
   /// Where a new bottle goes: the first empty letter, else Other.
   FridgeSlot get firstFree => FridgeSlot.labelled.firstWhere(
     (s) => !labelled.containsKey(s),

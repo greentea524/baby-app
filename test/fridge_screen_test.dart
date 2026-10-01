@@ -491,7 +491,36 @@ void main() {
       expect(picker.selected, {FridgeSlot.c});
     });
 
-    testWidgets('moving to a taken slot says it swaps, then swaps', (
+    Set<FridgeSlot> enabledSlots(WidgetTester tester) => {
+      for (final seg
+          in tester
+              .widget<SegmentedButton<FridgeSlot>>(
+                find.byType(SegmentedButton<FridgeSlot>),
+              )
+              .segments)
+        if (seg.enabled) seg.value,
+    };
+
+    testWidgets('a new bottle cannot pick a taken letter', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('x', hoursAgo: 5, ml: 120, slot: FridgeSlot.a)],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+
+      expect(enabledSlots(tester), {
+        FridgeSlot.b,
+        FridgeSlot.c,
+        FridgeSlot.other,
+      });
+      expect(
+        find.text('Empty: B, C. Taken letters cannot be picked.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an edited bottle keeps its own letter, not others', (
       tester,
     ) async {
       final repo = _RecordingFridge();
@@ -506,27 +535,43 @@ void main() {
       );
       await tester.tap(find.text('60'));
       await tester.pumpAndSettle();
+      expect(enabledSlots(tester), {
+        FridgeSlot.b,
+        FridgeSlot.c,
+        FridgeSlot.other,
+      });
+
+      // Moved to an empty letter, it goes.
       await tester.tap(
         find.descendant(
           of: find.byType(SegmentedButton<FridgeSlot>),
-          matching: find.text('A'),
+          matching: find.text('B'),
         ),
       );
       await tester.pumpAndSettle();
-
-      expect(
-        find.text(
-          'Swaps with the 120 ml breast milk bottle in A, which moves to C.',
-        ),
-        findsOneWidget,
-      );
       final save = find.widgetWithText(FilledButton, 'Save changes');
       await tester.ensureVisible(save);
       await tester.pumpAndSettle();
       await tester.tap(save);
       await tester.pumpAndSettle();
       expect(repo.savedIn.single.bottle.id, 'y');
-      expect(repo.savedIn.single.slot, FridgeSlot.a);
+      expect(repo.savedIn.single.slot, FridgeSlot.b);
+    });
+
+    testWidgets('with every letter full, it says how to swap', (tester) async {
+      await pumpFridge(
+        tester,
+        size: const Size(1200, 900),
+        bottles: [
+          bottle('x', hoursAgo: 5, ml: 120, slot: FridgeSlot.a),
+          bottle('y', hoursAgo: 4, ml: 90, slot: FridgeSlot.b),
+          bottle('z', hoursAgo: 3, ml: 60, slot: FridgeSlot.c),
+        ],
+      );
+      await tester.tap(find.text('60'));
+      await tester.pumpAndSettle();
+      expect(enabledSlots(tester), {FridgeSlot.c, FridgeSlot.other});
+      expect(find.textContaining('drag one onto the other'), findsOneWidget);
     });
 
     testWidgets('dragging a bottle by its handle onto a slot moves it', (
