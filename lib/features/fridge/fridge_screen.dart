@@ -712,7 +712,7 @@ class _AgeLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final ago = FeedingFormat.timeAgo(bottle.filledAt, now: now);
+    final ago = hoursAgo(bottle.filledAt, now);
     final state = _dueStateOf(BottleAge.of(bottle.filledAt, now));
     if (state == null) {
       return Text(
