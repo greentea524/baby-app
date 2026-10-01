@@ -49,15 +49,19 @@ class ShelfLayout {
 /// or by an app that does not know them — goes in the first empty letter, in
 /// the order the shelf used to show (by hand, if it had been arranged, so
 /// the first three land where they were). If two bottles claim the same
-/// letter, which only two devices saving at once can do, the older keeps it
-/// and the newer goes to Other.
+/// letter, which only two devices saving at once can do, the one that was
+/// put there first keeps it and the other goes to Other.
 ShelfLayout layoutShelf(List<FridgeBottle> bottles) {
   final labelled = <FridgeSlot, FridgeBottle>{};
   final other = <FridgeBottle>[];
   final toSave = <String, FridgeSlot>{};
 
-  final byAge = [...bottles]..sort(_byAge);
-  for (final b in byAge) {
+  // Claims are settled in the order they were made. It used to be by the
+  // milk's age, and a pumped bottle carries its pump time — so one placed
+  // into a letter another device had just filled took it over, and the
+  // bottle already there was pushed to Other.
+  final byClaim = [...bottles]..sort(_byClaim);
+  for (final b in byClaim) {
     switch (b.slot) {
       case final slot? when slot.isLabelled:
         if (labelled.containsKey(slot)) {
@@ -87,6 +91,18 @@ ShelfLayout layoutShelf(List<FridgeBottle> bottles) {
 
   other.sort(_byAge);
   return ShelfLayout(labelled: labelled, other: other, toSave: toSave);
+}
+
+/// Earliest put in its slot first; a bottle with no record of when counts
+/// as earliest, having been there since before it was recorded. Ties by id.
+int _byClaim(FridgeBottle a, FridgeBottle b) {
+  final at = a.slottedAt, bt = b.slottedAt;
+  if (at != bt) {
+    if (at == null) return -1;
+    if (bt == null) return 1;
+    return at.compareTo(bt);
+  }
+  return a.id.compareTo(b.id);
 }
 
 /// Oldest first, and between two filled at the same moment — both halves

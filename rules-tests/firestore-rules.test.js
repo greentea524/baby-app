@@ -1043,6 +1043,23 @@ describe("fridge slots, between caregivers", () => {
     );
   });
 
+  it("records when a bottle took its slot", async () => {
+    // Settles which bottle keeps a letter two devices filled at once.
+    const db = asBob();
+    const batch = writeBatch(db);
+    batch.update(bottleRef(db, "legacy"), {
+      ...moved("b"),
+      slottedAt: Timestamp.now(),
+    });
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(
+      setDoc(
+        bottleRef(db, "pumped"),
+        bottle({ slot: "other", slottedAt: Timestamp.now(), ...stamped("bob") }),
+      ),
+    );
+  });
+
   it("still refuses a slot move that does not own up to who made it", async () => {
     const db = asBob();
     await assertFails(
