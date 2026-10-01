@@ -9,6 +9,8 @@ import '../../data/models/fridge_bottle.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
+import '../home/home_status_card.dart';
+import '../reminders/feed_prediction.dart';
 import 'bottle_gauge.dart';
 import 'bottle_sheet.dart';
 import 'fridge_button.dart';
@@ -131,6 +133,16 @@ class _Shelf extends ConsumerWidget {
     final units = ref.watch(unitSystemProvider);
     final shelf = layout.inOrder;
     final byKind = totalByKind(shelf);
+    int aged(BottleAge age) =>
+        shelf.where((b) => BottleAge.of(b.filledAt, now) == age).length;
+    // Named at the top as well, because the shelf scrolls sideways: a red
+    // bottle under Other may be off the edge of the screen.
+    final ageLine = [
+      if (aged(BottleAge.old) case final n when n > 0)
+        '$n ${n == 1 ? 'is' : 'are'} 3+ days old',
+      if (aged(BottleAge.aging) case final n when n > 0)
+        '$n ${n == 1 ? 'is' : 'are'} 2+ days old',
+    ].join(' · ');
 
     final summary = Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -153,6 +165,13 @@ class _Shelf extends ConsumerWidget {
                   .join('  ·  '),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          if (ageLine.isNotEmpty)
+            Text(
+              ageLine,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
             ),
           const SizedBox(height: 2),
@@ -539,9 +558,18 @@ class _BottleCard extends StatelessWidget {
       ),
     );
 
+    // Yellow from two days, red from three: the same amber and red Home
+    // uses for something coming due, so the two read as one warning. The
+    // whole card is tinted, since it is the bottle that is getting old; the
+    // age line inside says it in words too.
+    final age = BottleAge.of(bottle.filledAt, now);
     return Card(
       clipBehavior: Clip.antiAlias,
       margin: EdgeInsets.zero,
+      color: switch (_dueStateOf(age)) {
+        final state? => dueTint(context, state, scheme.surfaceContainerLow),
+        null => null,
+      },
       child: InkWell(
         onTap: () => showBottleSheet(context, existing: bottle),
         child: Padding(
@@ -665,6 +693,64 @@ class _DragFeedback extends StatelessWidget {
   }
 }
 
+/// The warning colours for a bottle of [age]: none while fresh.
+DueState? _dueStateOf(BottleAge age) => switch (age) {
+  BottleAge.fresh => null,
+  BottleAge.aging => DueState.soon,
+  BottleAge.old => DueState.overdue,
+};
+
+/// "9 hr ago", or, once the bottle is two days old, the same with an icon
+/// and in the warning's own ink — so its age is said in words and shape as
+/// well as in the card's colour.
+class _AgeLine extends StatelessWidget {
+  const _AgeLine({required this.bottle, required this.now});
+
+  final FridgeBottle bottle;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ago = FeedingFormat.timeAgo(bottle.filledAt, now: now);
+    final state = _dueStateOf(BottleAge.of(bottle.filledAt, now));
+    if (state == null) {
+      return Text(
+        ago,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+    final colours = dueColors(context, state);
+    final old = state == DueState.overdue;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          old ? Icons.warning_amber_rounded : Icons.schedule,
+          size: 14,
+          color: colours.foreground,
+        ),
+        const SizedBox(width: 3),
+        Flexible(
+          child: Text(
+            ago,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colours.foreground,
+              fontWeight: FontWeight.w700,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// What the bottle says in words: how much, when, how long ago.
 class _Facts extends StatelessWidget {
   const _Facts({
@@ -729,14 +815,7 @@ class _Facts extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        Text(
-          FeedingFormat.timeAgo(bottle.filledAt, now: now),
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: scheme.onSurfaceVariant,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        _AgeLine(bottle: bottle, now: now),
         // The line is kept whether or not there is a note to put on it, so
         // every card is the same height and every bottle stands at the same
         // level. Without it, a card with a note grew a line and pushed its

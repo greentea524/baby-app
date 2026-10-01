@@ -269,4 +269,24 @@ void main() {
       expect(unbottledPump(null, shelf: const [], feeds: const []), isNull);
     });
   });
+
+  group('how old a bottle is', () {
+    final now = DateTime(2026, 10, 2, 12);
+    BottleAge ageAt(Duration d) => BottleAge.of(now.subtract(d), now);
+
+    test('fresh for its first two days', () {
+      expect(ageAt(Duration.zero), BottleAge.fresh);
+      expect(ageAt(const Duration(hours: 47, minutes: 59)), BottleAge.fresh);
+    });
+
+    test('yellow from two days', () {
+      expect(ageAt(const Duration(hours: 48)), BottleAge.aging);
+      expect(ageAt(const Duration(hours: 71, minutes: 59)), BottleAge.aging);
+    });
+
+    test('red from three', () {
+      expect(ageAt(const Duration(hours: 72)), BottleAge.old);
+      expect(ageAt(const Duration(days: 9)), BottleAge.old);
+    });
+  });
 }

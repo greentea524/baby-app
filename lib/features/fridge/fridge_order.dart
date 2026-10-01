@@ -130,3 +130,29 @@ PumpingEvent? unbottledPump(
   );
   return fedSince ? null : last;
 }
+
+/// How long a bottle has been in the fridge, in the three steps the shelf
+/// colours it by.
+enum BottleAge {
+  /// Under two days.
+  fresh,
+
+  /// Two days or more: yellow, use it soon.
+  aging,
+
+  /// Three days or more: red.
+  old;
+
+  /// Two days, measured from when the bottle was filled — pumped, made up or
+  /// poured — not from when it went in the fridge, because it is the milk's
+  /// age that matters.
+  static const agingAfter = Duration(days: 2);
+  static const oldAfter = Duration(days: 3);
+
+  static BottleAge of(DateTime filledAt, DateTime now) {
+    final age = now.difference(filledAt);
+    if (age >= oldAfter) return old;
+    if (age >= agingAfter) return aging;
+    return fresh;
+  }
+}
