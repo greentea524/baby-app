@@ -300,7 +300,11 @@ service cloud.firestore {
             && d.amountMl > 0
             && optional(d.get('kind', null), ['expressed', 'formula', 'wholeMilk'])
             && count(d.get('position', null))
-            && text(d.get('notes', null));
+            && text(d.get('notes', null))
+            // Where it stands: a lettered slot, or the space past them.
+            // Optional, so a bottle saved before slots existed still passes;
+            // the app gives it one the next time the fridge is opened.
+            && optional(d.get('slot', null), ['a', 'b', 'c', 'other']);
         }
       }
 

@@ -1,11 +1,9 @@
-/// How the bottles line up on screen, left to right.
+/// Sums and helpers for the fridge, and the order the shelf had before it
+/// had slots.
 ///
-/// Two orders, and which one applies is read off the bottles themselves.
-/// Oldest first by default, because that is the order milk should be used in
-/// and the order a shelf gets stocked in. Once someone has dragged a bottle,
-/// every bottle carries a position and the shelf shows exactly what they
-/// arranged — the point of dragging is to match a fridge that is *not* in age
-/// order, so age has to stop deciding the moment it is overruled.
+/// That order — oldest first, or as arranged by hand once someone dragged a
+/// bottle — now only decides where a bottle without a slot is first placed:
+/// see `layoutShelf`. Bottles stored with a slot stay in it.
 library;
 
 import '../../data/models/feeding_event.dart';
@@ -49,18 +47,6 @@ List<FridgeBottle> shelfOrder(List<FridgeBottle> bottles) {
     final byAge = a.filledAt.compareTo(b.filledAt);
     return byAge != 0 ? byAge : a.id.compareTo(b.id);
   });
-  return ordered;
-}
-
-/// [shelf] with the bottle at [from] moved to sit at [to].
-///
-/// Takes the indices `ReorderableListView.onReorderItem` reports, which are
-/// already counted against the list with the dragged bottle lifted out — so
-/// this is a plain remove and insert, with none of the off-by-one the older
-/// `onReorder` callback needed.
-List<FridgeBottle> reordered(List<FridgeBottle> shelf, int from, int to) {
-  final ordered = [...shelf];
-  ordered.insert(to, ordered.removeAt(from));
   return ordered;
 }
 

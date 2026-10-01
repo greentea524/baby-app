@@ -5,6 +5,37 @@ import 'milk_kind.dart';
 
 export 'milk_kind.dart';
 
+/// Where in the fridge a bottle stands: one of three labelled slots, or the
+/// shared space beyond them.
+///
+/// Fixed places rather than an order, because a fridge is not a queue. When
+/// the bottle in A is used, the one in B is still in B — nobody slides the
+/// others along — so the screen leaves A empty too, and the label on screen
+/// keeps matching the one on the shelf.
+///
+/// Stored by [name]; the Firestore rules accept exactly these.
+enum FridgeSlot {
+  a('A'),
+  b('B'),
+  c('C'),
+
+  /// Everything past the labelled three, oldest first.
+  other('Other');
+
+  const FridgeSlot(this.label);
+
+  final String label;
+
+  /// The three with a letter, in the order they fill.
+  static const labelled = [a, b, c];
+
+  bool get isLabelled => this != other;
+
+  /// Null for a bottle saved before slots existed, or by a version of the
+  /// app that does not know them — one still to be given a place.
+  static FridgeSlot? fromName(String? name) => values.asNameMap()[name];
+}
+
 /// One bottle standing in the fridge. Stored at
 /// `babies/{babyId}/bottles/{id}`.
 ///
@@ -23,6 +54,7 @@ class FridgeBottle implements BabyEvent {
     this.kind = MilkKind.expressed,
     this.position,
     this.notes,
+    this.slot,
   });
 
   @override
@@ -51,12 +83,17 @@ class FridgeBottle implements BabyEvent {
 
   final String? notes;
 
+  /// Where it stands. Null until it has been given a place — see
+  /// [FridgeSlot.fromName] — after which it stays put until moved.
+  final FridgeSlot? slot;
+
   FridgeBottle copyWith({
     DateTime? filledAt,
     double? amountMl,
     MilkKind? kind,
     int? position,
     String? notes,
+    FridgeSlot? slot,
   }) => FridgeBottle(
     id: id,
     filledAt: filledAt ?? this.filledAt,
@@ -64,6 +101,7 @@ class FridgeBottle implements BabyEvent {
     kind: kind ?? this.kind,
     position: position ?? this.position,
     notes: notes ?? this.notes,
+    slot: slot ?? this.slot,
   );
 
   factory FridgeBottle.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -75,6 +113,7 @@ class FridgeBottle implements BabyEvent {
       kind: MilkKind.fromName(data['kind'] as String?),
       position: (data['position'] as num?)?.toInt(),
       notes: data['notes'] as String?,
+      slot: FridgeSlot.fromName(data['slot'] as String?),
     );
   }
 
@@ -85,5 +124,6 @@ class FridgeBottle implements BabyEvent {
     'kind': kind.name,
     'position': position,
     'notes': notes,
+    if (slot != null) 'slot': slot!.name,
   };
 }

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_providers.dart';
 // sharedPreferencesProvider lives with the theme provider (both are prefs-backed).
 import '../../core/theme/theme_mode_provider.dart';
-import '../../features/fridge/fridge_order.dart';
+import '../../features/fridge/fridge_slots.dart';
 import '../models/baby.dart';
 import '../models/caregiver_invite.dart';
 import '../models/diaper_event.dart';
@@ -238,9 +238,14 @@ final fridgeBottlesProvider = StreamProvider<List<FridgeBottle>>((ref) {
   return repo.watchAll();
 });
 
-/// The shelf as it is drawn, leftmost first. See [shelfOrder].
+/// The fridge laid out in its slots. See [layoutShelf].
+final fridgeLayoutProvider = Provider<ShelfLayout>(
+  (ref) => layoutShelf(ref.watch(fridgeBottlesProvider).value ?? const []),
+);
+
+/// Every bottle in the order it is reached for: A, B, C, then Other.
 final fridgeShelfProvider = Provider<List<FridgeBottle>>(
-  (ref) => shelfOrder(ref.watch(fridgeBottlesProvider).value ?? const []),
+  (ref) => ref.watch(fridgeLayoutProvider).inOrder,
 );
 
 // --- Growth (KAN-136) ------------------------------------------------------

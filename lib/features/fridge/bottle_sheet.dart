@@ -23,22 +23,29 @@ import '../feeding/feeding_format.dart';
 /// the sheet: the last-pump stream is only live while something is watching
 /// it, and a sheet that reached for it itself would find it still loading and
 /// silently open blank.
+///
+/// [slot] is where a new bottle goes, when it was added from an empty slot;
+/// otherwise it takes the first empty letter. Either way the sheet lets it
+/// be changed.
 Future<void> showBottleSheet(
   BuildContext context, {
   FridgeBottle? existing,
   PumpingEvent? prefillFrom,
+  FridgeSlot? slot,
 }) {
   return showAppSheet<void>(
     context,
-    builder: (_) => _BottleSheet(existing: existing, prefillFrom: prefillFrom),
+    builder: (_) =>
+        _BottleSheet(existing: existing, prefillFrom: prefillFrom, slot: slot),
   );
 }
 
 class _BottleSheet extends ConsumerStatefulWidget {
-  const _BottleSheet({this.existing, this.prefillFrom});
+  const _BottleSheet({this.existing, this.prefillFrom, this.slot});
 
   final FridgeBottle? existing;
   final PumpingEvent? prefillFrom;
+  final FridgeSlot? slot;
 
   @override
   ConsumerState<_BottleSheet> createState() => _BottleSheetState();
@@ -63,11 +70,18 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   double? _storedMl;
   bool _amountEdited = false;
 
+  /// Where the bottle will stand once saved.
+  late FridgeSlot _slot;
+
   @override
   void initState() {
     super.initState();
     _unit = VolumeUnit.initial;
+    final layout = ref.read(fridgeLayoutProvider);
     final e = widget.existing;
+    _slot = e != null
+        ? layout.slotOf(e) ?? FridgeSlot.other
+        : widget.slot ?? layout.firstFree;
     if (e != null) {
       _kind = e.kind;
       _filledAt = e.filledAt;
@@ -143,10 +157,13 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
       position: existing?.position,
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
+    final layout = ref.read(fridgeLayoutProvider);
     _saving = true;
     saveAndClose(
       context,
-      () => existing != null ? repo.update(bottle) : repo.add(bottle),
+      () => existing != null
+          ? repo.saveIn(bottle, _slot, layout: layout)
+          : repo.addTo(bottle, _slot, layout: layout),
       failure: 'Could not save the bottle',
     );
   }
@@ -199,6 +216,12 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
                 !_amountEdited &&
                 session.amountMl != null)
           _FromPump(session: session),
+        const SizedBox(height: 16),
+        _SlotPicker(
+          slot: _slot,
+          bottle: existing,
+          onChanged: (s) => setState(() => _slot = s),
+        ),
         const SizedBox(height: 12),
         TextField(
           controller: _notes,
@@ -318,7 +341,7 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
       () => repo.split(
         widget.bottle,
         _firstMl,
-        shelf: ref.read(fridgeShelfProvider),
+        layout: ref.read(fridgeLayoutProvider),
       ),
       failure: 'Could not split the bottle',
     );
@@ -390,6 +413,76 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
           FilledButton(
             onPressed: _split,
             child: const Text('Split into two bottles'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Which slot the bottle stands in: A, B, C or Other.
+///
+/// Says what choosing a taken letter will do, before it is done: a new
+/// bottle sends the one already there to Other, and a moved one swaps with
+/// it. Nothing is moved without the sheet having said so.
+class _SlotPicker extends ConsumerWidget {
+  const _SlotPicker({
+    required this.slot,
+    required this.bottle,
+    required this.onChanged,
+  });
+
+  final FridgeSlot slot;
+
+  /// The bottle being edited, or null for a new one.
+  final FridgeBottle? bottle;
+  final ValueChanged<FridgeSlot> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final units = ref.watch(unitSystemProvider);
+    final layout = ref.watch(fridgeLayoutProvider);
+    final occupant = layout.labelled[slot];
+    final from = bottle == null ? null : layout.slotOf(bottle!);
+
+    String? note;
+    if (occupant != null && occupant.id != bottle?.id) {
+      final what =
+          'the ${formatVolume(occupant.amountMl, units)} '
+          '${occupant.kind.label.toLowerCase()} bottle';
+      note = bottle == null
+          ? '${slot.label} has $what. It moves to Other.'
+          : from == null || from == FridgeSlot.other
+          ? '${slot.label} has $what. It moves to Other.'
+          : 'Swaps with $what in ${slot.label}, which moves to '
+                '${from.label}.';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Slot in the fridge', style: theme.textTheme.labelLarge),
+        const SizedBox(height: 6),
+        SegmentedButton<FridgeSlot>(
+          segments: [
+            for (final s in FridgeSlot.values)
+              ButtonSegment(
+                value: s,
+                label: Text(s.label, maxLines: 1, softWrap: false),
+              ),
+          ],
+          selected: {slot},
+          showSelectedIcon: false,
+          onSelectionChanged: (s) => onChanged(s.first),
+        ),
+        if (note != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            note,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ],
