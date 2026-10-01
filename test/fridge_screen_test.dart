@@ -16,6 +16,8 @@ import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/fridge/bottle_gauge.dart';
 import 'package:baby_app/features/fridge/fridge_screen.dart';
 import 'package:baby_app/features/fridge/fridge_slots.dart';
+import 'package:baby_app/features/reminders/feed_prediction.dart';
+import 'package:baby_app/features/home/home_status_card.dart';
 
 /// The fridge shelf: what is in it, in what order, and what you can do to it.
 void main() {
@@ -262,6 +264,64 @@ void main() {
       expect(find.byType(ReorderableListView), findsNothing);
       // Adding is still the point of the screen, so the way in stays.
       expect(find.text('Add bottle'), findsOneWidget);
+    });
+  });
+
+  group('an old bottle', () {
+    Color? cardColour(WidgetTester tester, String amount) => tester
+        .widget<Card>(
+          find.ancestor(of: find.text(amount), matching: find.byType(Card)),
+        )
+        .color;
+
+    testWidgets('is yellow from two days and red from three', (tester) async {
+      await pumpFridge(
+        tester,
+        size: const Size(1200, 900),
+        bottles: [
+          bottle('fresh', hoursAgo: 20, ml: 110, slot: FridgeSlot.a),
+          bottle('aging', hoursAgo: 50, ml: 90, slot: FridgeSlot.b),
+          bottle('old', hoursAgo: 80, ml: 60, slot: FridgeSlot.c),
+        ],
+      );
+      final context = tester.element(find.text('110'));
+      final surface = Theme.of(context).colorScheme.surfaceContainerLow;
+
+      expect(cardColour(tester, '110'), isNull);
+      expect(
+        cardColour(tester, '90'),
+        dueTint(context, DueState.soon, surface),
+      );
+      expect(
+        cardColour(tester, '60'),
+        dueTint(context, DueState.overdue, surface),
+      );
+    });
+
+    testWidgets('and says so in words and an icon, not colour alone', (
+      tester,
+    ) async {
+      await pumpFridge(
+        tester,
+        size: const Size(1200, 900),
+        bottles: [
+          bottle('fresh', hoursAgo: 20, ml: 110, slot: FridgeSlot.a),
+          bottle('aging', hoursAgo: 50, ml: 90, slot: FridgeSlot.b),
+          bottle('old', hoursAgo: 80, ml: 60, slot: FridgeSlot.c),
+        ],
+      );
+      expect(find.byIcon(Icons.schedule), findsOneWidget);
+      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+      expect(find.text('2 days ago'), findsOneWidget);
+      expect(find.text('3 days ago'), findsOneWidget);
+      // At the top too, where a bottle scrolled out of sight is still named.
+      expect(find.text('1 is 3+ days old · 1 is 2+ days old'), findsOneWidget);
+    });
+
+    testWidgets('and a shelf with none says nothing of age', (tester) async {
+      await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 5)]);
+      expect(find.textContaining('days old'), findsNothing);
+      expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
     });
   });
 
