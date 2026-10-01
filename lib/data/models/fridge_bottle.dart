@@ -55,6 +55,7 @@ class FridgeBottle implements BabyEvent {
     this.position,
     this.notes,
     this.slot,
+    this.slottedAt,
   });
 
   @override
@@ -87,6 +88,12 @@ class FridgeBottle implements BabyEvent {
   /// [FridgeSlot.fromName] — after which it stays put until moved.
   final FridgeSlot? slot;
 
+  /// When it was put in [slot], by the clock of the device that put it
+  /// there. Decides which bottle keeps a letter that two devices filled at
+  /// once: the one that was there first. Null for a bottle placed before
+  /// this was recorded, which counts as earliest of all.
+  final DateTime? slottedAt;
+
   FridgeBottle copyWith({
     DateTime? filledAt,
     double? amountMl,
@@ -94,6 +101,7 @@ class FridgeBottle implements BabyEvent {
     int? position,
     String? notes,
     FridgeSlot? slot,
+    DateTime? slottedAt,
   }) => FridgeBottle(
     id: id,
     filledAt: filledAt ?? this.filledAt,
@@ -102,6 +110,7 @@ class FridgeBottle implements BabyEvent {
     position: position ?? this.position,
     notes: notes ?? this.notes,
     slot: slot ?? this.slot,
+    slottedAt: slottedAt ?? this.slottedAt,
   );
 
   factory FridgeBottle.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -114,6 +123,7 @@ class FridgeBottle implements BabyEvent {
       position: (data['position'] as num?)?.toInt(),
       notes: data['notes'] as String?,
       slot: FridgeSlot.fromName(data['slot'] as String?),
+      slottedAt: (data['slottedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -125,5 +135,6 @@ class FridgeBottle implements BabyEvent {
     'position': position,
     'notes': notes,
     if (slot != null) 'slot': slot!.name,
+    if (slottedAt != null) 'slottedAt': Timestamp.fromDate(slottedAt!),
   };
 }

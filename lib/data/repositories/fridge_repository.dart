@@ -82,7 +82,7 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
     final fresh = col.doc();
     final batch = firestore.batch()
       ..set(fresh, {
-        ...bottle.copyWith(slot: slot).toMap(),
+        ...bottle.copyWith(slot: slot, slottedAt: DateTime.now()).toMap(),
         'createdBy': uid,
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -105,7 +105,12 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
     final from = layout.slotOf(bottle) ?? FridgeSlot.other;
     final batch = firestore.batch()
       ..update(col.doc(bottle.id), {
-        ...bottle.copyWith(slot: slot).toMap(),
+        ...bottle
+            .copyWith(
+              slot: slot,
+              slottedAt: from == slot ? null : DateTime.now(),
+            )
+            .toMap(),
         'updatedBy': uid,
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -133,6 +138,7 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
 
   Map<String, Object> _slot(FridgeSlot slot) => {
     'slot': slot.name,
+    'slottedAt': Timestamp.now(),
     'updatedBy': uid,
     'updatedAt': FieldValue.serverTimestamp(),
   };
@@ -162,6 +168,7 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
       kind: bottle.kind,
       notes: bottle.notes,
       slot: layout.firstFree,
+      slottedAt: DateTime.now(),
     );
     final batch = firestore.batch()
       ..set(fresh, {

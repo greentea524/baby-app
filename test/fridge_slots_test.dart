@@ -133,4 +133,54 @@ void main() {
       expect(layout.toSave, {'y': FridgeSlot.other});
     }
   });
+
+  test('a letter two devices filled stays with the bottle there first', () {
+    // Reported: logging a pump "overwrote" a bottle. The pumped bottle's
+    // milk was older (it carries its pump time), and a shared letter used to
+    // go to the older milk — so the bottle already there was pushed out.
+    final there = FridgeBottle(
+      id: 'there',
+      filledAt: base.add(const Duration(hours: 5)),
+      amountMl: 90,
+      slot: FridgeSlot.a,
+      slottedAt: base.add(const Duration(hours: 5)),
+    );
+    final pumped = FridgeBottle(
+      id: 'pumped',
+      filledAt: base.add(const Duration(hours: 1)),
+      amountMl: 120,
+      slot: FridgeSlot.a,
+      slottedAt: base.add(const Duration(hours: 6)),
+    );
+    final layout = layoutShelf([pumped, there]);
+    expect(layout.labelled[FridgeSlot.a]!.id, 'there');
+    expect(ids(layout.other), ['pumped']);
+    expect(layout.toSave, {'pumped': FridgeSlot.other});
+  });
+
+  test('a bottle placed before this was recorded counts as there first', () {
+    final legacy = bottle('legacy', hour: 5, slot: FridgeSlot.b);
+    final newer = FridgeBottle(
+      id: 'newer',
+      filledAt: base,
+      amountMl: 60,
+      slot: FridgeSlot.b,
+      slottedAt: base.add(const Duration(hours: 9)),
+    );
+    expect(layoutShelf([newer, legacy]).labelled[FridgeSlot.b]!.id, 'legacy');
+  });
+
+  test('when a bottle took its slot is stored with it', () {
+    final at = DateTime(2026, 10, 2, 9, 30);
+    final map = FridgeBottle(
+      id: 'x',
+      filledAt: base,
+      amountMl: 60,
+      slot: FridgeSlot.c,
+      slottedAt: at,
+    ).toMap();
+    expect(map['slot'], 'c');
+    expect(map.containsKey('slottedAt'), isTrue);
+    expect(bottle('y', hour: 1).toMap().containsKey('slottedAt'), isFalse);
+  });
 }

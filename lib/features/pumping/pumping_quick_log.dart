@@ -56,6 +56,11 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
   double? _storedMl;
   bool _amountEdited = false;
 
+  /// Where the bottle goes, if this session goes in the fridge. Other unless
+  /// an empty letter is picked: a pumped bottle never takes a letter another
+  /// bottle is in.
+  FridgeSlot _slot = FridgeSlot.other;
+
   @override
   void initState() {
     super.initState();
@@ -111,6 +116,13 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
         : null;
     final fridge = ref.read(fridgeRepositoryProvider);
     final messenger = ScaffoldMessenger.of(context);
+    // Checked again now rather than trusted from when it was picked: another
+    // caregiver may have filled that letter while this sheet was open. Then
+    // it goes to Other, and the bottle already there stays.
+    final layout = ref.read(fridgeLayoutProvider);
+    final slot = _slot.isLabelled && layout.labelled.containsKey(_slot)
+        ? FridgeSlot.other
+        : _slot;
 
     _saving = true;
     saveAndClose(context, () {
@@ -123,7 +135,9 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
       // saved.
       if (bottle != null && fridge != null) {
         unawaited(
-          Future.sync(() => fridge.add(bottle)).catchError((Object e) {
+          Future.sync(
+            () => fridge.addTo(bottle, slot, layout: layout),
+          ).catchError((Object e) {
             messenger.showSnackBar(
               SnackBar(
                 content: Text(
@@ -132,7 +146,6 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
                 ),
               ),
             );
-            return '';
           }),
         );
       }
@@ -191,8 +204,14 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
           onChanged: (_) => setState(() => _amountEdited = true),
         ),
         // Under the amount, because the amount is what goes in the bottle.
-        if (!isEdit && ref.watch(showFridgeProvider))
+        if (!isEdit && ref.watch(showFridgeProvider)) ...[
           _FridgeToggle(amountMl: _amountMl()),
+          if (ref.watch(pumpToFridgeProvider))
+            _PumpSlotPicker(
+              slot: _slot,
+              onChanged: (s) => setState(() => _slot = s),
+            ),
+        ],
         const SizedBox(height: 12),
         TextField(
           controller: _duration,
@@ -254,6 +273,68 @@ class _FridgeToggle extends ConsumerWidget {
       }),
       value: on,
       onChanged: (v) => ref.read(pumpToFridgeProvider.notifier).set(v),
+    );
+  }
+}
+
+/// Which slot the pumped bottle goes in: Other, or a letter that is empty.
+///
+/// A taken letter cannot be picked — that is what put a pumped bottle on top
+/// of one already in the fridge. Until the fridge has loaded, every letter is
+/// unknown, so only Other is offered.
+class _PumpSlotPicker extends ConsumerWidget {
+  const _PumpSlotPicker({required this.slot, required this.onChanged});
+
+  final FridgeSlot slot;
+  final ValueChanged<FridgeSlot> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final loaded = ref.watch(fridgeBottlesProvider).hasValue;
+    final layout = ref.watch(fridgeLayoutProvider);
+    bool free(FridgeSlot s) =>
+        !s.isLabelled || (loaded && !layout.labelled.containsKey(s));
+
+    // A letter picked earlier that has since been filled falls back to Other
+    // on screen as well as when saving.
+    final shown = free(slot) ? slot : FridgeSlot.other;
+    final empty = [
+      for (final s in FridgeSlot.labelled)
+        if (free(s)) s.label,
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SegmentedButton<FridgeSlot>(
+            segments: [
+              for (final s in FridgeSlot.values)
+                ButtonSegment(
+                  value: s,
+                  enabled: free(s),
+                  label: Text(s.label, maxLines: 1, softWrap: false),
+                ),
+            ],
+            selected: {shown},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => onChanged(s.first),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            !loaded
+                ? 'Goes under Other.'
+                : empty.isEmpty
+                ? 'A, B and C are full, so it goes under Other.'
+                : 'Empty: ${empty.join(', ')}. Taken letters cannot be picked.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
