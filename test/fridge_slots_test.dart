@@ -111,4 +111,26 @@ void main() {
     expect(FridgeSlot.fromName(null), isNull);
     expect(FridgeSlot.fromName('z'), isNull);
   });
+
+  test('two filled at the same moment come out the same on every device', () {
+    // Both halves of a split share a time. Whichever order a device
+    // happened to receive them in, Other lists them the same way.
+    final first = bottle('a-half', hour: 2, slot: FridgeSlot.other);
+    final second = bottle('b-half', hour: 2, slot: FridgeSlot.other);
+    expect(ids(layoutShelf([first, second]).other), ['a-half', 'b-half']);
+    expect(ids(layoutShelf([second, first]).other), ['a-half', 'b-half']);
+  });
+
+  test('and a shared slot goes to the same one of them everywhere', () {
+    final x = bottle('x', hour: 2, slot: FridgeSlot.a);
+    final y = bottle('y', hour: 2, slot: FridgeSlot.a);
+    for (final order in [
+      [x, y],
+      [y, x],
+    ]) {
+      final layout = layoutShelf(order);
+      expect(layout.labelled[FridgeSlot.a]!.id, 'x');
+      expect(layout.toSave, {'y': FridgeSlot.other});
+    }
+  });
 }

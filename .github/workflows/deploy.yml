@@ -44,8 +44,13 @@ jobs:
       - name: Run tests
         run: flutter test
 
+      # Stamped with the commit and time, which Settings shows, so two
+      # devices can be checked for running the same build.
       - name: Build web (release)
-        run: flutter build web --release
+        run: >-
+          flutter build web --release
+          --dart-define=APP_BUILD=${GITHUB_SHA::7}
+          "--dart-define=APP_BUILT_AT=$(date -u '+%Y-%m-%d %H:%M UTC')"
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0

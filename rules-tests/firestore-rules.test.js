@@ -15,6 +15,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 
 // Access control lives entirely in firestore.rules, so a regression here
@@ -984,5 +985,68 @@ describe("removing your own allowlist entry", () => {
       setDoc(doc(asAlice(), "allowedUsers", "newcomer@example.com"), {}),
     );
     await assertFails(setDoc(doc(asAlice(), "allowedUsers", ALICE_EMAIL), {}));
+  });
+});
+
+// The writes the fridge makes to keep every device's slots the same:
+// placing a bottle that has none, a drag that swaps two, and saving from a
+// bottle's sheet. Made by Bob, a caregiver who did not add the bottles —
+// a slot move is as often one parent's as the other's.
+describe("fridge slots, between caregivers", () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(babyDoc(db), {
+        name: "Ada",
+        ownerUid: "alice",
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+      });
+      const bottles = (id) => doc(db, "babies", BABY, "bottles", id);
+      await setDoc(bottles("x"), bottle({ slot: "a" }));
+      await setDoc(bottles("y"), bottle({ slot: "c" }));
+      // Saved by an app from before slots.
+      await setDoc(bottles("legacy"), bottle());
+    });
+  });
+
+  const bottleRef = (db, id) => doc(db, "babies", BABY, "bottles", id);
+  const moved = (slot) => ({ slot, ...edited("bob") });
+
+  it("places a bottle saved without a slot", async () => {
+    const db = asBob();
+    const batch = writeBatch(db);
+    batch.update(bottleRef(db, "legacy"), moved("b"));
+    await assertSucceeds(batch.commit());
+  });
+
+  it("swaps two bottles in one batch, as a drag does", async () => {
+    const db = asBob();
+    const batch = writeBatch(db);
+    batch.update(bottleRef(db, "x"), moved("c"));
+    batch.update(bottleRef(db, "y"), moved("a"));
+    await assertSucceeds(batch.commit());
+  });
+
+  it("saves a bottle's sheet with its new slot", async () => {
+    const db = asBob();
+    await assertSucceeds(
+      updateDoc(bottleRef(db, "y"), {
+        filledAt: AT,
+        amountMl: 80,
+        kind: "formula",
+        position: null,
+        notes: null,
+        slot: "b",
+        ...edited("bob"),
+      }),
+    );
+  });
+
+  it("still refuses a slot move that does not own up to who made it", async () => {
+    const db = asBob();
+    await assertFails(
+      updateDoc(bottleRef(db, "x"), { slot: "b", ...edited("alice") }),
+    );
   });
 });
