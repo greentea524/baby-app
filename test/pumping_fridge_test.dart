@@ -24,6 +24,7 @@ void main() {
 
   Future<void> openSheet(
     WidgetTester tester, {
+    bool switchOn = false,
     bool? remembered,
     bool? fridgeShown,
     PumpingEvent? existing,
@@ -67,6 +68,12 @@ void main() {
     );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
+    if (switchOn) {
+      await tester.tap(
+        find.widgetWithText(SwitchListTile, 'Add to the fridge'),
+      );
+      await tester.pumpAndSettle();
+    }
   }
 
   Finder amountField() => find.byType(TextField).first;
@@ -110,19 +117,32 @@ void main() {
     expect(bottle.filledAt, session.time);
   });
 
-  testWidgets('and stays on for the next session', (tester) async {
-    // A habit, not a per-session choice.
-    await openSheet(tester);
-    await tester.tap(toggle());
-    await tester.pumpAndSettle();
-    expect(stored.getBool('pump_to_fridge'), isTrue);
-
-    await openSheet(tester, remembered: true);
+  testWidgets('and is off again the next time', (tester) async {
+    // A choice for this session, not remembered: most pumped milk is fed
+    // fresh, so each session starts from not bottling it.
+    await openSheet(tester, switchOn: true);
     expect(isOn(tester), isTrue);
+
+    // Gone, sheet and all, before it is opened afresh.
+    await tester.pumpWidget(const SizedBox());
+    await openSheet(tester);
+    expect(isOn(tester), isFalse);
+  });
+
+  testWidgets('even where it was left on before it was per session', (
+    tester,
+  ) async {
+    // Devices that remembered it switched on start off too.
+    await openSheet(tester, remembered: true);
+    expect(isOn(tester), isFalse);
+
+    await tester.enterText(amountField(), '110');
+    await save(tester);
+    expect(fridge.added, isEmpty);
   });
 
   testWidgets('but adds no bottle without an amount', (tester) async {
-    await openSheet(tester, remembered: true);
+    await openSheet(tester, switchOn: true);
     expect(find.text('Once there is an amount'), findsOneWidget);
 
     await save(tester);
@@ -134,9 +154,7 @@ void main() {
   testWidgets('and is gone, and adds nothing, with the fridge hidden', (
     tester,
   ) async {
-    // Left on from before the fridge was switched off: the switch it was
-    // set with is out of sight, so it must not go on working unseen.
-    await openSheet(tester, remembered: true, fridgeShown: false);
+    await openSheet(tester, fridgeShown: false);
     expect(toggle(), findsNothing);
 
     await tester.enterText(amountField(), '110');
@@ -150,7 +168,6 @@ void main() {
     // Editing a session is not pumping it again.
     await openSheet(
       tester,
-      remembered: true,
       existing: PumpingEvent(
         id: 'p1',
         time: DateTime.now().subtract(const Duration(hours: 1)),
@@ -188,7 +205,7 @@ void main() {
       // Reported: adding a pump to the fridge overwrote a bottle.
       await openSheet(
         tester,
-        remembered: true,
+        switchOn: true,
         shelf: [inSlot('a', FridgeSlot.a)],
       );
       final picker = tester.widget<SegmentedButton<FridgeSlot>>(
@@ -208,7 +225,7 @@ void main() {
     testWidgets('a taken letter cannot be picked', (tester) async {
       await openSheet(
         tester,
-        remembered: true,
+        switchOn: true,
         shelf: [inSlot('a', FridgeSlot.a), inSlot('c', FridgeSlot.c)],
       );
       expect(enabled(tester), {FridgeSlot.b, FridgeSlot.other});
@@ -217,7 +234,7 @@ void main() {
     testWidgets('an empty one can', (tester) async {
       await openSheet(
         tester,
-        remembered: true,
+        switchOn: true,
         shelf: [inSlot('a', FridgeSlot.a)],
       );
       await tester.tap(
@@ -235,7 +252,7 @@ void main() {
     testWidgets('and with A, B and C full, it says so', (tester) async {
       await openSheet(
         tester,
-        remembered: true,
+        switchOn: true,
         shelf: [
           inSlot('a', FridgeSlot.a),
           inSlot('b', FridgeSlot.b),

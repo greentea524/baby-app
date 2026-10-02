@@ -62,6 +62,12 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
   /// bottle is in.
   FridgeSlot _slot = FridgeSlot.other;
 
+  /// Whether this session goes in the fridge too. Off every time the sheet
+  /// opens rather than remembered: most pumped milk is fed fresh, and a
+  /// switch left on from last time is easy to save past without noticing,
+  /// putting a bottle on the shelf that never went in the fridge.
+  bool _fridgeOn = false;
+
   @override
   void initState() {
     super.initState();
@@ -152,12 +158,10 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
     }, failure: 'Could not save the pumping session');
   }
 
-  /// Whether this session goes in the fridge too. New sessions only; see
-  /// [pumpToFridgeProvider] for why it is remembered.
+  /// Whether this session goes in the fridge too: new sessions only, and
+  /// only with the fridge shown and the switch turned on for this one.
   bool get _toFridge =>
-      widget.existing == null &&
-      ref.read(showFridgeProvider) &&
-      ref.read(pumpToFridgeProvider);
+      widget.existing == null && ref.read(showFridgeProvider) && _fridgeOn;
 
   /// The amount to store: what was typed, converted, or the stored value
   /// untouched when the field was never edited.
@@ -204,8 +208,12 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
         ),
         // Under the amount, because the amount is what goes in the bottle.
         if (!isEdit && ref.watch(showFridgeProvider)) ...[
-          _FridgeToggle(amountMl: _amountMl()),
-          if (ref.watch(pumpToFridgeProvider))
+          _FridgeToggle(
+            on: _fridgeOn,
+            amountMl: _amountMl(),
+            onChanged: (v) => setState(() => _fridgeOn = v),
+          ),
+          if (_fridgeOn)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: FridgeSlotPicker(
@@ -247,20 +255,24 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
   }
 }
 
-/// "Add to the fridge", remembered from one session to the next.
+/// "Add to the fridge", off until it is turned on for this session.
 ///
-/// Says what it will do with this session rather than only that it is on: a
-/// switch left on from yesterday is easy to forget, and the subtitle is where
-/// it is noticed. With no amount yet it says the bottle is waiting on one,
-/// rather than looking on while the save quietly adds nothing.
+/// Says what it will do with this session rather than only that it is on.
+/// With no amount yet it says the bottle is waiting on one, rather than
+/// looking on while the save quietly adds nothing.
 class _FridgeToggle extends ConsumerWidget {
-  const _FridgeToggle({required this.amountMl});
+  const _FridgeToggle({
+    required this.on,
+    required this.amountMl,
+    required this.onChanged,
+  });
 
+  final bool on;
   final double? amountMl;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final on = ref.watch(pumpToFridgeProvider);
     final units = ref.watch(unitSystemProvider);
     final ml = amountMl;
     return SwitchListTile(
@@ -274,7 +286,7 @@ class _FridgeToggle extends ConsumerWidget {
         (true, _) => 'Once there is an amount',
       }),
       value: on,
-      onChanged: (v) => ref.read(pumpToFridgeProvider.notifier).set(v),
+      onChanged: onChanged,
     );
   }
 }
