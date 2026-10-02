@@ -269,6 +269,56 @@ void main() {
     });
   });
 
+  group('the times on a card', () {
+    testWidgets('are a size up from body text, to read at the fridge', (
+      tester,
+    ) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 3, ml: 90, slot: FridgeSlot.a)],
+      );
+      final context = tester.element(find.text('3 hr ago'));
+      final theme = Theme.of(context).textTheme;
+      double sizeOf(Finder f) => tester.widget<Text>(f).style?.fontSize ?? 0;
+
+      expect(sizeOf(find.text('3 hr ago')), theme.bodyMedium!.fontSize);
+      expect(
+        sizeOf(find.textContaining(':00 AM').first),
+        theme.titleMedium!.fontSize,
+      );
+      // Never cut short with an ellipsis: a time missing its end is a
+      // different time.
+      expect(
+        tester.widget<Text>(find.text('3 hr ago')).overflow,
+        isNot(TextOverflow.ellipsis),
+      );
+    });
+  });
+
+  group('on an ordinary phone', () {
+    testWidgets('the bottle stands above the times, which get the width', (
+      tester,
+    ) async {
+      // Reported: the timestamps were too small to read. Most phones were
+      // getting the sideways card, which squeezes the times into a narrow
+      // column beside the bottle and shrinks them to fit. The bottle now
+      // shrinks instead.
+      await pumpFridge(
+        tester,
+        size: const Size(390, 760),
+        bottles: [
+          bottle('a', hoursAgo: 3, ml: 90, slot: FridgeSlot.a),
+          bottle('b', hoursAgo: 5, ml: 60, slot: FridgeSlot.b),
+        ],
+      );
+      final gauge = tester.getRect(find.byType(BottleGauge).first);
+      final ago = tester.getRect(find.text('3 hr ago'));
+      expect(gauge.bottom, lessThan(ago.top), reason: 'bottle above');
+      // Drawn at its own size, not shrunk: a line of 14pt text is ~20 high.
+      expect(ago.height, greaterThan(16));
+    });
+  });
+
   group('an old bottle', () {
     Color? cardColour(WidgetTester tester, String amount) => tester
         .widget<Card>(
