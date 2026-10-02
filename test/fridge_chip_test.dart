@@ -14,8 +14,8 @@ import 'package:baby_app/data/repositories/fridge_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/feeding/feeding_quick_log.dart';
 
-/// Tapping a fridge chip in the bottle form pours from that bottle: saving
-/// the feed takes it off the shelf.
+/// Tapping a fridge chip in the bottle form fills in its amount, and only
+/// that: no bottle leaves the fridge except from its own card.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -83,129 +83,47 @@ void main() {
   }
 
   Finder chip(String label) => find.widgetWithText(ActionChip, label);
-  Finder amountField() => find.widgetWithText(TextField, 'Amount');
-  Finder notesField() => find.widgetWithText(TextField, 'Notes (optional)');
-  String notes(WidgetTester tester) =>
-      tester.widget<TextField>(notesField()).controller!.text;
 
   Future<void> save(WidgetTester tester) async {
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
   }
 
-  testWidgets('saving takes that bottle out of the fridge', (tester) async {
-    await openBottleForm(
-      tester,
-      shelf: [bottle('b90', 90), bottle('b120', 120, hour: 1)],
-    );
-    await tester.tap(chip('120 ml'));
-    await tester.pumpAndSettle();
-
-    // Said before it happens.
-    expect(
-      find.text('Takes the 120 ml breast milk bottle out of the fridge'),
-      findsOneWidget,
-    );
-
-    await save(tester);
-
-    expect(feeds.added.single.amountMl, 120);
-    expect(fridge.deleted, ['b120']);
-  });
-
-  testWidgets('the next of two bottles holding the same amount', (
+  testWidgets('a fridge chip fills the amount and takes nothing out', (
     tester,
   ) async {
-    // One chip for both; the one it takes is the one on the left, which is
-    // the next to be used.
+    // Reported: feeding 100 ml of fresh milk, the 100 ml chip carried the
+    // fridge icon, and saving took a 100 ml bottle off the shelf that was
+    // still in the fridge. A chip is an amount; a bottle leaves the fridge
+    // from its own card.
     await openBottleForm(
       tester,
-      shelf: [bottle('first', 90), bottle('second', 90, hour: 1)],
+      shelf: [bottle('b90', 90), bottle('b100', 100, hour: 1)],
     );
-    await tester.tap(chip('90 ml'));
+    await tester.tap(chip('100 ml'));
     await tester.pumpAndSettle();
-    await save(tester);
-
-    expect(fridge.deleted, ['first']);
-  });
-
-  testWidgets('even when the amount is corrected after', (tester) async {
-    // Not all of it was drunk: the bottle is still out of the fridge.
-    await openBottleForm(tester, shelf: [bottle('b120', 120)]);
-    await tester.tap(chip('120 ml'));
-    await tester.pumpAndSettle();
-    await tester.enterText(amountField(), '90');
-    await tester.pumpAndSettle();
-    await save(tester);
-
-    expect(feeds.added.single.amountMl, 90);
-    expect(fridge.deleted, ['b120']);
-  });
-
-  testWidgets('but not once another chip is tapped instead', (tester) async {
-    await openBottleForm(
-      tester,
-      shelf: [bottle('b120', 120)],
-      pumps: [
-        PumpingEvent(
-          id: 'p',
-          time: DateTime.now().subtract(const Duration(minutes: 30)),
-          amountMl: 95,
-        ),
-      ],
-    );
-    await tester.tap(chip('120 ml'));
-    await tester.pumpAndSettle();
-    await tester.tap(chip('95 ml'));
-    await tester.pumpAndSettle();
-
     expect(find.textContaining('out of the fridge'), findsNothing);
     await save(tester);
 
-    expect(feeds.added.single.amountMl, 95);
+    expect(feeds.added.single.amountMl, 100);
     expect(fridge.deleted, isEmpty);
   });
 
-  testWidgets('nor once it is told to leave the bottle', (tester) async {
-    await openBottleForm(tester, shelf: [bottle('b120', 120)]);
-    await tester.tap(chip('120 ml'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Leave it in the fridge'));
-    await tester.pumpAndSettle();
-    await save(tester);
-
-    // The amount stays; only the bottle is left alone.
-    expect(feeds.added.single.amountMl, 120);
-    expect(fridge.deleted, isEmpty);
-  });
-
-  testWidgets('and closing the form leaves it on the shelf', (tester) async {
-    await openBottleForm(tester, shelf: [bottle('b120', 120)]);
-    await tester.tap(chip('120 ml'));
-    await tester.pumpAndSettle();
-    await tester.tapAt(const Offset(20, 20));
-    await tester.pumpAndSettle();
-
-    expect(feeds.added, isEmpty);
-    expect(fridge.deleted, isEmpty);
-  });
-
-  testWidgets('and the feed is of whatever the bottle held', (tester) async {
-    // As finishing it from the shelf does. The notes are left alone: the
-    // feed says what it was of in its own field now.
+  testWidgets('nor changes what milk the feed is of', (tester) async {
+    // A formula bottle of the same amount says nothing about this feed.
     await openBottleForm(
       tester,
       shelf: [bottle('tin', 150, kind: MilkKind.formula)],
     );
     await tester.tap(chip('150 ml'));
     await tester.pumpAndSettle();
-    expect(notes(tester), isEmpty);
     await save(tester);
 
-    expect(feeds.added.single.milk, MilkKind.formula);
+    expect(feeds.added.single.milk, MilkKind.expressed);
+    expect(fridge.deleted, isEmpty);
   });
 
-  testWidgets('editing a feed already logged takes nothing out', (
+  testWidgets('and editing a feed with one takes nothing out either', (
     tester,
   ) async {
     await openBottleForm(
@@ -220,8 +138,6 @@ void main() {
     );
     await tester.tap(chip('120 ml'));
     await tester.pumpAndSettle();
-
-    expect(find.textContaining('out of the fridge'), findsNothing);
     await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
     await tester.pumpAndSettle();
 
