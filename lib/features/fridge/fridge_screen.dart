@@ -667,8 +667,8 @@ class _BottleCard extends StatelessWidget {
               // Everything but the bottle is text, and grows with the text
               // size: the header, the amount, the two time lines, the note,
               // the button and the gaps between them.
-              // The drink-by line is the last 22 of them.
-              final textHeight = 50 + (152 + 50) * scale;
+              // The drink-by label and date are the last 48 of them.
+              final textHeight = 50 + (152 + 76) * scale;
               final fullBottle = c.maxWidth / BottleGauge.aspectRatio;
               final bottleRoom = c.maxHeight - textHeight;
               final tall = bottleRoom >= _minBottleHeight;
@@ -837,12 +837,17 @@ class _AgeLine extends StatelessWidget {
 /// its side instead. Below this a bottle's level is hard to judge by eye.
 const double _minBottleHeight = 110;
 
-/// "Drink by Oct 5, 5:06 AM" — [drinkWithinDays] after the bottle was
-/// filled — or, once that has passed, "Past drink-by: Oct 5, 5:06 AM" in
-/// the error colour with a warning icon, so it is said in words and shape
-/// and not by colour alone.
-class _DrinkByLine extends StatelessWidget {
-  const _DrinkByLine({required this.bottle, required this.now});
+/// "Drink by" over "Oct 5, 5:06 AM" — [drinkWithinDays] after the bottle
+/// was filled — or, once that has passed, "Past drink-by" in the error
+/// colour with a warning icon, so it is said in words and shape and not by
+/// colour alone.
+///
+/// Two lines, so the date can be the same size as the time it was pumped:
+/// on one line "Drink by tomorrow, 4:00 PM" was the longest line on the
+/// card and was shrunk smallest to fit, when it is the one most worth
+/// reading at a glance.
+class _DrinkBy extends StatelessWidget {
+  const _DrinkBy({required this.bottle, required this.now});
 
   final FridgeBottle bottle;
   final DateTime now;
@@ -857,24 +862,44 @@ class _DrinkByLine extends StatelessWidget {
     final colour = past
         ? theme.colorScheme.error
         : theme.colorScheme.onSurfaceVariant;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          past ? Icons.error_outline : Icons.event_outlined,
-          size: 16,
-          color: colour,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          past ? 'Past drink-by: $when' : 'Drink by $when',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: past ? colour : theme.colorScheme.onSurface,
-            fontWeight: past ? FontWeight.w700 : FontWeight.w500,
+    return MergeSemantics(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FitLine(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  past ? Icons.error_outline : Icons.event_outlined,
+                  size: 16,
+                  color: colour,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  past ? 'Past drink-by' : 'Drink by',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colour,
+                    fontWeight: past ? FontWeight.w700 : null,
+                  ),
+                  maxLines: 1,
+                ),
+              ],
+            ),
           ),
-          maxLines: 1,
-        ),
-      ],
+          _FitLine(
+            child: Text(
+              when,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: past ? colour : null,
+                fontWeight: past ? FontWeight.w700 : null,
+              ),
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -965,10 +990,8 @@ class _Facts extends StatelessWidget {
         _FitLine(
           child: _AgeLine(bottle: bottle, now: now),
         ),
-        const SizedBox(height: 2),
-        _FitLine(
-          child: _DrinkByLine(bottle: bottle, now: now),
-        ),
+        const SizedBox(height: 4),
+        _DrinkBy(bottle: bottle, now: now),
         // The line is kept whether or not there is a note to put on it, so
         // every card is the same height and every bottle stands at the same
         // level. Without it, a card with a note grew a line and pushed its

@@ -195,7 +195,7 @@ bool isPastDrinkBy(DateTime filledAt, DateTime now) =>
     !now.isBefore(drinkBy(filledAt));
 
 /// The day part of a drink-by time, said the way it is read at a fridge:
-/// "today" or "tomorrow" when it is that close, otherwise "Oct 5". [clock]
+/// "Today" or "Tomorrow" when it is that close, otherwise "Oct 5". [clock]
 /// is the time, formatted by the caller for the device's 12- or 24-hour
 /// setting.
 String drinkByText(DateTime deadline, DateTime now, String clock) {
@@ -203,8 +203,8 @@ String drinkByText(DateTime deadline, DateTime now, String clock) {
   final day = DateTime(deadline.year, deadline.month, deadline.day);
   final days = day.difference(today).inDays;
   final when = switch (days) {
-    0 => 'today',
-    1 => 'tomorrow',
+    0 => 'Today',
+    1 => 'Tomorrow',
     _ => TimelineFormat.shortDate(deadline),
   };
   return '$when, $clock';

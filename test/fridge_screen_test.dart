@@ -143,8 +143,18 @@ void main() {
     ) async {
       // Filled Sep 25 at 11:00 AM (the clock here is Sep 25, 2 PM).
       await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 3, ml: 90)]);
-      expect(find.text('Drink by Sep 29, 11:00 AM'), findsOneWidget);
+      expect(find.text('Drink by'), findsOneWidget);
+      expect(find.text('Sep 29, 11:00 AM'), findsOneWidget);
       expect(find.byIcon(Icons.event_outlined), findsOneWidget);
+      // In the same type as the time it was pumped, which it is read beside.
+      final pumped = tester.widget<Text>(find.text('11:00 AM')).style;
+      final date = tester.widget<Text>(find.text('Sep 29, 11:00 AM')).style;
+      expect(date?.fontSize, pumped?.fontSize);
+      // And read out as one thing.
+      expect(
+        tester.getSemantics(find.text('Drink by')).label,
+        contains('Sep 29, 11:00 AM'),
+      );
     });
 
     testWidgets('saying today or tomorrow when it is that close', (
@@ -158,8 +168,8 @@ void main() {
         ],
         size: const Size(1200, 900),
       );
-      expect(find.text('Drink by tomorrow, 2:00 PM'), findsOneWidget);
-      expect(find.text('Drink by today, 3:00 PM'), findsOneWidget);
+      expect(find.text('Tomorrow, 2:00 PM'), findsOneWidget);
+      expect(find.text('Today, 3:00 PM'), findsOneWidget);
     });
 
     testWidgets('and past it, says so in words and red', (tester) async {
@@ -167,13 +177,13 @@ void main() {
         tester,
         bottles: [bottle('a', hoursAgo: 140, ml: 90)], // Sep 19, 6 PM
       );
-      final line = find.text('Past drink-by: Sep 23, 6:00 PM');
-      expect(line, findsOneWidget);
-      final context = tester.element(line);
-      expect(
-        tester.widget<Text>(line).style?.color,
-        Theme.of(context).colorScheme.error,
-      );
+      final label = find.text('Past drink-by');
+      final date = find.text('Sep 23, 6:00 PM');
+      expect(label, findsOneWidget);
+      expect(date, findsOneWidget);
+      final error = Theme.of(tester.element(date)).colorScheme.error;
+      expect(tester.widget<Text>(label).style?.color, error);
+      expect(tester.widget<Text>(date).style?.color, error);
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       // And counted at the top, ahead of the 3+ days count it replaces.
       expect(find.text('1 is past drink-by'), findsOneWidget);

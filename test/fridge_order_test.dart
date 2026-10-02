@@ -327,11 +327,11 @@ void main() {
       final now = DateTime(2026, 10, 3, 9);
       expect(
         drinkByText(DateTime(2026, 10, 3, 20), now, '8 PM'),
-        'today, 8 PM',
+        'Today, 8 PM',
       );
       expect(
         drinkByText(DateTime(2026, 10, 4, 6), now, '6 AM'),
-        'tomorrow, 6 AM',
+        'Tomorrow, 6 AM',
       );
       expect(drinkByText(DateTime(2026, 10, 5, 6), now, '6 AM'), 'Oct 5, 6 AM');
     });
