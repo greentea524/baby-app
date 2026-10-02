@@ -12,8 +12,6 @@ import '../common/event_time_row.dart';
 import '../common/milk_chooser.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
-import '../../core/format/unit_system.dart';
-import '../../core/format/volume_format.dart';
 import 'amount_suggestion_chips.dart';
 import 'amount_suggestions.dart';
 import 'feeding_format.dart';
@@ -382,15 +380,6 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
   double? _storedMl;
   bool _amountEdited = false;
 
-  /// The fridge bottle this feed is being poured from, picked by tapping its
-  /// chip. Saving the feed takes it off the shelf.
-  ///
-  /// Kept through typing in the amount: a bottle not all drunk is still out
-  /// of the fridge, and correcting the amount is how that is recorded.
-  /// Dropped by tapping another chip, which says the milk came from
-  /// somewhere else, or by the line's own close button.
-  FridgeBottle? _fromFridge;
-
   /// What was in the bottle, once it is settled: picked by hand or by a
   /// chip, or the feed being edited's own. Until then, [_milkOrDefault]
   /// supplies the starting value.
@@ -475,7 +464,14 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
   /// for it. In fluid ounces a 120 ml chip is labelled "4.1", and reading
   /// that back would save 121.3 — see [resolveAmountMl].
   ///
-  /// A fridge chip also picks the bottle it stands for — see [_fromFridge].
+  /// Only the amount. A fridge chip used to take that bottle out of the
+  /// fridge as well, and switch the milk to its kind — but the same amount
+  /// is often fresh milk or another bottle, and a feed of fresh milk then
+  /// took a bottle off the shelf that was still in it. A bottle comes out
+  /// of the fridge from its own card, with Finished, and nowhere else.
+  ///
+  /// A pump chip still says breast milk: whatever the bottle, milk from the
+  /// pump is that.
   void _useSuggestion(AmountSuggestion suggestion) {
     final millilitres = suggestion.millilitres;
     setState(() {
@@ -483,60 +479,10 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
       _storedMl = millilitres;
       _amountEdited = false;
       _amountError = null;
-      _fromFridge = suggestion.source == AmountSource.fridge
-          ? _bottleFor(millilitres)
-          : null;
-      // A chip that says where the milk is also says what it is: a fridge
-      // bottle knows its kind, and a pump session is breast milk.
-      switch (suggestion.source) {
-        case AmountSource.fridge:
-          if (_fromFridge case final bottle?) _settleMilk(bottle.kind);
-        case AmountSource.pump:
-          _settleMilk(MilkKind.expressed);
-        case AmountSource.bottle:
-          break;
+      if (suggestion.source == AmountSource.pump) {
+        _settleMilk(MilkKind.expressed);
       }
     });
-  }
-
-  /// The bottle a fridge chip stands for: the first on the shelf holding
-  /// exactly that amount, which is the next of them to be used — the shelf
-  /// is arranged that way. The chip was offered at that bottle's amount, so
-  /// one of them matches unless it has left the shelf in the meantime.
-  ///
-  /// None when editing a feed already logged, which is not pouring a bottle
-  /// now, or when logging a bottle already out of the fridge, whose own
-  /// bottle leaves the shelf when this is saved.
-  FridgeBottle? _bottleFor(double millilitres) {
-    if (widget.existing != null || widget.draft != null) return null;
-    for (final b in ref.read(fridgeShelfProvider)) {
-      if (b.amountMl == millilitres) return b;
-    }
-    return null;
-  }
-
-  /// Takes the picked bottle off the shelf, alongside the feed's own write.
-  ///
-  /// Called while the sheet is still open, so the messenger is looked up
-  /// now, from a context that still has one; a failure turns up on whatever
-  /// is underneath, once the sheet has gone.
-  void _takeOutOfFridge() {
-    final bottle = _fromFridge;
-    final repo = ref.read(fridgeRepositoryProvider);
-    if (bottle == null || repo == null) return;
-    final messenger = ScaffoldMessenger.of(context);
-    unawaited(
-      Future.sync(() => repo.delete(bottle.id)).catchError((Object e) {
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(
-              'The feed is logged, but the bottle could not be taken off '
-              'the shelf: $e',
-            ),
-          ),
-        );
-      }),
-    );
   }
 
   FeedingEvent? _build() {
@@ -610,11 +556,6 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
           },
         ),
         AmountSuggestionChips(unit: _unit, onPick: _useSuggestion),
-        if (_fromFridge case final bottle?)
-          _FromFridge(
-            bottle: bottle,
-            onLeave: () => setState(() => _fromFridge = null),
-          ),
         const SizedBox(height: 12),
         EventTimeRow(time: _time, onChanged: (t) => setState(() => _time = t)),
         const SizedBox(height: 12),
@@ -634,56 +575,9 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
           isEdit: widget.existing != null,
           build: _build,
           enabled: !isFutureLogTime(_time),
-          onSaved:
-              widget.draft?.onSaved ??
-              (_fromFridge == null ? null : _takeOutOfFridge),
+          onSaved: widget.draft?.onSaved,
         ),
       ],
-    );
-  }
-}
-
-/// "Takes the 120 ml breast milk bottle out of the fridge", under the chips.
-///
-/// A chip that also removes something should say so before it happens, and
-/// offer a way out that is not "tap a different amount".
-class _FromFridge extends ConsumerWidget {
-  const _FromFridge({required this.bottle, required this.onLeave});
-
-  final FridgeBottle bottle;
-  final VoidCallback onLeave;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final units = ref.watch(unitSystemProvider);
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          Icon(
-            Icons.kitchen_outlined,
-            size: 18,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Takes the ${formatVolume(bottle.amountMl, units)} '
-              '${bottle.kind.label.toLowerCase()} bottle out of the fridge',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: onLeave,
-            tooltip: 'Leave it in the fridge',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.close, size: 18),
-          ),
-        ],
-      ),
     );
   }
 }
