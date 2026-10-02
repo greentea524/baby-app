@@ -306,4 +306,34 @@ void main() {
       expect(ago(const Duration(seconds: 30)), 'just now');
     });
   });
+
+  group('drink by', () {
+    test('four calendar days on, at the same time', () {
+      expect(drinkBy(DateTime(2026, 10, 1, 5, 6)), DateTime(2026, 10, 5, 5, 6));
+      // Across a month end.
+      expect(
+        drinkBy(DateTime(2026, 9, 29, 22, 0)),
+        DateTime(2026, 10, 3, 22, 0),
+      );
+    });
+
+    test('past it from that moment on', () {
+      final filled = DateTime(2026, 10, 1, 5, 6);
+      expect(isPastDrinkBy(filled, DateTime(2026, 10, 5, 5, 5)), isFalse);
+      expect(isPastDrinkBy(filled, DateTime(2026, 10, 5, 5, 6)), isTrue);
+    });
+
+    test('says today and tomorrow, otherwise the date', () {
+      final now = DateTime(2026, 10, 3, 9);
+      expect(
+        drinkByText(DateTime(2026, 10, 3, 20), now, '8 PM'),
+        'today, 8 PM',
+      );
+      expect(
+        drinkByText(DateTime(2026, 10, 4, 6), now, '6 AM'),
+        'tomorrow, 6 AM',
+      );
+      expect(drinkByText(DateTime(2026, 10, 5, 6), now, '6 AM'), 'Oct 5, 6 AM');
+    });
+  });
 }

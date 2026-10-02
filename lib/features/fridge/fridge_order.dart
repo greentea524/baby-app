@@ -9,6 +9,7 @@ library;
 import '../../data/models/feeding_event.dart';
 import '../../data/models/fridge_bottle.dart';
 import '../../data/models/pumping_event.dart';
+import '../timeline/timeline_format.dart';
 
 /// Whether the shelf has been arranged by hand.
 ///
@@ -170,4 +171,41 @@ String hoursAgo(DateTime filledAt, DateTime now) {
   final h = diff.inHours;
   final m = diff.inMinutes.remainder(60);
   return m == 0 ? '$h hr ago' : '$h hr $m min ago';
+}
+
+/// How long a bottle may stand in the fridge before it should be drunk.
+///
+/// The household's rule rather than a medical one: four days from when it
+/// was filled. The same for every kind, as the yellow and red are.
+const int drinkWithinDays = 4;
+
+/// When [filledAt]'s bottle should be drunk by: the same clock time,
+/// [drinkWithinDays] calendar days on. Calendar days rather than 96 hours,
+/// so a clock change in between does not move it by an hour.
+DateTime drinkBy(DateTime filledAt) => DateTime(
+  filledAt.year,
+  filledAt.month,
+  filledAt.day + drinkWithinDays,
+  filledAt.hour,
+  filledAt.minute,
+);
+
+/// Whether [filledAt]'s bottle is past its drink-by time at [now].
+bool isPastDrinkBy(DateTime filledAt, DateTime now) =>
+    !now.isBefore(drinkBy(filledAt));
+
+/// The day part of a drink-by time, said the way it is read at a fridge:
+/// "today" or "tomorrow" when it is that close, otherwise "Oct 5". [clock]
+/// is the time, formatted by the caller for the device's 12- or 24-hour
+/// setting.
+String drinkByText(DateTime deadline, DateTime now, String clock) {
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(deadline.year, deadline.month, deadline.day);
+  final days = day.difference(today).inDays;
+  final when = switch (days) {
+    0 => 'today',
+    1 => 'tomorrow',
+    _ => TimelineFormat.shortDate(deadline),
+  };
+  return '$when, $clock';
 }

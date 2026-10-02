@@ -133,7 +133,50 @@ void main() {
       await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 3, ml: 90)]);
 
       expect(find.text('3 hr ago'), findsOneWidget);
-      expect(find.textContaining('11:00'), findsOneWidget);
+      // The pumped time on its own line; the drink-by line carries the same
+      // clock time four days on.
+      expect(find.text('11:00 AM'), findsOneWidget);
+    });
+
+    testWidgets('and when to drink it by: four days after it was filled', (
+      tester,
+    ) async {
+      // Filled Sep 25 at 11:00 AM (the clock here is Sep 25, 2 PM).
+      await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 3, ml: 90)]);
+      expect(find.text('Drink by Sep 29, 11:00 AM'), findsOneWidget);
+      expect(find.byIcon(Icons.event_outlined), findsOneWidget);
+    });
+
+    testWidgets('saying today or tomorrow when it is that close', (
+      tester,
+    ) async {
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('t', hoursAgo: 72, ml: 90), // Sep 22, 2 PM: by Sep 26
+          bottle('d', hoursAgo: 95, ml: 60), // Sep 21, 3 PM: by Sep 25, 3 PM
+        ],
+        size: const Size(1200, 900),
+      );
+      expect(find.text('Drink by tomorrow, 2:00 PM'), findsOneWidget);
+      expect(find.text('Drink by today, 3:00 PM'), findsOneWidget);
+    });
+
+    testWidgets('and past it, says so in words and red', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [bottle('a', hoursAgo: 140, ml: 90)], // Sep 19, 6 PM
+      );
+      final line = find.text('Past drink-by: Sep 23, 6:00 PM');
+      expect(line, findsOneWidget);
+      final context = tester.element(line);
+      expect(
+        tester.widget<Text>(line).style?.color,
+        Theme.of(context).colorScheme.error,
+      );
+      expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      // And counted at the top, ahead of the 3+ days count it replaces.
+      expect(find.text('1 is past drink-by'), findsOneWidget);
     });
 
     testWidgets('and a note when one was left', (tester) async {
