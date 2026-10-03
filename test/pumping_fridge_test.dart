@@ -11,7 +11,6 @@ import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/fridge_repository.dart';
 import 'package:baby_app/data/repositories/pumping_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
-import 'package:baby_app/features/fridge/fridge_slots.dart';
 import 'package:baby_app/features/pumping/pumping_quick_log.dart';
 
 /// Logging a pump session straight into the fridge as a bottle.
@@ -183,93 +182,16 @@ void main() {
     expect(fridge.added, isEmpty);
   });
 
-  group('where the bottle goes', () {
-    FridgeBottle inSlot(String id, FridgeSlot slot) => FridgeBottle(
-      id: id,
-      filledAt: DateTime.now().subtract(const Duration(hours: 5)),
-      amountMl: 90,
-      slot: slot,
-    );
+  testWidgets('and asks for no slot: the bottle stands by its age', (
+    tester,
+  ) async {
+    await openSheet(tester, switchOn: true);
+    expect(find.textContaining('Slot'), findsNothing);
+    expect(find.textContaining('Other'), findsNothing);
 
-    Set<FridgeSlot> enabled(WidgetTester tester) => {
-      for (final seg
-          in tester
-              .widget<SegmentedButton<FridgeSlot>>(
-                find.byType(SegmentedButton<FridgeSlot>),
-              )
-              .segments)
-        if (seg.enabled) seg.value,
-    };
-
-    testWidgets('Other, unless an empty letter is picked', (tester) async {
-      // Reported: adding a pump to the fridge overwrote a bottle.
-      await openSheet(
-        tester,
-        switchOn: true,
-        shelf: [inSlot('a', FridgeSlot.a)],
-      );
-      final picker = tester.widget<SegmentedButton<FridgeSlot>>(
-        find.byType(SegmentedButton<FridgeSlot>),
-      );
-      expect(picker.selected, {FridgeSlot.other});
-      expect(
-        find.text('Empty: B, C. Taken letters cannot be picked.'),
-        findsOne,
-      );
-
-      await tester.enterText(amountField(), '110');
-      await save(tester);
-      expect(fridge.slots.single, FridgeSlot.other);
-    });
-
-    testWidgets('a taken letter cannot be picked', (tester) async {
-      await openSheet(
-        tester,
-        switchOn: true,
-        shelf: [inSlot('a', FridgeSlot.a), inSlot('c', FridgeSlot.c)],
-      );
-      expect(enabled(tester), {FridgeSlot.b, FridgeSlot.other});
-    });
-
-    testWidgets('an empty one can', (tester) async {
-      await openSheet(
-        tester,
-        switchOn: true,
-        shelf: [inSlot('a', FridgeSlot.a)],
-      );
-      await tester.tap(
-        find.descendant(
-          of: find.byType(SegmentedButton<FridgeSlot>),
-          matching: find.text('B'),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.enterText(amountField(), '110');
-      await save(tester);
-      expect(fridge.slots.single, FridgeSlot.b);
-    });
-
-    testWidgets('and with A, B and C full, it says so', (tester) async {
-      await openSheet(
-        tester,
-        switchOn: true,
-        shelf: [
-          inSlot('a', FridgeSlot.a),
-          inSlot('b', FridgeSlot.b),
-          inSlot('c', FridgeSlot.c),
-        ],
-      );
-      expect(enabled(tester), {FridgeSlot.other});
-      expect(
-        find.text('A, B and C are full, so it goes under Other.'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('no picker while the switch is off', (tester) async {
-      await openSheet(tester);
-      expect(find.byType(SegmentedButton<FridgeSlot>), findsNothing);
-    });
+    await tester.enterText(amountField(), '110');
+    await save(tester);
+    expect(fridge.added.single.amountMl, 110);
   });
 }
 
@@ -293,22 +215,11 @@ class _RecordingFridge extends FridgeRepository {
   _RecordingFridge() : super(_NoFirestore(), 'baby1', 'alice');
 
   final added = <FridgeBottle>[];
-  final slots = <FridgeSlot>[];
 
   @override
   Future<String> add(FridgeBottle event) async {
     added.add(event);
     return 'b1';
-  }
-
-  @override
-  Future<void> addTo(
-    FridgeBottle bottle,
-    FridgeSlot slot, {
-    required ShelfLayout layout,
-  }) async {
-    added.add(bottle);
-    slots.add(slot);
   }
 }
 

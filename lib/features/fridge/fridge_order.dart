@@ -1,9 +1,4 @@
-/// Sums and helpers for the fridge, and the order the shelf had before it
-/// had slots.
-///
-/// That order — oldest first, or as arranged by hand once someone dragged a
-/// bottle — now only decides where a bottle without a slot is first placed:
-/// see `layoutShelf`. Bottles stored with a slot stay in it.
+/// Sums and helpers for the fridge, and the order its shelf is shown in.
 library;
 
 import '../../data/models/feeding_event.dart';
@@ -11,45 +6,22 @@ import '../../data/models/fridge_bottle.dart';
 import '../../data/models/pumping_event.dart';
 import '../timeline/timeline_format.dart';
 
-/// Whether the shelf has been arranged by hand.
+/// The bottles in shelf order, leftmost first: oldest first, the order
+/// milk should be used in.
 ///
-/// One positioned bottle is enough. Reordering numbers the whole shelf in a
-/// single write, so a half-numbered shelf only exists if a write was
-/// interrupted — and reading that as arranged is the safer of the two
-/// guesses, since it keeps the part someone did arrange rather than throwing
-/// it away.
-bool isArrangedByHand(List<FridgeBottle> bottles) =>
-    bottles.any((b) => b.position != null);
-
-/// The bottles in shelf order: leftmost first.
+/// Nothing else decides it — not where a bottle was put, nor when it was
+/// added. A bottle used up leaves no gap, and a new one finds its own place
+/// by its age.
 ///
-/// Stable in both modes, so a rebuild never reshuffles two bottles that
-/// compare equal. Ties break on id, which is arbitrary but fixed — a shelf
-/// that reordered itself while being looked at would be unusable.
-List<FridgeBottle> shelfOrder(List<FridgeBottle> bottles) {
-  final ordered = [...bottles];
-  if (isArrangedByHand(bottles)) {
-    ordered.sort((a, b) {
-      final ap = a.position;
-      final bp = b.position;
-      // An unpositioned bottle among positioned ones was added after the
-      // shelf was arranged. It goes on the end, which is where a new bottle
-      // lands in a fridge nobody has re-tidied.
-      if (ap == null && bp == null) return a.id.compareTo(b.id);
-      if (ap == null) return 1;
-      if (bp == null) return -1;
-      final byPosition = ap.compareTo(bp);
-      return byPosition != 0 ? byPosition : a.id.compareTo(b.id);
+/// Between two filled at the same moment — both halves of a split always
+/// are — by id. Without the tiebreak, which came first was down to the
+/// order each device happened to receive them in, and two phones could
+/// draw the shelf in two different orders.
+List<FridgeBottle> shelfOrder(List<FridgeBottle> bottles) =>
+    [...bottles]..sort((a, b) {
+      final byAge = a.filledAt.compareTo(b.filledAt);
+      return byAge != 0 ? byAge : a.id.compareTo(b.id);
     });
-    return ordered;
-  }
-
-  ordered.sort((a, b) {
-    final byAge = a.filledAt.compareTo(b.filledAt);
-    return byAge != 0 ? byAge : a.id.compareTo(b.id);
-  });
-  return ordered;
-}
 
 /// What is in the fridge altogether.
 double totalMl(List<FridgeBottle> bottles) =>

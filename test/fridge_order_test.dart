@@ -5,7 +5,7 @@ import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/features/fridge/fridge_order.dart';
 
-/// Which order the bottles stand in, and what overrules what.
+/// Which order the bottles stand in, and the sums over them.
 void main() {
   final base = DateTime(2026, 9, 25, 6);
 
@@ -13,20 +13,18 @@ void main() {
     String id, {
     required int atHour,
     double ml = 100,
-    int? position,
     MilkKind kind = MilkKind.expressed,
   }) => FridgeBottle(
     id: id,
     filledAt: base.add(Duration(hours: atHour)),
     amountMl: ml,
-    position: position,
     kind: kind,
   );
 
   List<String> idsOf(List<FridgeBottle> shelf) =>
       shelf.map((b) => b.id).toList();
 
-  group('by default', () {
+  group('the shelf', () {
     test('the oldest is leftmost', () {
       // The end you take from, and the order the screen exists to suggest.
       final shelf = shelfOrder([
@@ -35,10 +33,6 @@ void main() {
         bottle('b', atHour: 5),
       ]);
       expect(idsOf(shelf), ['a', 'b', 'c']);
-    });
-
-    test('and the shelf is not arranged by hand', () {
-      expect(isArrangedByHand([bottle('a', atHour: 1)]), isFalse);
     });
 
     test('two pumped at the same moment keep a fixed order', () {
@@ -54,41 +48,6 @@ void main() {
         bottle('y', atHour: 3),
       ]);
       expect(idsOf(first), idsOf(again));
-    });
-  });
-
-  group('once arranged by hand', () {
-    test('position decides, not age', () {
-      // The whole point of dragging: the fridge is not in age order, and the
-      // screen has to show what is actually there.
-      final shelf = shelfOrder([
-        bottle('old', atHour: 1, position: 2),
-        bottle('new', atHour: 9, position: 0),
-        bottle('mid', atHour: 5, position: 1),
-      ]);
-      expect(idsOf(shelf), ['new', 'mid', 'old']);
-    });
-
-    test('one positioned bottle is enough to count as arranged', () {
-      expect(
-        isArrangedByHand([
-          bottle('a', atHour: 1),
-          bottle('b', atHour: 2, position: 0),
-        ]),
-        isTrue,
-      );
-    });
-
-    test('a bottle added since goes on the end', () {
-      // Where a new bottle lands in a fridge nobody has re-tidied. It has no
-      // position, and guessing one from its age would move milk the caregiver
-      // put somewhere specific.
-      final shelf = shelfOrder([
-        bottle('fresh', atHour: 9),
-        bottle('left', atHour: 5, position: 0),
-        bottle('right', atHour: 1, position: 1),
-      ]);
-      expect(idsOf(shelf), ['left', 'right', 'fresh']);
     });
   });
 

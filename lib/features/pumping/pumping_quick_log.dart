@@ -15,7 +15,6 @@ import '../common/event_time_row.dart';
 import '../common/number_input.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
-import '../fridge/slot_picker.dart';
 import '../home/home_prefs.dart';
 
 /// Opens the pumping quick-log sheet (KAN-145). Pass [existing] to edit.
@@ -56,11 +55,6 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
   /// touched.
   double? _storedMl;
   bool _amountEdited = false;
-
-  /// Where the bottle goes, if this session goes in the fridge. Other unless
-  /// an empty letter is picked: a pumped bottle never takes a letter another
-  /// bottle is in.
-  FridgeSlot _slot = FridgeSlot.other;
 
   /// Whether this session goes in the fridge too. Off every time the sheet
   /// opens rather than remembered: most pumped milk is fed fresh, and a
@@ -123,11 +117,6 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
         : null;
     final fridge = ref.read(fridgeRepositoryProvider);
     final messenger = ScaffoldMessenger.of(context);
-    // Checked again now rather than trusted from when it was picked: another
-    // caregiver may have filled that letter while this sheet was open. Then
-    // it goes to Other, and the bottle already there stays.
-    final layout = ref.read(fridgeLayoutProvider);
-    final slot = layout.canTake(_slot) ? _slot : FridgeSlot.other;
 
     _saving = true;
     saveAndClose(context, () {
@@ -140,9 +129,7 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
       // saved.
       if (bottle != null && fridge != null) {
         unawaited(
-          Future.sync(
-            () => fridge.addTo(bottle, slot, layout: layout),
-          ).catchError((Object e) {
+          Future<void>.sync(() => fridge.add(bottle)).catchError((Object e) {
             messenger.showSnackBar(
               SnackBar(
                 content: Text(
@@ -213,14 +200,6 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
             amountMl: _amountMl(),
             onChanged: (v) => setState(() => _fridgeOn = v),
           ),
-          if (_fridgeOn)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: FridgeSlotPicker(
-                slot: _slot,
-                onChanged: (s) => setState(() => _slot = s),
-              ),
-            ),
         ],
         const SizedBox(height: 12),
         TextField(

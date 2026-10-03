@@ -15,7 +15,6 @@ import '../common/milk_chooser.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
 import '../feeding/feeding_format.dart';
-import 'slot_picker.dart';
 
 /// Adds a bottle to the fridge, or edits one already in it.
 ///
@@ -24,29 +23,22 @@ import 'slot_picker.dart';
 /// the sheet: the last-pump stream is only live while something is watching
 /// it, and a sheet that reached for it itself would find it still loading and
 /// silently open blank.
-///
-/// [slot] is where a new bottle goes, when it was added from an empty slot;
-/// otherwise it takes the first empty letter. Either way the sheet lets it
-/// be changed.
 Future<void> showBottleSheet(
   BuildContext context, {
   FridgeBottle? existing,
   PumpingEvent? prefillFrom,
-  FridgeSlot? slot,
 }) {
   return showAppSheet<void>(
     context,
-    builder: (_) =>
-        _BottleSheet(existing: existing, prefillFrom: prefillFrom, slot: slot),
+    builder: (_) => _BottleSheet(existing: existing, prefillFrom: prefillFrom),
   );
 }
 
 class _BottleSheet extends ConsumerStatefulWidget {
-  const _BottleSheet({this.existing, this.prefillFrom, this.slot});
+  const _BottleSheet({this.existing, this.prefillFrom});
 
   final FridgeBottle? existing;
   final PumpingEvent? prefillFrom;
-  final FridgeSlot? slot;
 
   @override
   ConsumerState<_BottleSheet> createState() => _BottleSheetState();
@@ -71,18 +63,11 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   double? _storedMl;
   bool _amountEdited = false;
 
-  /// Where the bottle will stand once saved.
-  late FridgeSlot _slot;
-
   @override
   void initState() {
     super.initState();
     _unit = VolumeUnit.initial;
-    final layout = ref.read(fridgeLayoutProvider);
     final e = widget.existing;
-    _slot = e != null
-        ? layout.slotOf(e) ?? FridgeSlot.other
-        : widget.slot ?? layout.firstFree;
     if (e != null) {
       _kind = e.kind;
       _filledAt = e.filledAt;
@@ -155,24 +140,12 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
       filledAt: _filledAt,
       amountMl: ml,
       kind: _kind,
-      position: existing?.position,
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
     );
-    final layout = ref.read(fridgeLayoutProvider);
-    // Checked again now: another caregiver may have filled the letter while
-    // this sheet was open. Then a new bottle goes to Other and an edited one
-    // stays where it was — neither lands on top of the bottle now there.
-    final slot = layout.canTake(_slot, existing)
-        ? _slot
-        : existing == null
-        ? FridgeSlot.other
-        : layout.slotOf(existing) ?? FridgeSlot.other;
     _saving = true;
     saveAndClose(
       context,
-      () => existing != null
-          ? repo.saveIn(bottle, slot, layout: layout)
-          : repo.addTo(bottle, slot, layout: layout),
+      () => existing != null ? repo.update(bottle) : repo.add(bottle),
       failure: 'Could not save the bottle',
     );
   }
@@ -226,13 +199,6 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
                 session.amountMl != null)
           _FromPump(session: session),
         const SizedBox(height: 16),
-        FridgeSlotPicker(
-          title: 'Slot in the fridge',
-          slot: _slot,
-          bottle: existing,
-          onChanged: (s) => setState(() => _slot = s),
-        ),
-        const SizedBox(height: 12),
         TextField(
           controller: _notes,
           decoration: const InputDecoration(
@@ -348,11 +314,7 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
     _saving = true;
     saveAndClose(
       context,
-      () => repo.split(
-        widget.bottle,
-        _firstMl,
-        layout: ref.read(fridgeLayoutProvider),
-      ),
+      () => repo.split(widget.bottle, _firstMl),
       failure: 'Could not split the bottle',
     );
   }

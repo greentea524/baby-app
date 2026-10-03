@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
-import '../../data/repositories/fridge_repository.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
@@ -17,20 +16,16 @@ import 'bottle_gauge.dart';
 import 'bottle_sheet.dart';
 import 'fridge_button.dart';
 import 'fridge_order.dart';
-import 'fridge_slots.dart';
 
 /// What bottles are in the fridge, laid out the way the fridge is.
 ///
-/// Three labelled slots, A, B and C, then everything else under Other. Fixed
-/// places rather than an order: when the bottle in A is used, the others
-/// stay where they are, so A shows empty and the letters on screen keep
-/// matching the ones on the shelf. A new bottle takes the first empty
-/// letter.
+/// Oldest on the left, newest on the right: the order milk should be used
+/// in, so the bottle to reach for next is always the first one.
 ///
 /// Its own screen rather than a card on Home. Home answers "when did that last
 /// happen"; this answers "what have I got", which is a different question and
 /// a longer answer.
-class FridgeScreen extends ConsumerStatefulWidget {
+class FridgeScreen extends ConsumerWidget {
   const FridgeScreen({super.key, this.now});
 
   /// A fixed clock, for tests. Every card reads "3 hr ago", which is measured
@@ -38,55 +33,8 @@ class FridgeScreen extends ConsumerStatefulWidget {
   final DateTime? now;
 
   @override
-  ConsumerState<FridgeScreen> createState() => _FridgeScreenState();
-}
-
-class _FridgeScreenState extends ConsumerState<FridgeScreen> {
-  /// Bottles whose worked-out place has been sent to be stored, so a rebuild
-  /// before the write comes back does not send it again.
-  final _placing = <String>{};
-
-  /// Stores the places the layout had to work out — bottles that arrived
-  /// without a slot — so every device draws the same fridge. After the frame,
-  /// never during it.
-  ///
-  /// Only from a fridge the server has confirmed. Opened fresh — after an
-  /// update reloads the app, say — the first fridge drawn is this device's
-  /// own cached copy, which can be out of date. A place worked out from that
-  /// and saved would rearrange everyone's fridge to match a fridge that no
-  /// longer exists; worked out again from the server's copy a moment later,
-  /// it usually is not needed at all.
-  void _storePlaces(ShelfLayout layout, FridgeSync? sync) {
-    if (sync == null || sync.fromCache) return;
-    final fresh = {
-      for (final MapEntry(:key, :value) in layout.toSave.entries)
-        if (!_placing.contains(key)) key: value,
-    };
-    if (fresh.isEmpty) return;
-    _placing.addAll(fresh.keys);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final repo = ref.read(fridgeRepositoryProvider);
-      if (repo == null || !mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      unawaited(
-        Future.sync(() => repo.place(fresh)).catchError((Object e) {
-          // Said, not swallowed: an unsaved place is drawn here but not on
-          // anyone else's phone, which is exactly the mismatch it is for.
-          // Let go of the ids so the next build tries again.
-          _placing.removeAll(fresh.keys);
-          messenger.showSnackBar(
-            SnackBar(content: Text('Could not save the fridge slots: $e')),
-          );
-        }),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final layout = ref.watch(fridgeLayoutProvider);
-    final shelf = layout.inOrder;
-    _storePlaces(layout, ref.watch(fridgeSyncProvider).value);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shelf = ref.watch(fridgeShelfProvider);
     // Subscribed for the whole visit so the session is resolved before
     // anybody taps Add — see [_add].
     final lastPump = ref.watch(lastPumpingProvider);
@@ -98,9 +46,8 @@ class _FridgeScreenState extends ConsumerState<FridgeScreen> {
     // only while its milk is unaccounted for. Once it is in a bottle, or has
     // been fed, offering its amount again would put the same milk in the
     // fridge twice.
-    void add([FridgeSlot? slot]) => showBottleSheet(
+    void add() => showBottleSheet(
       context,
-      slot: slot,
       prefillFrom: unbottledPump(lastPump, shelf: shelf, feeds: feeds),
     );
 
@@ -112,26 +59,20 @@ class _FridgeScreenState extends ConsumerState<FridgeScreen> {
         label: const Text('Add bottle'),
       ),
       body: SafeArea(
-        child: layout.count == 0
+        child: shelf.isEmpty
             ? const _EmptyFridge()
-            : _Shelf(
-                layout: layout,
-                now: widget.now ?? DateTime.now(),
-                onAdd: add,
-              ),
+            : _Shelf(shelf: shelf, now: now ?? DateTime.now()),
       ),
     );
   }
 }
 
 class _Shelf extends ConsumerWidget {
-  const _Shelf({required this.layout, required this.now, required this.onAdd});
+  const _Shelf({required this.shelf, required this.now});
 
-  final ShelfLayout layout;
+  /// Oldest first.
+  final List<FridgeBottle> shelf;
   final DateTime now;
-
-  /// Opens the add sheet on a given empty slot.
-  final void Function(FridgeSlot slot) onAdd;
 
   /// Wide enough for an amount and a date at a readable size, narrow enough
   /// that a second bottle is visibly there to scroll to.
@@ -152,7 +93,6 @@ class _Shelf extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final units = ref.watch(unitSystemProvider);
-    final shelf = layout.inOrder;
     final byKind = totalByKind(shelf);
     int aged(BottleAge age) =>
         shelf.where((b) => BottleAge.of(b.filledAt, now) == age).length;
@@ -203,7 +143,7 @@ class _Shelf extends ConsumerWidget {
           const _SyncLine(),
           const SizedBox(height: 2),
           Text(
-            'Bottles stay in their slot. Drag one by its handle to move it.',
+            'Oldest on the left: use those first.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -212,52 +152,12 @@ class _Shelf extends ConsumerWidget {
       ),
     );
 
-    // A failed move puts the bottle back where it was on this screen, and
-    // never reaches anyone else's — so it says so, rather than leaving two
-    // phones quietly disagreeing.
-    void move(FridgeBottle bottle, FridgeSlot slot) {
-      final repo = ref.read(fridgeRepositoryProvider);
-      if (repo == null) return;
-      final messenger = ScaffoldMessenger.of(context);
-      unawaited(
-        Future.sync(() => repo.moveTo(bottle, slot, layout: layout)).catchError(
-          (Object e) {
-            messenger.showSnackBar(
-              SnackBar(content: Text('Could not move the bottle: $e')),
-            );
-          },
-        ),
-      );
-    }
-
     Widget card(FridgeBottle b) => _BottleCard(
       bottle: b,
       units: units,
       now: now,
       onFinished: () => _finish(context, ref, b, now),
     );
-
-    final columns = <Widget>[
-      for (final slot in FridgeSlot.labelled)
-        _SlotColumn(
-          key: ValueKey(slot),
-          slot: slot,
-          bottle: layout.labelled[slot],
-          onDrop: (b) => move(b, slot),
-          child: switch (layout.labelled[slot]) {
-            final b? => card(b),
-            null => _EmptySlot(slot: slot, onAdd: () => onAdd(slot)),
-          },
-        ),
-      for (final b in layout.other)
-        _SlotColumn(
-          key: ValueKey(b.id),
-          slot: FridgeSlot.other,
-          bottle: b,
-          onDrop: (dropped) => move(dropped, FridgeSlot.other),
-          child: card(b),
-        ),
-    ];
 
     // The shelf takes a height rather than wrapping its cards: a fixed-height
     // band is what a shelf looks like, and the cards lay themselves out to
@@ -269,14 +169,15 @@ class _Shelf extends ConsumerWidget {
       // over the last card, on top of the very lines that say when that
       // bottle was pumped.
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-      itemCount: columns.length,
-      separatorBuilder: (_, i) =>
-          // A wider gap, and a rule, where the letters end and Other begins.
-          i == FridgeSlot.labelled.length - 1
-          ? const _OtherDivider()
-          : const SizedBox(width: 12),
-      itemBuilder: (context, i) =>
-          SizedBox(width: _cardWidth, child: columns[i]),
+      itemCount: shelf.length,
+      separatorBuilder: (_, _) => const SizedBox(width: 12),
+      // As tall as the card needs, from the top of the shelf, rather than
+      // stretched to the height of it.
+      itemBuilder: (context, i) => SizedBox(
+        key: ValueKey(shelf[i].id),
+        width: _cardWidth,
+        child: Align(alignment: Alignment.topCenter, child: card(shelf[i])),
+      ),
     );
 
     // The shelf takes exactly what the summary leaves, and never less than
@@ -521,157 +422,6 @@ class _SyncLine extends ConsumerWidget {
   }
 }
 
-/// One place on the shelf: its label above, and what is in it below.
-///
-/// A drop target too. A bottle dragged here moves here, and if a bottle is
-/// already here the two swap — the same as choosing the slot in the
-/// bottle's sheet.
-class _SlotColumn extends StatelessWidget {
-  const _SlotColumn({
-    super.key,
-    required this.slot,
-    required this.bottle,
-    required this.onDrop,
-    required this.child,
-  });
-
-  final FridgeSlot slot;
-
-  /// What is here now, or null for an empty slot.
-  final FridgeBottle? bottle;
-  final void Function(FridgeBottle) onDrop;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return DragTarget<FridgeBottle>(
-      onWillAcceptWithDetails: (d) => d.data.id != bottle?.id,
-      onAcceptWithDetails: (d) => onDrop(d.data),
-      builder: (context, candidates, _) {
-        final hovering = candidates.isNotEmpty;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: hovering ? theme.colorScheme.primary : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _SlotLabel(slot: slot),
-              const SizedBox(height: 6),
-              // As tall as it needs to be, under the label, rather than
-              // stretched to the height of the shelf.
-              Flexible(
-                child: Align(alignment: Alignment.topCenter, child: child),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// "A", large enough to match against a label on the fridge door; "Other"
-/// in a quieter weight and colour, since it names an area rather than a
-/// place.
-class _SlotLabel extends StatelessWidget {
-  const _SlotLabel({required this.slot});
-
-  final FridgeSlot slot;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Semantics(
-      label: slot.isLabelled ? 'Slot ${slot.label}' : 'Other',
-      excludeSemantics: true,
-      child: Text(
-        slot.label,
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        // One size for both, quieter for Other. A smaller "Other" left its
-        // cards a few points taller than the lettered ones, which tipped
-        // them into a different card shape side by side.
-        style: theme.textTheme.titleLarge?.copyWith(
-          fontWeight: slot.isLabelled ? FontWeight.w700 : FontWeight.w400,
-          color: slot.isLabelled
-              ? theme.colorScheme.primary
-              : theme.colorScheme.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
-}
-
-/// A lettered slot with nothing in it: kept on screen, because the space on
-/// the shelf is still there.
-class _EmptySlot extends StatelessWidget {
-  const _EmptySlot({required this.slot, required this.onAdd});
-
-  final FridgeSlot slot;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 200),
-      child: SizedBox.expand(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Empty',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  TextButton.icon(
-                    onPressed: onAdd,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add here'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The break between the lettered slots and Other.
-class _OtherDivider extends StatelessWidget {
-  const _OtherDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: VerticalDivider(
-        width: 1,
-        thickness: 1,
-        color: Theme.of(context).colorScheme.outlineVariant,
-      ),
-    );
-  }
-}
-
 /// Logs a finished bottle as a feed, and takes it off the shelf.
 ///
 /// Opens the bottle form with this bottle in it rather than removing it on
@@ -760,23 +510,9 @@ class _BottleCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        // Dragged from the handle only: dragging is deliberate, tapping
-        // opens the bottle, and neither can be mistaken for the other. Drop
-        // it on another slot to move it there.
-        Draggable<FridgeBottle>(
-          data: bottle,
-          feedback: _DragFeedback(bottle: bottle, units: units),
-          childWhenDragging: Icon(
-            Icons.drag_indicator,
-            size: 20,
-            color: scheme.outlineVariant,
-          ),
-          child: Icon(
-            Icons.drag_indicator,
-            size: 20,
-            color: scheme.onSurfaceVariant,
-          ),
-        ),
+        // Keeps the line as tall as it was with the drag handle that used
+        // to sit here, which the rest of the card is measured against.
+        const SizedBox(height: 20),
       ],
     );
 
@@ -929,42 +665,6 @@ class _BottleCard extends StatelessWidget {
               );
             },
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// What follows the finger while a bottle is dragged: small, so the slot
-/// it is over stays visible.
-class _DragFeedback extends StatelessWidget {
-  const _DragFeedback({required this.bottle, required this.units});
-
-  final FridgeBottle bottle;
-  final UnitSystem units;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      elevation: 6,
-      borderRadius: BorderRadius.circular(12),
-      color: theme.colorScheme.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 48,
-              child: BottleGauge(amountMl: bottle.amountMl, kind: bottle.kind),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              formatVolume(bottle.amountMl, units),
-              style: theme.textTheme.titleSmall,
-            ),
-          ],
         ),
       ),
     );

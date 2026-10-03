@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_providers.dart';
 // sharedPreferencesProvider lives with the theme provider (both are prefs-backed).
 import '../../core/theme/theme_mode_provider.dart';
-import '../../features/fridge/fridge_slots.dart';
+import '../../features/fridge/fridge_order.dart';
 import '../models/baby.dart';
 import '../models/caregiver_invite.dart';
 import '../models/diaper_event.dart';
@@ -229,9 +229,9 @@ final fridgeRepositoryProvider = Provider<FridgeRepository?>((ref) {
 
 /// Everything in the fridge, in the order Firestore hands it back.
 ///
-/// Raw. Anything drawing the shelf wants [fridgeShelfProvider], which applies
-/// the hand-arranged order on top; this exists so that sort runs once per
-/// change rather than once per widget that asks.
+/// Raw. Anything drawing the shelf wants [fridgeShelfProvider], which puts
+/// them in shelf order; this exists so that sort runs once per change rather
+/// than once per widget that asks.
 final fridgeBottlesProvider = StreamProvider<List<FridgeBottle>>((ref) {
   final repo = ref.watch(fridgeRepositoryProvider);
   if (repo == null) return Stream.value(const []);
@@ -246,14 +246,10 @@ final fridgeSyncProvider = StreamProvider<FridgeSync?>((ref) {
   return repo.watchSync();
 });
 
-/// The fridge laid out in its slots. See [layoutShelf].
-final fridgeLayoutProvider = Provider<ShelfLayout>(
-  (ref) => layoutShelf(ref.watch(fridgeBottlesProvider).value ?? const []),
-);
-
-/// Every bottle in the order it is reached for: A, B, C, then Other.
+/// Every bottle in the order it is reached for: oldest first. See
+/// [shelfOrder].
 final fridgeShelfProvider = Provider<List<FridgeBottle>>(
-  (ref) => ref.watch(fridgeLayoutProvider).inOrder,
+  (ref) => shelfOrder(ref.watch(fridgeBottlesProvider).value ?? const []),
 );
 
 // --- Growth (KAN-136) ------------------------------------------------------
