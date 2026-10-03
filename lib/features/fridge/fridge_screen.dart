@@ -633,6 +633,7 @@ class _BottleCard extends StatelessWidget {
     // whole card is tinted, since it is the bottle that is getting old; the
     // age line inside says it in words too.
     final age = BottleAge.of(bottle.filledAt, now);
+    final shelfLife = _ShelfLifeBar(bottle: bottle, now: now);
     return Card(
       clipBehavior: Clip.antiAlias,
       margin: EdgeInsets.zero,
@@ -667,8 +668,9 @@ class _BottleCard extends StatelessWidget {
               // Everything but the bottle is text, and grows with the text
               // size: the header, the amount, the two time lines, the note,
               // the button and the gaps between them.
-              // The drink-by label and date are the last 48 of them.
-              final textHeight = 50 + (152 + 76) * scale;
+              // The drink-by label and date are the last 48 of them. The
+              // shelf-life bar and its gap are the 16 that do not grow.
+              final textHeight = 66 + (152 + 76) * scale;
               final fullBottle = c.maxWidth / BottleGauge.aspectRatio;
               final bottleRoom = c.maxHeight - textHeight;
               final tall = bottleRoom >= _minBottleHeight;
@@ -690,6 +692,8 @@ class _BottleCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     _Facts(bottle: bottle, units: units, now: now),
+                    const SizedBox(height: 8),
+                    shelfLife,
                     const SizedBox(height: 10),
                     finished,
                   ],
@@ -731,6 +735,8 @@ class _BottleCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  shelfLife,
                   const SizedBox(height: 6),
                   finished,
                 ],
@@ -899,6 +905,95 @@ class _DrinkBy extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The time a bottle has left until its drink-by, as a bar that empties
+/// from full when it was filled to nothing at the deadline — the same kind
+/// of depleting track as Home's next-feed chip, so it reads the same way.
+///
+/// Banded by the warning each stretch of it falls in: the far end is red,
+/// the stretch before it amber, the rest the app's own colour. So the bar
+/// shows what is coming as well as what is left — as it empties, the
+/// ordinary stretch goes first, and how much is left before amber is the
+/// card's time until it turns yellow. Saturated rather than the card tints,
+/// which a bar this thin would lose against a card already that colour.
+class _ShelfLifeBar extends StatelessWidget {
+  const _ShelfLifeBar({required this.bottle, required this.now});
+
+  final FridgeBottle bottle;
+  final DateTime now;
+
+  static const double _height = 8;
+
+  static const _amberLight = Color(0xFFD99A00);
+  static const _amberDark = Color(0xFFFFC94D);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+    final filled = bottle.filledAt;
+    final left = drinkByRemaining(filled, now);
+    // Where the bar turns: below these, what is left is amber, then red.
+    final amberFrom = drinkByRemainingAt(BottleAge.agingAfter, filled);
+    final redFrom = drinkByRemainingAt(BottleAge.oldAfter, filled);
+    final bands = [
+      (from: 0.0, to: redFrom, colour: scheme.error),
+      (from: redFrom, to: amberFrom, colour: dark ? _amberDark : _amberLight),
+      (from: amberFrom, to: 1.0, colour: scheme.primary),
+    ];
+    final hoursLeft = drinkBy(filled).difference(now).inHours;
+
+    return Semantics(
+      label: left <= 0
+          ? 'Past its drink-by time'
+          : '$hoursLeft hr left before its drink-by time',
+      child: ExcludeSemantics(
+        child: SizedBox(
+          height: _height,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(_height / 2),
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final w = c.maxWidth;
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: ColoredBox(
+                        color: scheme.onSurface.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    for (final band in bands)
+                      if (left > band.from)
+                        Positioned(
+                          left: w * band.from,
+                          top: 0,
+                          bottom: 0,
+                          width:
+                              w *
+                              ((left < band.to ? left : band.to) - band.from),
+                          child: ColoredBox(color: band.colour),
+                        ),
+                    // Cut between the bands, so where one ends is plain
+                    // whether the bar has reached it yet or not.
+                    for (final at in [redFrom, amberFrom])
+                      Positioned(
+                        left: w * at - 1,
+                        top: 0,
+                        bottom: 0,
+                        width: 2,
+                        child: ColoredBox(color: scheme.surface),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
       ),
     );
   }

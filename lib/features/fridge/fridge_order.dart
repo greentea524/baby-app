@@ -209,3 +209,21 @@ String drinkByText(DateTime deadline, DateTime now, String clock) {
   };
   return '$when, $clock';
 }
+
+/// How much of a bottle's time until [drinkBy] is left at [now], from 1 when
+/// it was filled down to 0 at the deadline and after.
+double drinkByRemaining(DateTime filledAt, DateTime now) =>
+    _shareOfShelfLife(drinkBy(filledAt).difference(now), filledAt);
+
+/// Where on the same scale a bottle [age] old sits: the point the bar has
+/// emptied to when it turns yellow, or red.
+double drinkByRemainingAt(Duration age, DateTime filledAt) => _shareOfShelfLife(
+  drinkBy(filledAt).difference(filledAt.add(age)),
+  filledAt,
+);
+
+double _shareOfShelfLife(Duration left, DateTime filledAt) {
+  final whole = drinkBy(filledAt).difference(filledAt);
+  if (whole <= Duration.zero) return 0;
+  return (left.inSeconds / whole.inSeconds).clamp(0.0, 1.0);
+}

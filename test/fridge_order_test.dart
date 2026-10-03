@@ -308,6 +308,21 @@ void main() {
   });
 
   group('drink by', () {
+    test('what is left of the time to it, full to empty', () {
+      final filled = DateTime(2026, 10, 1, 6);
+      expect(drinkByRemaining(filled, filled), 1);
+      expect(drinkByRemaining(filled, DateTime(2026, 10, 3, 6)), 0.5);
+      expect(drinkByRemaining(filled, DateTime(2026, 10, 5, 6)), 0);
+      // Empty, not negative, once past.
+      expect(drinkByRemaining(filled, DateTime(2026, 10, 9)), 0);
+    });
+
+    test('and where on it the card turns yellow, then red', () {
+      final filled = DateTime(2026, 10, 1, 6);
+      expect(drinkByRemainingAt(BottleAge.agingAfter, filled), 0.5);
+      expect(drinkByRemainingAt(BottleAge.oldAfter, filled), 0.25);
+    });
+
     test('four calendar days on, at the same time', () {
       expect(drinkBy(DateTime(2026, 10, 1, 5, 6)), DateTime(2026, 10, 5, 5, 6));
       // Across a month end.

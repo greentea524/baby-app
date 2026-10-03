@@ -172,6 +172,26 @@ void main() {
       expect(find.text('Today, 3:00 PM'), findsOneWidget);
     });
 
+    testWidgets('with a bar of the time left, read out in hours', (
+      tester,
+    ) async {
+      // Filled Sep 25 at 11 AM, so 93 of its 96 hours are left.
+      await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 3, ml: 90)]);
+      // Within the card's own label, which the tap target gathers up.
+      expect(
+        find.bySemanticsLabel(RegExp('93 hr left before its drink-by time')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an empty one once past', (tester) async {
+      await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 140, ml: 90)]);
+      expect(
+        find.bySemanticsLabel(RegExp('Past its drink-by time')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('and past it, says so in words and red', (tester) async {
       await pumpFridge(
         tester,
