@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
+import '../../data/repositories/fridge_repository.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
@@ -47,7 +49,15 @@ class _FridgeScreenState extends ConsumerState<FridgeScreen> {
   /// Stores the places the layout had to work out — bottles that arrived
   /// without a slot — so every device draws the same fridge. After the frame,
   /// never during it.
-  void _storePlaces(ShelfLayout layout) {
+  ///
+  /// Only from a fridge the server has confirmed. Opened fresh — after an
+  /// update reloads the app, say — the first fridge drawn is this device's
+  /// own cached copy, which can be out of date. A place worked out from that
+  /// and saved would rearrange everyone's fridge to match a fridge that no
+  /// longer exists; worked out again from the server's copy a moment later,
+  /// it usually is not needed at all.
+  void _storePlaces(ShelfLayout layout, FridgeSync? sync) {
+    if (sync == null || sync.fromCache) return;
     final fresh = {
       for (final MapEntry(:key, :value) in layout.toSave.entries)
         if (!_placing.contains(key)) key: value,
@@ -76,7 +86,7 @@ class _FridgeScreenState extends ConsumerState<FridgeScreen> {
   Widget build(BuildContext context) {
     final layout = ref.watch(fridgeLayoutProvider);
     final shelf = layout.inOrder;
-    _storePlaces(layout);
+    _storePlaces(layout, ref.watch(fridgeSyncProvider).value);
     // Subscribed for the whole visit so the session is resolved before
     // anybody taps Add — see [_add].
     final lastPump = ref.watch(lastPumpingProvider);
@@ -252,7 +262,8 @@ class _Shelf extends ConsumerWidget {
     // The shelf takes a height rather than wrapping its cards: a fixed-height
     // band is what a shelf looks like, and the cards lay themselves out to
     // it.
-    final list = ListView.separated(
+    Widget list(ScrollController controller) => ListView.separated(
+      controller: controller,
       scrollDirection: Axis.horizontal,
       // Clear of the Add button at the bottom. Without the gap it sat
       // over the last card, on top of the very lines that say when that
@@ -286,12 +297,187 @@ class _Shelf extends ConsumerWidget {
             return SliverToBoxAdapter(
               child: SizedBox(
                 height: left > _minShelf ? left : _minShelf,
-                child: list,
+                child: _ShelfScroller(step: _cardWidth + 12, builder: list),
               ),
             );
           },
         ),
       ],
+    );
+  }
+}
+
+/// The shelf's sideways scroll, made usable with a mouse.
+///
+/// A phone scrolls it with a swipe. A browser on a computer could not:
+/// Flutter does not drag-scroll with a mouse by default, and a mouse wheel
+/// scrolls up and down, so bottles past the edge of the window could not be
+/// reached at all. Here the mouse drags like a finger, a scrollbar shows
+/// there is more and can be pulled, and arrows at either end step along a
+/// bottle at a time.
+///
+/// The arrows and the always-shown scrollbar are for computers only, which
+/// is what the platform says even in a browser; a phone's browser keeps the
+/// plain swipe that already works there.
+class _ShelfScroller extends StatefulWidget {
+  const _ShelfScroller({required this.step, required this.builder});
+
+  /// How far one arrow press moves: a card and its gap.
+  final double step;
+
+  final Widget Function(ScrollController controller) builder;
+
+  @override
+  State<_ShelfScroller> createState() => _ShelfScrollerState();
+}
+
+class _ShelfScrollerState extends State<_ShelfScroller> {
+  final _controller = ScrollController();
+
+  /// The shelf's extent and position as last laid out or scrolled; what the
+  /// arrows are shown by. From notifications rather than the controller,
+  /// which says nothing when the shelf is first laid out, or when a bottle
+  /// added or taken away changes how far there is to go.
+  final _metrics = ValueNotifier<ScrollMetrics?>(null);
+
+  /// The shelf's bottom padding, which the cards stop short of to stay
+  /// clear of the Add button. The arrows centre on the cards, not on that.
+  static const double _cardsBottom = 88;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _metrics.dispose();
+    super.dispose();
+  }
+
+  bool _noted(Notification n) {
+    final metrics = switch (n) {
+      ScrollMetricsNotification(:final metrics) => metrics,
+      ScrollNotification(:final metrics) => metrics,
+      _ => null,
+    };
+    if (metrics != null && metrics.axis == Axis.horizontal) {
+      _metrics.value = metrics.copyWith();
+    }
+    return false;
+  }
+
+  void _step(int direction) {
+    final position = _controller.position;
+    // Two cards at a time on a wide window, one on a narrow one, so a press
+    // never skips past a bottle that was not yet seen.
+    final cards = (position.viewportDimension / widget.step / 2).floor();
+    final by = widget.step * (cards < 1 ? 1 : cards);
+    final target = (position.pixels + direction * by).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    _controller.animateTo(
+      target,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final desktop = switch (Theme.of(context).platform) {
+      TargetPlatform.android || TargetPlatform.iOS => false,
+      _ => true,
+    };
+    final mq = MediaQuery.of(context);
+
+    Widget shelf = ScrollConfiguration(
+      // Every kind of pointer drags, the mouse included.
+      behavior: ScrollConfiguration.of(
+        context,
+      ).copyWith(dragDevices: PointerDeviceKind.values.toSet()),
+      child: widget.builder(_controller),
+    );
+    if (!desktop) return shelf;
+
+    shelf = MediaQuery(
+      // The scrollbar insets itself by the padding it is given: lifted
+      // clear of the Add button, and in from the edges with the cards.
+      data: mq.copyWith(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, _cardsBottom - 14),
+      ),
+      child: Scrollbar(
+        controller: _controller,
+        thumbVisibility: true,
+        interactive: true,
+        child: MediaQuery(data: mq, child: shelf),
+      ),
+    );
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: NotificationListener<Notification>(
+            onNotification: _noted,
+            child: shelf,
+          ),
+        ),
+        Positioned.fill(
+          bottom: _cardsBottom,
+          child: ValueListenableBuilder(
+            valueListenable: _metrics,
+            builder: (context, p, _) {
+              return Row(
+                children: [
+                  if (p != null && p.extentBefore > 0)
+                    _ShelfArrow(
+                      icon: Icons.chevron_left,
+                      tooltip: 'Earlier bottles',
+                      onPressed: () => _step(-1),
+                    ),
+                  const Spacer(),
+                  if (p != null && p.extentAfter > 0)
+                    _ShelfArrow(
+                      icon: Icons.chevron_right,
+                      tooltip: 'More bottles',
+                      onPressed: () => _step(1),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One of the shelf's arrows: raised off the cards it sits over, so it does
+/// not read as part of one.
+class _ShelfArrow extends StatelessWidget {
+  const _ShelfArrow({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: IconButton.filledTonal(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        iconSize: 28,
+        style: IconButton.styleFrom(
+          elevation: 3,
+          shadowColor: scheme.shadow,
+          minimumSize: const Size(48, 48),
+        ),
+        icon: Icon(icon),
+      ),
     );
   }
 }

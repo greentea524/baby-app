@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -510,6 +511,76 @@ void main() {
     });
   });
 
+  group('in a browser on a computer', () {
+    // Reported: with more bottles than fit, the shelf could not be scrolled
+    // sideways with a mouse at all. A phone's swipe was fine.
+    final many = [
+      for (var i = 0; i < 8; i++)
+        bottle('b$i', hoursAgo: i + 1, ml: 50.0 + i, slot: FridgeSlot.other),
+    ];
+    double offset(WidgetTester tester) =>
+        tester.widget<ListView>(find.byType(ListView)).controller!.offset;
+
+    testWidgets(
+      'has arrows to step along the shelf, shown where there is more',
+      (tester) async {
+        await pumpFridge(tester, bottles: many, size: const Size(800, 700));
+        expect(find.byTooltip('Earlier bottles'), findsNothing);
+        expect(find.byTooltip('More bottles'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('More bottles'));
+        await tester.pumpAndSettle();
+        expect(offset(tester), greaterThan(0));
+        expect(find.byTooltip('Earlier bottles'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Earlier bottles'));
+        await tester.pumpAndSettle();
+        expect(offset(tester), 0);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    );
+
+    testWidgets(
+      'and no arrows when everything fits',
+      (tester) async {
+        await pumpFridge(
+          tester,
+          bottles: many.take(2).toList(),
+          size: const Size(1400, 700),
+        );
+        expect(find.byTooltip('More bottles'), findsNothing);
+        expect(find.byTooltip('Earlier bottles'), findsNothing);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+
+    testWidgets(
+      'and scrolls by dragging with the mouse',
+      (tester) async {
+        await pumpFridge(tester, bottles: many, size: const Size(800, 700));
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('57')),
+          kind: PointerDeviceKind.mouse,
+        );
+        for (var i = 0; i < 10; i++) {
+          await gesture.moveBy(const Offset(-30, 0));
+          await tester.pump();
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(offset(tester), greaterThan(0));
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    );
+
+    testWidgets('a phone keeps the plain swipe, with no arrows', (
+      tester,
+    ) async {
+      await pumpFridge(tester, bottles: many);
+      expect(find.byTooltip('More bottles'), findsNothing);
+    });
+  });
+
   group('the slots', () {
     Rect labelRect(WidgetTester tester, String label) =>
         tester.getRect(find.text(label));
@@ -524,6 +595,7 @@ void main() {
         tester,
         repo: repo,
         size: const Size(1200, 900),
+        sync: (fromCache: false, pending: false),
         bottles: [
           bottle('d', hoursAgo: 1, ml: 40),
           bottle('a', hoursAgo: 9, ml: 120),
@@ -550,6 +622,29 @@ void main() {
         'c': FridgeSlot.c,
         'd': FridgeSlot.other,
       });
+    });
+
+    testWidgets('but not from a fridge the server has not confirmed', (
+      tester,
+    ) async {
+      // Reported: after an update, the slots came up rearranged. One way
+      // that can happen: opened fresh, the first fridge drawn is this
+      // device's cached copy, and places worked out from a stale copy would
+      // be saved for everyone. They are drawn, but not stored until the
+      // server's copy is in.
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        size: const Size(1200, 900),
+        sync: (fromCache: true, pending: false),
+        bottles: [
+          bottle('a', hoursAgo: 9, ml: 120),
+          bottle('b', hoursAgo: 5, ml: 90),
+        ],
+      );
+      expect(find.text('120'), findsOneWidget);
+      expect(repo.placed, isEmpty);
     });
 
     testWidgets('a finished bottle leaves its slot empty', (tester) async {
