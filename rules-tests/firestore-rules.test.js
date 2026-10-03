@@ -1067,3 +1067,47 @@ describe("fridge slots, between caregivers", () => {
     );
   });
 });
+
+// Pouring one bottle into another (#35): the kept bottle takes the sum and
+// the older time, and the poured one goes, in one batch. Made by Bob, who
+// added neither — whoever is at the fridge pours.
+describe("combining two bottles, between caregivers", () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(babyDoc(db), {
+        name: "Ada",
+        ownerUid: "alice",
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+      });
+      const bottles = (id) => doc(db, "babies", BABY, "bottles", id);
+      await setDoc(bottles("kept"), bottle({ amountMl: 80, notes: "left" }));
+      await setDoc(bottles("poured"), bottle({ amountMl: 30 }));
+    });
+  });
+
+  const bottleRef = (db, id) => doc(db, "babies", BABY, "bottles", id);
+
+  it("updates one and deletes the other in one batch", async () => {
+    const db = asBob();
+    const batch = writeBatch(db);
+    batch.update(bottleRef(db, "kept"), {
+      filledAt: AT,
+      amountMl: 110,
+      kind: "expressed",
+      notes: "left · for daycare",
+      ...edited("bob"),
+    });
+    batch.delete(bottleRef(db, "poured"));
+    await assertSucceeds(batch.commit());
+  });
+
+  it("still refuses the batch when it does not own up to who made it", async () => {
+    const db = asBob();
+    const batch = writeBatch(db);
+    batch.update(bottleRef(db, "kept"), { amountMl: 110, ...edited("alice") });
+    batch.delete(bottleRef(db, "poured"));
+    await assertFails(batch.commit());
+  });
+});

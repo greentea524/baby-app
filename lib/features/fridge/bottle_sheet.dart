@@ -15,6 +15,7 @@ import '../common/milk_chooser.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
 import '../feeding/feeding_format.dart';
+import 'fridge_order.dart';
 
 /// Adds a bottle to the fridge, or edits one already in it.
 ///
@@ -211,35 +212,45 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
           onPressed: canSave ? _save : null,
           child: Text(isEdit ? 'Save changes' : 'Add to fridge'),
         ),
-        // Both reached from the bottle rather than from the shelf, so every
+        // All reached from the bottle rather than from the shelf, so every
         // bottle has exactly one tap target and the shelf stays a shelf.
+        // Wrapped rather than squeezed: three side by side do not fit a
+        // phone at the larger text sizes.
         if (isEdit) ...[
           const SizedBox(height: 4),
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceEvenly,
             children: [
-              Expanded(
-                child: TextButton.icon(
-                  icon: const Icon(Icons.call_split),
-                  label: const Text('Split'),
+              TextButton.icon(
+                icon: const Icon(Icons.call_split),
+                label: const Text('Split'),
+                onPressed: () {
+                  // Replaces this sheet rather than stacking on it: the
+                  // split sheet is the same decision continued, and coming
+                  // back to a half-filled edit form afterwards would be
+                  // showing an amount that is no longer the bottle's.
+                  Navigator.of(context).pop();
+                  showSplitSheet(context, bottle: existing);
+                },
+              ),
+              // Only with something to pour in.
+              if (ref.watch(fridgeShelfProvider).length > 1)
+                TextButton.icon(
+                  icon: const Icon(Icons.merge),
+                  label: const Text('Combine'),
                   onPressed: () {
-                    // Replaces this sheet rather than stacking on it: the
-                    // split sheet is the same decision continued, and coming
-                    // back to a half-filled edit form afterwards would be
-                    // showing an amount that is no longer the bottle's.
+                    // Replaced, as for Split.
                     Navigator.of(context).pop();
-                    showSplitSheet(context, bottle: existing);
+                    showCombineSheet(context, bottle: existing);
                   },
                 ),
-              ),
-              Expanded(
-                child: TextButton.icon(
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Remove'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error,
-                  ),
-                  onPressed: () => _remove(existing),
+              TextButton.icon(
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Remove'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
                 ),
+                onPressed: () => _remove(existing),
               ),
             ],
           ),
@@ -388,6 +399,216 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Pours another bottle into [bottle], which is the one that stays.
+///
+/// Two at a time: three is two passes, which keeps the list and what it
+/// will do simple to read. Shows what the bottle will hold before anything
+/// is saved, and saves in one go, so there is no undo — the same as Split
+/// and Remove.
+Future<void> showCombineSheet(
+  BuildContext context, {
+  required FridgeBottle bottle,
+}) {
+  return showAppSheet<void>(context, builder: (_) => _CombineSheet(bottle));
+}
+
+class _CombineSheet extends ConsumerStatefulWidget {
+  const _CombineSheet(this.bottle);
+
+  final FridgeBottle bottle;
+
+  @override
+  ConsumerState<_CombineSheet> createState() => _CombineSheetState();
+}
+
+class _CombineSheetState extends ConsumerState<_CombineSheet> {
+  /// The bottle picked to pour in, by id: the shelf can change under the
+  /// sheet, and a bottle that has gone is no longer picked.
+  String? _pouredId;
+  bool _saving = false;
+
+  void _combine(FridgeBottle kept, FridgeBottle poured) {
+    if (_saving) return;
+    final repo = ref.read(fridgeRepositoryProvider);
+    if (repo == null) return;
+    _saving = true;
+    saveAndClose(
+      context,
+      () => repo.combine(kept, poured),
+      failure: 'Could not combine the bottles',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final units = ref.watch(unitSystemProvider);
+    final shelf = ref.watch(fridgeShelfProvider);
+    // As it is now, in case another phone changed it since the sheet opened.
+    final kept = shelf.firstWhere(
+      (b) => b.id == widget.bottle.id,
+      orElse: () => widget.bottle,
+    );
+    final others = [
+      for (final b in shelf)
+        if (b.id != kept.id) b,
+    ];
+    final poured = others.where((b) => b.id == _pouredId).firstOrNull;
+    final into = poured == null ? null : combined(kept, poured);
+    final kind = kept.kind.label.toLowerCase();
+
+    String describe(FridgeBottle b) =>
+        '${formatVolume(b.amountMl, units)} · ${b.kind.label} · '
+        '${b.kind.filledLabel.toLowerCase()} '
+        '${FeedingFormat.clockStamp(context, b.filledAt)}';
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Combine bottles', style: theme.textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Text(
+          'Pick a bottle to pour into this one '
+          '(${describe(kept)}). Only $kind can go in.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final b in others)
+          _PourChoice(
+            label: describe(b),
+            reason: canCombine(kept, b)
+                ? null
+                : "${b.kind.label} — can't mix with $kind",
+            picked: b.id == _pouredId,
+            onTap: () => setState(() => _pouredId = b.id),
+          ),
+        if (poured != null && into != null) ...[
+          const SizedBox(height: 12),
+          _CombinePreview(kept: kept, poured: poured, into: into, units: units),
+        ],
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: poured == null ? null : () => _combine(kept, poured),
+          child: const Text('Combine'),
+        ),
+      ],
+    );
+  }
+}
+
+/// One bottle that could be poured in: picked, pickable, or not, with why.
+class _PourChoice extends StatelessWidget {
+  const _PourChoice({
+    required this.label,
+    required this.reason,
+    required this.picked,
+    required this.onTap,
+  });
+
+  final String label;
+
+  /// Why it cannot be picked, or null when it can.
+  final String? reason;
+  final bool picked;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = reason == null;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      enabled: enabled,
+      selected: picked,
+      onTap: enabled ? onTap : null,
+      leading: Icon(
+        picked ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+      ),
+      title: Text(label),
+      subtitle: enabled ? null : Text(reason!),
+    );
+  }
+}
+
+/// What the combined bottle will be, said before it is: "30 ml + 100 ml =
+/// 130 ml", the time it keeps, and a warning when it is more than a bottle
+/// holds.
+class _CombinePreview extends StatelessWidget {
+  const _CombinePreview({
+    required this.kept,
+    required this.poured,
+    required this.into,
+    required this.units,
+  });
+
+  final FridgeBottle kept;
+  final FridgeBottle poured;
+  final FridgeBottle into;
+  final UnitSystem units;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final over = into.amountMl > bottleCapacityMl;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${formatVolume(kept.amountMl, units)} + '
+            '${formatVolume(poured.amountMl, units)} = '
+            '${formatVolume(into.amountMl, units)} in one bottle',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Said, because the shelf goes by this time: the bottle may move
+          // to stand with the older milk.
+          Text(
+            'Keeps the older time, '
+            '${FeedingFormat.clockStamp(context, into.filledAt)}, '
+            'because the milk is as old as its oldest part.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          if (over) ...[
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 18,
+                  color: scheme.error,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${formatVolume(into.amountMl, units)} is more than a '
+                    '${formatVolume(bottleCapacityMl, units)} bottle holds.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

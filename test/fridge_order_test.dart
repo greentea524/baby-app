@@ -51,6 +51,58 @@ void main() {
     });
   });
 
+  group('combining two', () {
+    test('holds the exact sum', () {
+      // Never rounded: 30 and 100 make 130, and halves make a whole.
+      final into = combined(
+        bottle('a', atHour: 1, ml: 30),
+        bottle('b', atHour: 5, ml: 100),
+      );
+      expect(into.amountMl, 130);
+      expect(
+        combined(
+          bottle('a', atHour: 1, ml: 77.5),
+          bottle('b', atHour: 2, ml: 77.5),
+        ).amountMl,
+        155,
+      );
+    });
+
+    test('keeps the older time, whichever bottle it was on', () {
+      // Milk is as old as its oldest part.
+      final older = bottle('old', atHour: 1);
+      final newer = bottle('new', atHour: 9);
+      expect(combined(newer, older).filledAt, older.filledAt);
+      expect(combined(older, newer).filledAt, older.filledAt);
+      // And stays the bottle it was poured into.
+      expect(combined(newer, older).id, 'new');
+    });
+
+    test('keeps both notes, skipping blank ones', () {
+      FridgeBottle noted(String id, String? notes) =>
+          FridgeBottle(id: id, filledAt: base, amountMl: 50, notes: notes);
+      expect(
+        combined(noted('a', 'left side'), noted('b', 'for daycare')).notes,
+        'left side · for daycare',
+      );
+      expect(
+        combined(noted('a', '  '), noted('b', 'for daycare')).notes,
+        'for daycare',
+      );
+      expect(combined(noted('a', null), noted('b', null)).notes, isNull);
+    });
+
+    test('only of the same kind, and not with itself', () {
+      final milk = bottle('a', atHour: 1);
+      expect(canCombine(milk, bottle('b', atHour: 2)), isTrue);
+      expect(
+        canCombine(milk, bottle('f', atHour: 2, kind: MilkKind.formula)),
+        isFalse,
+      );
+      expect(canCombine(milk, milk), isFalse);
+    });
+  });
+
   group('what kind of bottle', () {
     test('the two are counted apart', () {
       // They do not keep the same way, so how much of each there is is a

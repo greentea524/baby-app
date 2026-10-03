@@ -23,6 +23,37 @@ List<FridgeBottle> shelfOrder(List<FridgeBottle> bottles) =>
       return byAge != 0 ? byAge : a.id.compareTo(b.id);
     });
 
+/// [kept] with [poured] poured into it: what the one bottle left holds.
+///
+/// The exact sum, never rounded, the way a split's halves always add back
+/// up. The older of the two times, because milk is as old as its oldest
+/// part — taking the newer would make the age warnings and the drink-by
+/// date say a mixed bottle is fresher than some of what is in it. Both
+/// notes, so neither is lost, and blank ones skipped.
+///
+/// Only for two of the same kind: see [canCombine]. Mixing kinds is a
+/// feeding decision, and the result would have no honest kind to show.
+FridgeBottle combined(FridgeBottle kept, FridgeBottle poured) {
+  assert(canCombine(kept, poured));
+  final notes = [
+    for (final n in [kept.notes, poured.notes])
+      if (n != null && n.trim().isNotEmpty) n.trim(),
+  ];
+  return FridgeBottle(
+    id: kept.id,
+    filledAt: poured.filledAt.isBefore(kept.filledAt)
+        ? poured.filledAt
+        : kept.filledAt,
+    amountMl: kept.amountMl + poured.amountMl,
+    kind: kept.kind,
+    notes: notes.isEmpty ? null : notes.join(' · '),
+  );
+}
+
+/// Whether [poured] can go into [kept]: another bottle, of the same kind.
+bool canCombine(FridgeBottle kept, FridgeBottle poured) =>
+    kept.id != poured.id && kept.kind == poured.kind;
+
 /// What is in the fridge altogether.
 double totalMl(List<FridgeBottle> bottles) =>
     bottles.fold(0, (sum, b) => sum + b.amountMl);

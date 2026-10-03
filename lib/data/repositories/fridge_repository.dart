@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../features/fridge/fridge_order.dart';
 import '../models/fridge_bottle.dart';
 import 'event_repository.dart';
 
@@ -87,6 +88,21 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
         'updatedBy': uid,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+    return batch.commit();
+  }
+
+  /// Pours [poured] into [kept]: [kept] becomes [combined] of the two, and
+  /// [poured] goes.
+  ///
+  /// One batch, so no device ever sees the milk counted twice, or gone.
+  Future<void> combine(FridgeBottle kept, FridgeBottle poured) {
+    final batch = firestore.batch()
+      ..update(col.doc(kept.id), {
+        ...combined(kept, poured).toMap(),
+        'updatedBy': uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      })
+      ..delete(col.doc(poured.id));
     return batch.commit();
   }
 }
