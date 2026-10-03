@@ -3,22 +3,39 @@ import 'package:flutter/material.dart';
 
 /// How much to lift a sheet above the on-screen keyboard.
 ///
-/// Native needs the inset: the keyboard covers the window, so a sheet that
+/// Native takes the inset: the keyboard covers the window, so a sheet that
 /// does not pad by it has its lower half underneath the keys.
 ///
-/// The web does not, and padding by it there is actively wrong. The browser
-/// resizes the viewport when the keyboard opens — an iPhone showed the app's
-/// own bottom navigation bar sitting directly above the keys, which is only
-/// possible if the canvas had already been shortened — while Flutter goes on
-/// reporting `viewInsets.bottom` as well. Padding by it then lifts the sheet
-/// a second keyboard height, which is what pushed the bottle amount, and then
-/// the solids food field, off the top of the screen.
+/// The web takes only the part of the keyboard the screen has not already
+/// made room for. It can go either way there. While a field is being edited
+/// Flutter keeps the screen its full height and reports the keyboard as an
+/// inset — then the inset is all of it, and a sheet that ignored it had the
+/// amount being typed hidden under the keys. But a browser can also shrink
+/// the page for the keyboard and Flutter still report the inset on top —
+/// an iPhone once showed the app's bottom bar sitting right above the keys
+/// — and padding by the inset then lifted the sheet a second keyboard
+/// height, off the top of the screen.
 ///
-/// If some browser ever fails to resize, the failure is mild and the opposite
-/// way round: the sheet's lower rows sit under the keyboard and can be
-/// scrolled up, because the content is inside a scroll view either way.
-double sheetBottomInset({required double viewInset, bool isWeb = kIsWeb}) =>
-    isWeb ? 0 : viewInset;
+/// So: the inset, less however much shorter the screen is than
+/// [fullHeight], its height with no keyboard up. Whichever way the browser
+/// went, that is the part of the keyboard actually over the app.
+double sheetBottomInset({
+  required double viewInset,
+  double? height,
+  double? fullHeight,
+  bool isWeb = kIsWeb,
+}) {
+  if (!isWeb || viewInset <= 0) return viewInset;
+  final shrunk = height == null || fullHeight == null
+      ? 0.0
+      : (fullHeight - height).clamp(0.0, double.infinity);
+  return (viewInset - shrunk).clamp(0.0, viewInset);
+}
+
+/// Drives the sheets as the web would, for tests; `kIsWeb` is fixed at
+/// compile time and false wherever a test runs.
+@visibleForTesting
+bool? debugSheetIsWeb;
 
 /// Opens one of the app's log/edit forms as a bottom sheet.
 ///
@@ -39,11 +56,10 @@ double sheetBottomInset({required double viewInset, bool isWeb = kIsWeb}) =>
 ///    field you are typing into off the top of the screen — which is exactly
 ///    what the bottle amount field did (#15).
 ///
-///  * **The bottom inset must not be counted twice.** On the web the browser
-///    shrinks the viewport itself when the keyboard opens, and Flutter still
-///    reports the inset on top of that — so padding by it pushed the sheet up
-///    by a second keyboard's worth and took the field being typed into off
-///    the top of the screen. See [sheetBottomInset].
+///  * **The keyboard must be counted once.** On the web the screen may or
+///    may not have shrunk for it already, and the inset is reported either
+///    way. Counted twice, the field being typed into went off the top of the
+///    screen; not at all, it sat under the keys. See [sheetBottomInset].
 ///
 /// [builder] returns the form's content — normally a `Column` with
 /// `MainAxisSize.min`. The safe area, the horizontal padding, and the scroll
@@ -57,13 +73,7 @@ Future<T?> showAppSheet<T>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => Padding(
-      // The sheet's context, not the caller's — see above.
-      padding: EdgeInsets.only(
-        bottom: sheetBottomInset(
-          viewInset: MediaQuery.of(sheetContext).viewInsets.bottom,
-        ),
-      ),
+    builder: (sheetContext) => _KeyboardLift(
       child: SafeArea(
         child: SingleChildScrollView(
           padding: padding,
@@ -72,4 +82,48 @@ Future<T?> showAppSheet<T>(
       ),
     ),
   );
+}
+
+/// Lifts [child] clear of the keyboard, by [sheetBottomInset].
+///
+/// Remembers how tall the screen is with no keyboard up, which is what tells
+/// a browser that shrank the page for the keyboard from one that did not.
+/// Read from the sheet's own context — see [showAppSheet].
+class _KeyboardLift extends StatefulWidget {
+  const _KeyboardLift({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeyboardLift> createState() => _KeyboardLiftState();
+}
+
+class _KeyboardLiftState extends State<_KeyboardLift> {
+  Size? _withoutKeyboard;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final known = _withoutKeyboard;
+    if (inset <= 0) {
+      _withoutKeyboard = size;
+    } else if (known == null || known.width != size.width) {
+      // Opened with the keyboard already up, or turned while it was: no
+      // height without it to go on, so take the screen as not shrunk for it,
+      // which is how Flutter keeps it while a field is being edited.
+      _withoutKeyboard = size;
+    }
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: sheetBottomInset(
+          viewInset: inset,
+          height: size.height,
+          fullHeight: _withoutKeyboard!.height,
+          isWeb: debugSheetIsWeb ?? kIsWeb,
+        ),
+      ),
+      child: widget.child,
+    );
+  }
 }

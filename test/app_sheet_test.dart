@@ -18,12 +18,48 @@ void main() {
       expect(sheetBottomInset(viewInset: 336, isWeb: false), 336);
     });
 
-    test('the web does not: the browser already shortened the viewport', () {
-      // An iPhone showed the app's own bottom navigation bar directly above
-      // the keys, which can only happen if the canvas had already been
-      // shrunk. Padding by the inset as well lifted the sheet a second
-      // keyboard height and took the field being typed into off the top.
-      expect(sheetBottomInset(viewInset: 336, isWeb: true), 0);
+    test('the web takes it when the screen kept its height', () {
+      // Reported: editing a bottle's amount on a phone, the field was under
+      // the keyboard. While a field is being edited, Flutter keeps the screen
+      // its full height and reports the keyboard as an inset; ignoring the
+      // inset on the web left the sheet underneath the keys.
+      expect(
+        sheetBottomInset(
+          viewInset: 336,
+          height: 800,
+          fullHeight: 800,
+          isWeb: true,
+        ),
+        336,
+      );
+    });
+
+    test('but not twice, when the browser already shrank the screen', () {
+      // An iPhone once showed the app's own bottom bar directly above the
+      // keys: the page had been shrunk for the keyboard, and the inset was
+      // reported as well. Padding by it lifted the sheet a second keyboard
+      // height and took the field off the top.
+      expect(
+        sheetBottomInset(
+          viewInset: 336,
+          height: 464,
+          fullHeight: 800,
+          isWeb: true,
+        ),
+        0,
+      );
+    });
+
+    test('and only the rest, when it shrank part of the way', () {
+      expect(
+        sheetBottomInset(
+          viewInset: 336,
+          height: 700,
+          fullHeight: 800,
+          isWeb: true,
+        ),
+        236,
+      );
     });
 
     test('neither lifts anything with no keyboard up', () {
@@ -162,5 +198,75 @@ void main() {
       greaterThan(raised),
       reason: 'the sheet should drop back down, not keep the keyboard gap',
     );
+  });
+
+  group('on the web', () {
+    // Editing a bottle on a phone, the amount being typed was under the
+    // keyboard. Driven here as the web: the keyboard as an inset, with the
+    // screen either kept at full height or shrunk for it as well.
+    setUp(() => debugSheetIsWeb = true);
+    tearDown(() => debugSheetIsWeb = null);
+
+    Future<void> openWithField(WidgetTester tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = screen;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showAppSheet<void>(
+                  context,
+                  builder: (_) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < 4; i++) const SizedBox(height: 80),
+                      const TextField(key: Key('amount')),
+                      for (var i = 0; i < 3; i++) const SizedBox(height: 80),
+                    ],
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('amount')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the field being typed in stays above the keys', (
+      tester,
+    ) async {
+      await openWithField(tester);
+      // Full height kept, keyboard as an inset: how Flutter reports it
+      // while a field is being edited.
+      tester.view.viewInsets = const FakeViewPadding(bottom: keyboard);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('amount')), '95');
+      await tester.pumpAndSettle();
+
+      final field = tester.getRect(find.byKey(const Key('amount')));
+      expect(field.bottom, lessThanOrEqualTo(screen.height - keyboard));
+      expect(field.top, greaterThanOrEqualTo(0));
+    });
+
+    testWidgets('and is not lifted twice when the page shrank too', (
+      tester,
+    ) async {
+      await openWithField(tester);
+      // The page shrunk for the keyboard, and the inset reported as well.
+      tester.view.physicalSize = const Size(400, 800 - keyboard);
+      tester.view.viewInsets = const FakeViewPadding(bottom: keyboard);
+      await tester.pumpAndSettle();
+
+      final field = tester.getRect(find.byKey(const Key('amount')));
+      expect(field.top, greaterThanOrEqualTo(0), reason: 'not off the top');
+      expect(field.bottom, lessThanOrEqualTo(800 - keyboard));
+    });
   });
 }
