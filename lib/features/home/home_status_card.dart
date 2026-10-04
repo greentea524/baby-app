@@ -16,6 +16,10 @@ import '../pumping/pump_schedule.dart';
 import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
+import '../diaper/diaper_quick_log.dart';
+import '../feeding/feeding_quick_log.dart';
+import '../pumping/pumping_quick_log.dart';
+import '../fridge/bottle_sheet.dart';
 import 'home_prefs.dart';
 
 /// The Home status card (KAN-179): where feeding, diapers and pumping stand.
@@ -129,6 +133,8 @@ class HomeStatusCard extends ConsumerWidget {
               Theme.of(context).colorScheme.surfaceContainerLow,
             ),
       icon: last == null ? Icons.child_care : FeedingFormat.typeIcon(last.type),
+      onLog: () => logFeed(context, ref),
+      logLabel: ref.watch(bottleShortcutProvider) ? 'Log bottle' : 'Log feed',
       label: 'Last fed',
       value: last == null
           ? 'No feeds yet'
@@ -159,6 +165,8 @@ class HomeStatusCard extends ConsumerWidget {
 
     return _StatusRow(
       icon: FeedingFormat.typeIcon(FeedingType.solids),
+      onLog: () => showFeedingQuickLog(context, type: FeedingType.solids),
+      logLabel: 'Log solids',
       label: 'Last ate',
       value: FeedingFormat.timeAgo(last.startTime, now: now),
       detail: _join(
@@ -187,6 +195,8 @@ class HomeStatusCard extends ConsumerWidget {
       icon: last == null
           ? Icons.baby_changing_station
           : DiaperFormat.typeIcon(last.type),
+      onLog: () => showDiaperQuickLog(context),
+      logLabel: 'Log diaper',
       label: 'Last diaper changed',
       value: last == null
           ? 'No changes yet'
@@ -221,7 +231,6 @@ class HomeStatusCard extends ConsumerWidget {
   Widget? _pumpRow(BuildContext context, WidgetRef ref) {
     if (!ref.watch(showPumpingActionProvider)) return null;
     final last = ref.watch(lastPumpingProvider);
-    if (last == null) return null;
     final units = ref.watch(unitSystemProvider);
     final due = ref.watch(nextPumpDueProvider);
 
@@ -263,12 +272,18 @@ class HomeStatusCard extends ConsumerWidget {
               Theme.of(context).colorScheme.surfaceContainerLow,
             ),
       icon: PumpingFormat.icon,
+      onLog: () => showPumpingQuickLog(context),
+      logLabel: 'Log pump',
       label: 'Last pumped',
-      value: FeedingFormat.timeAgo(last.time, now: now),
-      detail: _join(
-        FeedingFormat.clockStamp(context, last.time, now: now),
-        PumpingFormat.details(last, units),
-      ),
+      value: last == null
+          ? 'No sessions yet'
+          : FeedingFormat.timeAgo(last.time, now: now),
+      detail: last == null
+          ? null
+          : _join(
+              FeedingFormat.clockStamp(context, last.time, now: now),
+              PumpingFormat.details(last, units),
+            ),
       footer: next,
     );
   }
@@ -319,6 +334,15 @@ class HomeStatusCard extends ConsumerWidget {
             ),
       action: const FridgeButton(glyph: Icons.arrow_forward),
       icon: FridgeButton.icon,
+      onLog: () => showBottleSheet(
+        context,
+        prefillFrom: unbottledPump(
+          ref.read(lastPumpingProvider),
+          shelf: shelf,
+          feeds: ref.read(recentFeedingsProvider).value ?? const [],
+        ),
+      ),
+      logLabel: 'Add a bottle to the fridge',
       label: 'In the fridge',
       value: switch (shelf.length) {
         0 => 'Empty',
@@ -549,7 +573,18 @@ class _StatusRow extends StatelessWidget {
     this.footer,
     this.tint,
     this.action,
+    this.onLog,
+    this.logLabel,
   });
+
+  /// Logs another of what this row reports — tapping its icon. The way to
+  /// log from Home: the row's icon is the button, so the reading and the way
+  /// to add to it are one thing, and there is no separate row of log buttons
+  /// above the card saying the same three words again.
+  final VoidCallback? onLog;
+
+  /// What [onLog] does, for its tooltip and for a screen reader: "Log feed".
+  final String? logLabel;
 
   /// A button at the row's trailing edge, for the rows that lead anywhere.
   ///
@@ -594,11 +629,18 @@ class _StatusRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: theme.colorScheme.primaryContainer,
-              child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
-            ),
+            switch (onLog) {
+              final log? => _LogIcon(
+                icon: icon,
+                label: logLabel ?? 'Log',
+                onPressed: log,
+              ),
+              null => CircleAvatar(
+                radius: 22,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
+              ),
+            },
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -707,6 +749,79 @@ class _LabelAndValue extends StatelessWidget {
           children: [labelText, valueText],
         );
       },
+    );
+  }
+}
+
+/// Opens the feed sheet the way this household has asked for it: straight
+/// to a bottle when that shortcut is on, otherwise asking what kind.
+///
+/// Shared by the feeding row's icon and the app's "Log feed" launch
+/// shortcut, which are the same intent arriving two ways and would be a bug
+/// apart.
+void logFeed(BuildContext context, WidgetRef ref) {
+  showFeedingQuickLog(
+    context,
+    type: ref.read(bottleShortcutProvider) ? FeedingType.bottle : null,
+  );
+}
+
+/// A row's icon as its log button: the same picture, filled and pressable,
+/// with a small plus on it so it reads as "add one" and not as decoration.
+///
+/// The full 48pt touch target, a little bigger than the plain icon it
+/// replaces, so a thumb finds it without aiming.
+class _LogIcon extends StatelessWidget {
+  const _LogIcon({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: IconButton.filledTonal(
+              tooltip: label,
+              onPressed: onPressed,
+              style: IconButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(48, 48),
+                backgroundColor: scheme.primaryContainer,
+                foregroundColor: scheme.onPrimaryContainer,
+              ),
+              icon: Icon(icon),
+            ),
+          ),
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: IgnorePointer(
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: scheme.surface, width: 2),
+                ),
+                child: Icon(Icons.add, size: 14, color: scheme.onPrimary),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

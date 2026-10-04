@@ -99,14 +99,16 @@ void main() {
     expect(find.textContaining('15 min · 90 ml'), findsOneWidget);
   });
 
-  testWidgets('stays away until something has been pumped', (tester) async {
-    // A household that never pumps would otherwise carry a permanently empty
-    // row, the same clutter the solids row avoids.
+  testWidgets('is there before the first session, to log it from', (
+    tester,
+  ) async {
+    // It used to stay away until something had been pumped. With the log
+    // buttons gone, its icon is the way to log that first session.
     await pumpCard(tester);
 
-    expect(find.text('Last pumped'), findsNothing);
-    expect(find.text('Last fed'), findsOneWidget);
-    expect(find.text('Last diaper changed'), findsOneWidget);
+    expect(find.text('Last pumped'), findsOneWidget);
+    expect(find.text('No sessions yet'), findsOneWidget);
+    expect(find.byTooltip('Log pump'), findsOneWidget);
   });
 
   testWidgets('and goes away when pumping is switched off', (tester) async {

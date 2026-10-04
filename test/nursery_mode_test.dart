@@ -643,6 +643,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      // At this text size the status card fills the first screen, so the
+      // header is a scroll away.
+      await tester.scrollUntilVisible(
+        find.byTooltip('Nursery mode'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
 
       expect(tester.takeException(), isNull);
       expect(find.byTooltip('Nursery mode'), findsOneWidget);

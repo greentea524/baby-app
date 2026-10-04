@@ -60,7 +60,6 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const _AccentPicker(),
-          const _HomeActionsPicker(),
           const _HomeLayoutPicker(),
           const _UnitsPicker(),
           const _BottleShortcutToggle(),
@@ -170,40 +169,6 @@ class _AccentPicker extends ConsumerWidget {
   }
 }
 
-/// Where Home's quick-log buttons sit.
-///
-/// Above the layout picker below, because it is the bigger of the two
-/// choices: one moves the thing you came to tap, the other decides whether
-/// the rows share a card.
-class _HomeActionsPicker extends ConsumerWidget {
-  const _HomeActionsPicker();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(homeActionsProvider);
-    return ListTile(
-      leading: const Icon(Icons.touch_app_outlined),
-      title: const Text('Quick actions'),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(selected.description),
-          const SizedBox(height: 8),
-          SegmentedButton<HomeActions>(
-            segments: [
-              for (final placement in HomeActions.values)
-                ButtonSegment(value: placement, label: Text(placement.label)),
-            ],
-            selected: {selected},
-            onSelectionChanged: (s) =>
-                ref.read(homeActionsProvider.notifier).setPlacement(s.first),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Whether the Home status rows share a card or get their own (KAN-180).
 class _HomeLayoutPicker extends ConsumerWidget {
   const _HomeLayoutPicker();
@@ -295,9 +260,9 @@ class _BottleShortcutToggle extends ConsumerWidget {
   }
 }
 
-/// Whether Home offers a "Log pumping" button (KAN-181). On by default, since
-/// it is the only way to start a pump entry; the subtitle spells out what
-/// turning it off costs.
+/// Whether Home has a "Last pumped" row, whose icon logs a session
+/// (KAN-181). On by default, since it is the only way to start a pump entry;
+/// the subtitle spells out what turning it off costs.
 class _PumpingActionToggle extends ConsumerWidget {
   const _PumpingActionToggle();
 
@@ -309,7 +274,7 @@ class _PumpingActionToggle extends ConsumerWidget {
       title: const Text('Pumping'),
       subtitle: Text(
         enabled
-            ? 'A log button on Home, and a "Last pumped" row above it'
+            ? 'A "Last pumped" row on Home — tap its icon to log one'
             : 'Hidden — turn on to log pump sessions',
       ),
       value: enabled,
