@@ -19,6 +19,7 @@ import '../reminders/reminder_providers.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../pumping/pumping_quick_log.dart';
+import '../fridge/bottle_gauge.dart';
 import '../fridge/bottle_sheet.dart';
 import 'home_prefs.dart';
 
@@ -349,11 +350,46 @@ class HomeStatusCard extends ConsumerWidget {
         1 => '1 bottle',
         final n => '$n bottles',
       },
+      picture: _bottlePicture(shelf),
       detail: shelf.isEmpty
           ? null
           : _join(formatVolume(totalMl(shelf), units), warning),
     );
   }
+
+  /// The bottles themselves, up to [_maxDrawn], drawn filled to their
+  /// level, oldest first as on the fridge's own shelf: three small bottles
+  /// say "three, and how full" at a glance where "3 bottles" says only the
+  /// first. Past that the count is quicker to read than a row of drawings,
+  /// so null, and the row says the number.
+  static ({Widget widget, double width})? _bottlePicture(
+    List<FridgeBottle> shelf,
+  ) {
+    if (shelf.isEmpty || shelf.length > _maxDrawn) return null;
+    const height = 40.0;
+    const gap = 4.0;
+    const width = height * BottleGauge.aspectRatio;
+    return (
+      width: shelf.length * width + (shelf.length - 1) * gap,
+      widget: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final (i, b) in shelf.indexed) ...[
+            if (i > 0) const SizedBox(width: gap),
+            SizedBox(
+              key: ValueKey('home-bottle-${b.id}'),
+              width: width,
+              height: height,
+              child: BottleGauge(amountMl: b.amountMl, kind: b.kind),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// The most bottles drawn on the row before it gives the number instead.
+  static const _maxDrawn = 3;
 
   static String _join(String label, String details) =>
       details.isEmpty ? label : '$label · $details';
@@ -575,7 +611,11 @@ class _StatusRow extends StatelessWidget {
     this.action,
     this.onLog,
     this.logLabel,
+    this.picture,
   });
+
+  /// Drawn in place of [value] — see [_LabelAndValue.picture].
+  final ({Widget widget, double width})? picture;
 
   /// Logs another of what this row reports — tapping its icon. The way to
   /// log from Home: the row's icon is the button, so the reading and the way
@@ -646,7 +686,7 @@ class _StatusRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _LabelAndValue(label: label, value: value),
+                  _LabelAndValue(label: label, value: value, picture: picture),
                   if (detailText != null)
                     Text(
                       detailText,
@@ -692,10 +732,17 @@ class _StatusRow extends StatelessWidget {
 /// neither string is ever truncated, because the whole row is the answer to
 /// "when did they last eat".
 class _LabelAndValue extends StatelessWidget {
-  const _LabelAndValue({required this.label, required this.value});
+  const _LabelAndValue({
+    required this.label,
+    required this.value,
+    this.picture,
+  });
 
   final String label;
   final String value;
+
+  /// Shown in place of [value], which is then what a screen reader hears.
+  final ({Widget widget, double width})? picture;
 
   /// The least space allowed between them before they stop sharing a line.
   static const _gap = 12.0;
@@ -723,11 +770,17 @@ class _LabelAndValue extends StatelessWidget {
     final labelText = Text(label, style: labelStyle);
     // Right-aligned in both branches: in the Row it is the last child, and in
     // the stretched Column the alignment is what puts it against the edge.
-    final valueText = Text(
-      value,
-      style: valueStyle,
-      textAlign: TextAlign.right,
-    );
+    final drawn = picture;
+    final valueText = drawn == null
+        ? Text(value, style: valueStyle, textAlign: TextAlign.right)
+        : Align(
+            alignment: Alignment.centerRight,
+            widthFactor: 1,
+            child: Semantics(
+              label: value,
+              child: ExcludeSemantics(child: drawn.widget),
+            ),
+          );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -735,7 +788,7 @@ class _LabelAndValue extends StatelessWidget {
             constraints.maxWidth.isFinite &&
             _widthOf(label, labelStyle, scaler) +
                     _gap +
-                    _widthOf(value, valueStyle, scaler) <=
+                    (drawn?.width ?? _widthOf(value, valueStyle, scaler)) <=
                 constraints.maxWidth;
 
         if (fits) {

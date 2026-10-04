@@ -7,6 +7,7 @@ import 'package:baby_app/core/auth/auth_providers.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
+import 'package:baby_app/features/fridge/bottle_gauge.dart';
 import 'package:baby_app/features/fridge/fridge_button.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 import 'package:baby_app/features/reminders/feed_prediction.dart';
@@ -28,6 +29,7 @@ void main() {
     WidgetTester tester, {
     List<FridgeBottle> bottles = const [],
     Map<String, Object> prefs = const {},
+    double textScale = 1.0,
   }) async {
     SharedPreferences.setMockInitialValues({'unit_system': 'metric', ...prefs});
     final stored = await SharedPreferences.getInstance();
@@ -42,8 +44,15 @@ void main() {
           fridgeBottlesProvider.overrideWith((ref) => Stream.value(bottles)),
         ],
         child: MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(child: HomeStatusCard(now: now)),
+          home: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(textScale)),
+              child: Scaffold(
+                body: SingleChildScrollView(child: HomeStatusCard(now: now)),
+              ),
+            ),
           ),
         ),
       ),
@@ -64,7 +73,10 @@ void main() {
   testWidgets('says how many and how much, with the way in', (tester) async {
     await pumpCard(tester, bottles: [bottle('a', 5, 90), bottle('b', 2, 60)]);
     expect(find.text('In the fridge'), findsOneWidget);
-    expect(find.text('2 bottles'), findsOneWidget);
+    // Drawn rather than counted, up to three: one small bottle each.
+    expect(find.byKey(const ValueKey('home-bottle-a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-bottle-b')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'\b2 bottles')), findsOneWidget);
     expect(find.text('150 ml'), findsOneWidget);
     expect(find.byType(FridgeButton), findsOneWidget);
     // An arrow, not a second fridge beside the row's own.
@@ -116,6 +128,45 @@ void main() {
 
   testWidgets('says one bottle as one', (tester) async {
     await pumpCard(tester, bottles: [bottle('a', 5, 90)]);
-    expect(find.text('1 bottle'), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-bottle-a')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'\b1 bottle\b')), findsOneWidget);
+  });
+
+  testWidgets('draws three, oldest first', (tester) async {
+    await pumpCard(
+      tester,
+      bottles: [
+        bottle('new', 1, 60),
+        bottle('old', 9, 90),
+        bottle('mid', 5, 30),
+      ],
+    );
+    double x(String id) =>
+        tester.getRect(find.byKey(ValueKey('home-bottle-$id'))).left;
+    expect(x('old'), lessThan(x('mid')));
+    expect(x('mid'), lessThan(x('new')));
+    expect(find.text('3 bottles'), findsNothing);
+  });
+
+  testWidgets('but past three, gives the count instead', (tester) async {
+    await pumpCard(
+      tester,
+      bottles: [for (var i = 0; i < 4; i++) bottle('b$i', i + 1, 60)],
+    );
+    expect(find.text('4 bottles'), findsOneWidget);
+    expect(find.byType(BottleGauge), findsNothing);
+  });
+
+  testWidgets('and fits a small phone at large text', (tester) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await pumpCard(
+      tester,
+      bottles: [bottle('a', 5, 90), bottle('b', 3, 60), bottle('c', 2, 120)],
+      textScale: 2.0,
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.byType(BottleGauge), findsNWidgets(3));
   });
 }
