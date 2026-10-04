@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
+import '../../core/format/volume_format.dart';
+import '../../data/models/fridge_bottle.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/banded_track.dart';
@@ -9,6 +11,7 @@ import '../diaper/diaper_due.dart';
 import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
 import '../fridge/fridge_button.dart';
+import '../fridge/fridge_order.dart';
 import '../pumping/pump_schedule.dart';
 import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
@@ -39,6 +42,7 @@ class HomeStatusCard extends ConsumerWidget {
       ?_solidsRow(context, ref),
       _diaperRow(context, ref),
       ?_pumpRow(context, ref),
+      ?_fridgeRow(context, ref),
     ];
 
     if (ref.watch(homeLayoutProvider) == HomeLayout.separate) {
@@ -258,10 +262,6 @@ class HomeStatusCard extends ConsumerWidget {
               state,
               Theme.of(context).colorScheme.surfaceContainerLow,
             ),
-      // The one row on this card that leads somewhere. What is in the fridge
-      // is the question a pumping household asks straight after "when did I
-      // last pump", and this row is where they are already looking.
-      action: ref.watch(showFridgeProvider) ? const FridgeButton() : null,
       icon: PumpingFormat.icon,
       label: 'Last pumped',
       value: FeedingFormat.timeAgo(last.time, now: now),
@@ -270,6 +270,64 @@ class HomeStatusCard extends ConsumerWidget {
         PumpingFormat.details(last, units),
       ),
       footer: next,
+    );
+  }
+
+  /// What is in the fridge, and the way in to it.
+  ///
+  /// A row of its own rather than a button on the pump row, where it used to
+  /// be: the fridge holds formula and whole milk as well as pumped milk, and
+  /// a household that hid pumping still has one. Shown whenever the fridge
+  /// is switched on, empty or not — "Empty" is an answer, and the button is
+  /// how a first bottle gets added.
+  ///
+  /// Tinted by its oldest bottle, the way the fridge's own cards are: amber
+  /// from two days, red from three.
+  Widget? _fridgeRow(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(showFridgeProvider)) return null;
+    final shelf = ref.watch(fridgeShelfProvider);
+    final units = ref.watch(unitSystemProvider);
+
+    int count(bool Function(FridgeBottle b) test) => shelf.where(test).length;
+    final past = count((b) => isPastDrinkBy(b.filledAt, now));
+    final old = count((b) => BottleAge.of(b.filledAt, now) == BottleAge.old);
+    final aging = count(
+      (b) => BottleAge.of(b.filledAt, now) == BottleAge.aging,
+    );
+    // The most pressing one, said once: the fridge screen has the rest.
+    String are(int n) => n == 1 ? 'is' : 'are';
+    final warning = past > 0
+        ? '$past ${are(past)} past drink-by'
+        : old > 0
+        ? '$old ${are(old)} 3+ days old'
+        : aging > 0
+        ? '$aging ${are(aging)} 2+ days old'
+        : '';
+    final state = old > 0
+        ? DueState.overdue
+        : aging > 0
+        ? DueState.soon
+        : null;
+
+    return _StatusRow(
+      tint: state == null
+          ? null
+          : dueTint(
+              context,
+              state,
+              Theme.of(context).colorScheme.surfaceContainerLow,
+            ),
+      action: const FridgeButton(glyph: Icons.arrow_forward),
+      icon: FridgeButton.icon,
+      label: 'In the fridge',
+      value: switch (shelf.length) {
+        0 => 'Empty',
+        1 => '1 bottle',
+        final n => '$n bottles',
+      },
+      detail: shelf.isEmpty
+          ? null
+          : _join(formatVolume(totalMl(shelf), units), warning),
     );
   }
 

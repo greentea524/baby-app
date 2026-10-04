@@ -121,23 +121,18 @@ void main() {
     expect(find.text('Last pumped'), findsNothing);
   });
 
-  testWidgets('has a button into the fridge, on its own line', (tester) async {
-    // What is in the fridge is the question a pumping household asks
-    // straight after "when did I last pump". A filled button with a fridge on
-    // it, where there used to be a bare chevron that did not say where it
-    // went.
+  testWidgets('leaves the way into the fridge to a row of its own', (
+    tester,
+  ) async {
+    // It used to sit on this row. The fridge is not only pumped milk, and
+    // now has its own row underneath — see home_fridge_row_test.
     await pumpCard(tester, pumping: pumps);
 
-    final button = find.byType(FridgeButton);
-    expect(button, findsOneWidget);
-    expect(find.byTooltip('In the fridge'), findsOneWidget);
-    expect(find.byIcon(FridgeButton.icon), findsOneWidget);
-
-    // Beside the reading it belongs to, not floating somewhere on the card.
-    final row = tester.getRect(find.text('Last pumped'));
-    final rect = tester.getRect(button);
-    expect(rect.top, lessThan(row.bottom + 40));
-    expect(rect.left, greaterThan(row.right));
+    final button = tester.getRect(find.byType(FridgeButton));
+    final pumped = tester.getRect(find.text('Last pumped'));
+    final fridge = tester.getRect(find.text('In the fridge'));
+    expect(button.top, greaterThan(pumped.bottom));
+    expect(button.top, lessThan(fridge.bottom + 40));
   });
 
   testWidgets('and no other row has one, or a chevron', (tester) async {
@@ -149,22 +144,6 @@ void main() {
     expect(find.byIcon(Icons.chevron_right), findsNothing);
   });
 
-  testWidgets('and none once the fridge is switched off in Settings', (
-    tester,
-  ) async {
-    // The row stays; only the way into the fridge goes.
-    await pumpCard(tester, pumping: pumps, prefs: {'show_fridge': false});
-    expect(find.text('Last pumped'), findsOneWidget);
-    expect(find.byType(FridgeButton), findsNothing);
-  });
-
-  testWidgets('and it goes where the row goes: nowhere, without pumping', (
-    tester,
-  ) async {
-    await pumpCard(tester);
-    expect(find.byType(FridgeButton), findsNothing);
-  });
-
   testWidgets('gets its own card in the separate layout', (tester) async {
     await pumpCard(
       tester,
@@ -172,7 +151,8 @@ void main() {
       prefs: {'home_layout': HomeLayout.separate.name},
     );
 
-    expect(find.byType(Card), findsNWidgets(3));
+    // Feeding, diapers, pumping and the fridge.
+    expect(find.byType(Card), findsNWidgets(4));
     expect(find.text('Last pumped'), findsOneWidget);
   });
 
