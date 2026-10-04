@@ -325,14 +325,16 @@ void main() {
             ),
           ],
         );
-        return tester
-            .getSize(
-              find.descendant(
-                of: find.byType(DueChip),
-                matching: find.byType(ColoredBox),
-              ),
-            )
-            .width;
+        // Filled across however many bands it reaches.
+        var filled = 0.0;
+        for (var i = 0; i < 3; i++) {
+          final band = find.descendant(
+            of: find.byType(DueChip),
+            matching: find.byKey(ValueKey('band-$i')),
+          );
+          if (band.evaluate().isNotEmpty) filled += tester.getSize(band).width;
+        }
+        return filled;
       }
 
       final justFed = await trackWidth(const Duration(minutes: 10));
