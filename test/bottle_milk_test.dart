@@ -132,6 +132,17 @@ void main() {
     expect(feeds.added.single.milk, MilkKind.wholeMilk);
   });
 
+  testWidgets('a Vitamin D pill writes the note', (tester) async {
+    await openBottleForm(tester);
+    final pill = find.widgetWithText(FilterChip, 'Vitamin D');
+    await tester.ensureVisible(pill);
+    await tester.tap(pill);
+    await tester.pumpAndSettle();
+    await saveWith(tester, '120');
+
+    expect(feeds.added.single.notes, 'Vitamin D');
+  });
+
   testWidgets('a pump chip is breast milk', (tester) async {
     await openBottleForm(
       tester,

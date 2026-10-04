@@ -5,6 +5,7 @@ import '../../data/models/diaper_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
+import '../common/note_chips.dart';
 import '../common/save_and_close.dart';
 import 'diaper_format.dart';
 
@@ -153,6 +154,7 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
             border: OutlineInputBorder(),
           ),
         ),
+        NoteChips(controller: _notesController, notes: diaperNoteSuggestions),
         const SizedBox(height: 16),
         FilledButton(
           // Only reachable by editing a record that was already stamped

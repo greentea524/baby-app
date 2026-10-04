@@ -117,4 +117,17 @@ void main() {
 
     expect(selectedSize(tester), isNull);
   });
+
+  testWidgets('a Blowout pill writes the note', (tester) async {
+    await openSheet(tester);
+    final pill = find.widgetWithText(FilterChip, 'Blowout');
+    await tester.ensureVisible(pill);
+    await tester.tap(pill);
+    await tester.pumpAndSettle();
+
+    final notes = tester.widget<TextField>(
+      find.widgetWithText(TextField, 'Notes (color / consistency, optional)'),
+    );
+    expect(notes.controller!.text, 'Blowout');
+  });
 }

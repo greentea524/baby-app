@@ -9,6 +9,7 @@ import '../../data/repositories/repository_providers.dart';
 import '../../core/format/volume_entry.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
+import '../common/note_chips.dart';
 import '../common/milk_chooser.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
@@ -566,6 +567,7 @@ class _BottleFormState extends ConsumerState<_BottleForm> {
             border: OutlineInputBorder(),
           ),
         ),
+        NoteChips(controller: _notesController, notes: bottleNoteSuggestions),
         _SnackToggle(
           value: _isSnack,
           onChanged: (v) => setState(() => _isSnack = v),
