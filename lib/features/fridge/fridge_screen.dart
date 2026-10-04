@@ -8,6 +8,7 @@ import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/banded_track.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../home/home_status_card.dart';
@@ -797,41 +798,25 @@ class _DrinkBy extends StatelessWidget {
 }
 
 /// The time a bottle has left until its drink-by, as a bar that empties
-/// from full when it was filled to nothing at the deadline — the same kind
-/// of depleting track as Home's next-feed chip, so it reads the same way.
+/// from full when it was filled to nothing at the deadline — the same
+/// banded track as Home's next-feed chip, so the two read the same way.
 ///
-/// Banded by the warning each stretch of it falls in: the far end is red,
-/// the stretch before it amber, the rest the app's own colour. So the bar
-/// shows what is coming as well as what is left — as it empties, the
-/// ordinary stretch goes first, and how much is left before amber is the
-/// card's time until it turns yellow. Saturated rather than the card tints,
-/// which a bar this thin would lose against a card already that colour.
+/// Red for the last day, amber for the one before it, which is when the
+/// card itself turns red and yellow.
 class _ShelfLifeBar extends StatelessWidget {
   const _ShelfLifeBar({required this.bottle, required this.now});
 
   final FridgeBottle bottle;
   final DateTime now;
 
-  static const double _height = 8;
-
-  static const _amberLight = Color(0xFFD99A00);
-  static const _amberDark = Color(0xFFFFC94D);
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final dark = theme.brightness == Brightness.dark;
+    final inks = warningInks(context);
     final filled = bottle.filledAt;
     final left = drinkByRemaining(filled, now);
     // Where the bar turns: below these, what is left is amber, then red.
     final amberFrom = drinkByRemainingAt(BottleAge.agingAfter, filled);
     final redFrom = drinkByRemainingAt(BottleAge.oldAfter, filled);
-    final bands = [
-      (from: 0.0, to: redFrom, colour: scheme.error),
-      (from: redFrom, to: amberFrom, colour: dark ? _amberDark : _amberLight),
-      (from: amberFrom, to: 1.0, colour: scheme.primary),
-    ];
     final hoursLeft = drinkBy(filled).difference(now).inHours;
 
     return Semantics(
@@ -839,46 +824,14 @@ class _ShelfLifeBar extends StatelessWidget {
           ? 'Past its drink-by time'
           : '$hoursLeft hr left before its drink-by time',
       child: ExcludeSemantics(
-        child: SizedBox(
-          height: _height,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(_height / 2),
-            child: LayoutBuilder(
-              builder: (context, c) {
-                final w = c.maxWidth;
-                return Stack(
-                  children: [
-                    Positioned.fill(
-                      child: ColoredBox(
-                        color: scheme.onSurface.withValues(alpha: 0.12),
-                      ),
-                    ),
-                    for (final band in bands)
-                      if (left > band.from)
-                        Positioned(
-                          left: w * band.from,
-                          top: 0,
-                          bottom: 0,
-                          width:
-                              w *
-                              ((left < band.to ? left : band.to) - band.from),
-                          child: ColoredBox(color: band.colour),
-                        ),
-                    // Cut between the bands, so where one ends is plain
-                    // whether the bar has reached it yet or not.
-                    for (final at in [redFrom, amberFrom])
-                      Positioned(
-                        left: w * at - 1,
-                        top: 0,
-                        bottom: 0,
-                        width: 2,
-                        child: ColoredBox(color: scheme.surface),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ),
+        child: BandedTrack(
+          remaining: left,
+          height: 8,
+          bands: [
+            (from: 0.0, to: redFrom, colour: inks.overdue),
+            (from: redFrom, to: amberFrom, colour: inks.soon),
+            (from: amberFrom, to: 1.0, colour: inks.ok),
+          ],
         ),
       ),
     );

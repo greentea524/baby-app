@@ -189,6 +189,14 @@ double? feedRemaining({
   return left.clamp(0.0, 1.0);
 }
 
+/// Where on the [feedRemaining] bar the heads-up starts: the share of the
+/// gap that is left once the next feed is [headsUp] away, and the chip turns
+/// amber. Null with no gap to measure against.
+double? dueSoonShare({required Duration headsUp, required Duration interval}) {
+  if (interval <= Duration.zero) return null;
+  return (headsUp.inSeconds / interval.inSeconds).clamp(0.0, 1.0);
+}
+
 /// Human countdown to [due]: "in 1h 20m", "due now", "25m overdue".
 String countdownLabel(DateTime due, {DateTime? now}) {
   final diff = due.difference(now ?? DateTime.now());

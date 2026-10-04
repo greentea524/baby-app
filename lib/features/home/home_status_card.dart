@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format/unit_system.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/banded_track.dart';
 import '../diaper/diaper_due.dart';
 import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
@@ -95,6 +96,10 @@ class HomeStatusCard extends ConsumerWidget {
           due: due,
           interval: Duration(minutes: settings.intervalMinutes),
           now: now,
+        ),
+        soonFrom: dueSoonShare(
+          headsUp: settings.headsUp,
+          interval: Duration(minutes: settings.intervalMinutes),
         ),
         // "Next feed 2h overdue" reads badly, so the wording flips once it
         // has slipped past.
@@ -232,6 +237,10 @@ class HomeStatusCard extends ConsumerWidget {
           due: due,
           interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
           now: now,
+        ),
+        soonFrom: dueSoonShare(
+          headsUp: headsUp,
+          interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
         ),
         // Flipped once it has slipped past, the way the feed chip is: "Next
         // pump 40m overdue" reads as a contradiction.
@@ -380,6 +389,7 @@ class DueChip extends StatelessWidget {
     required this.text,
     required this.state,
     this.remaining,
+    this.soonFrom,
   });
 
   final String text;
@@ -395,13 +405,21 @@ class DueChip extends StatelessWidget {
   /// way through or nine tenths.
   final double? remaining;
 
-  /// Thin enough to read as an underline rather than a second element.
-  static const double _trackHeight = 3;
+  /// Where along the track the heads-up starts — see [dueSoonShare]. The
+  /// stretch below it is amber, the rest the app's colour, the way the
+  /// fridge's drink-by bar is banded: so how near the chip is to turning
+  /// amber can be seen, not only that it has. Null keeps it one colour.
+  final double? soonFrom;
+
+  /// Thick enough to read the bands in, thin enough to stay an underline.
+  static const double _trackHeight = 4;
 
   @override
   Widget build(BuildContext context) {
     final (:background, :foreground, :icon) = dueColors(context, state);
+    final inks = warningInks(context);
     final left = remaining;
+    final amber = soonFrom;
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
@@ -418,17 +436,16 @@ class DueChip extends StatelessWidget {
               left: 0,
               right: 0,
               bottom: 0,
-              height: _trackHeight,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: FractionallySizedBox(
-                  widthFactor: left,
-                  // heightFactor too: without it the box is loose vertically
-                  // and a childless ColoredBox collapses to nothing, which
-                  // is a track that paints no pixels.
-                  heightFactor: 1,
-                  child: ColoredBox(color: foreground),
-                ),
+              child: BandedTrack(
+                remaining: left,
+                height: _trackHeight,
+                rounded: false,
+                cut: background,
+                bands: [
+                  if (amber != null && amber > 0)
+                    (from: 0.0, to: amber, colour: inks.soon),
+                  (from: amber ?? 0.0, to: 1.0, colour: inks.ok),
+                ],
               ),
             ),
           Padding(
