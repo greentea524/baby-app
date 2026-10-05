@@ -91,18 +91,33 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
     return batch.commit();
   }
 
-  /// Pours [poured] into [kept]: [kept] becomes [combined] of the two, and
-  /// [poured] goes.
+  /// Pours [pourMl] of [poured] into [kept] — all of it when null.
   ///
-  /// One batch, so no device ever sees the milk counted twice, or gone.
-  Future<void> combine(FridgeBottle kept, FridgeBottle poured) {
+  /// [kept] becomes [combined] of the two. [poured] keeps what was left in
+  /// it, or goes when it was poured out entirely. One batch, so no device
+  /// ever sees the milk counted twice, or gone.
+  Future<void> combine(
+    FridgeBottle kept,
+    FridgeBottle poured, {
+    double? pourMl,
+  }) {
+    final pour = pourMl ?? poured.amountMl;
+    final left = poured.amountMl - pour;
     final batch = firestore.batch()
       ..update(col.doc(kept.id), {
-        ...combined(kept, poured).toMap(),
+        ...combined(kept, poured, pourMl: pour).toMap(),
         'updatedBy': uid,
         'updatedAt': FieldValue.serverTimestamp(),
-      })
-      ..delete(col.doc(poured.id));
+      });
+    if (left > 0) {
+      batch.update(col.doc(poured.id), {
+        'amountMl': left,
+        'updatedBy': uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      batch.delete(col.doc(poured.id));
+    }
     return batch.commit();
   }
 }

@@ -701,7 +701,9 @@ void main() {
       );
 
       await tapIn(tester, find.textContaining('30 ml · Breast milk'));
-      expect(find.text('80 ml + 30 ml = 110 ml in one bottle'), findsOne);
+      // All of it, since it fits: 30 ml into the 40 ml of room.
+      expect(find.text('80 ml + 30 ml = 110 ml in this bottle'), findsOne);
+      expect(find.textContaining('used up'), findsOne);
       expect(find.textContaining('Keeps the older time'), findsOne);
       expect(find.textContaining('5:00 AM'), findsWidgets);
       expect(find.textContaining('more than a'), findsNothing);
@@ -710,6 +712,56 @@ void main() {
       final done = repo.combines.single;
       expect(done.kept.id, 'new');
       expect(done.poured.id, 'old');
+      expect(done.pourMl, 30);
+    });
+
+    testWidgets('only part of it, topping this one up by default', (
+      tester,
+    ) async {
+      // Reported: combining should be able to pour some, not all. It starts
+      // at what fills this bottle, and the rest stays where it was.
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        size: const Size(1200, 900),
+        bottles: [
+          bottle('a', hoursAgo: 5, ml: 100),
+          bottle('b', hoursAgo: 3, ml: 80),
+        ],
+      );
+      await openCombine(tester, '80');
+      await tapIn(tester, find.textContaining('100 ml · Breast milk'));
+
+      expect(find.text('40 ml of 100 ml'), findsOne);
+      expect(find.text('80 ml + 40 ml = 120 ml in this bottle'), findsOne);
+      expect(find.text('60 ml stays in the other bottle.'), findsOne);
+      expect(find.textContaining('more than a'), findsNothing);
+
+      await tapIn(tester, find.widgetWithText(FilledButton, 'Combine'));
+      expect(repo.combines.single.pourMl, 40);
+    });
+
+    testWidgets('and the slider pours more, or all of it', (tester) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        size: const Size(1200, 900),
+        bottles: [
+          bottle('a', hoursAgo: 5, ml: 100),
+          bottle('b', hoursAgo: 3, ml: 80),
+        ],
+      );
+      await openCombine(tester, '80');
+      await tapIn(tester, find.textContaining('100 ml · Breast milk'));
+      await tester.drag(find.byType(Slider), const Offset(2000, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.text('All 100 ml'), findsOne);
+      expect(find.textContaining('used up'), findsOne);
+      await tapIn(tester, find.widgetWithText(FilledButton, 'Combine'));
+      expect(repo.combines.single.pourMl, 100);
     });
 
     testWidgets('a bottle of another kind cannot be picked, and says why', (
@@ -747,6 +799,10 @@ void main() {
       );
       await openCombine(tester, '90');
       await tapIn(tester, find.textContaining('60 ml · Breast milk'));
+      // Only when poured past full: it starts at what fits.
+      expect(find.textContaining('more than a'), findsNothing);
+      await tester.drag(find.byType(Slider), const Offset(2000, 0));
+      await tester.pumpAndSettle();
       expect(
         find.text('150 ml is more than a 120 ml bottle holds.'),
         findsOneWidget,
@@ -794,7 +850,8 @@ void main() {
       await openCombine(tester, '90');
       await tapIn(tester, find.textContaining('100 ml · Breast milk'));
       expect(tester.takeException(), isNull);
-      expect(find.textContaining('more than a'), findsOneWidget);
+      expect(find.byType(Slider), findsOneWidget);
+      expect(find.textContaining('stays in the other bottle'), findsOneWidget);
     });
   });
 
@@ -1366,7 +1423,8 @@ class _RecordingFridge extends FridgeRepository {
 
   final added = <FridgeBottle>[];
   final deleted = <String>[];
-  final combines = <({FridgeBottle kept, FridgeBottle poured})>[];
+  final combines =
+      <({FridgeBottle kept, FridgeBottle poured, double? pourMl})>[];
   bool failCombine = false;
 
   @override
@@ -1379,9 +1437,13 @@ class _RecordingFridge extends FridgeRepository {
   Future<void> delete(String id) async => deleted.add(id);
 
   @override
-  Future<void> combine(FridgeBottle kept, FridgeBottle poured) async {
+  Future<void> combine(
+    FridgeBottle kept,
+    FridgeBottle poured, {
+    double? pourMl,
+  }) async {
     if (failCombine) throw StateError('permission-denied');
-    combines.add((kept: kept, poured: poured));
+    combines.add((kept: kept, poured: poured, pourMl: pourMl));
   }
 }
 

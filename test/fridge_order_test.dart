@@ -92,6 +92,41 @@ void main() {
       expect(combined(noted('a', null), noted('b', null)).notes, isNull);
     });
 
+    test('pours only what is asked, at the older time still', () {
+      final older = bottle('old', atHour: 1, ml: 100);
+      final kept = bottle('new', atHour: 9, ml: 80);
+      final into = combined(kept, older, pourMl: 40);
+      expect(into.amountMl, 120);
+      expect(into.filledAt, older.filledAt);
+    });
+
+    test('and by default, what fills this one up', () {
+      // 80 ml has room for 40 of a 120 ml bottle.
+      expect(
+        defaultPourMl(
+          bottle('k', atHour: 1, ml: 80),
+          bottle('p', atHour: 2, ml: 100),
+        ),
+        40,
+      );
+      // All of it when it fits.
+      expect(
+        defaultPourMl(
+          bottle('k', atHour: 1, ml: 80),
+          bottle('p', atHour: 2, ml: 30),
+        ),
+        30,
+      );
+      // All of it when this one is full already: there is nothing to top up.
+      expect(
+        defaultPourMl(
+          bottle('k', atHour: 1, ml: 130),
+          bottle('p', atHour: 2, ml: 30),
+        ),
+        30,
+      );
+    });
+
     test('only of the same kind, and not with itself', () {
       final milk = bottle('a', atHour: 1);
       expect(canCombine(milk, bottle('b', atHour: 2)), isTrue);

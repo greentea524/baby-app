@@ -1103,6 +1103,21 @@ describe("combining two bottles, between caregivers", () => {
     await assertSucceeds(batch.commit());
   });
 
+  it("pours part of one, leaving the rest in it", async () => {
+    // A partial pour: both bottles stay, one fuller and one emptier.
+    const db = asBob();
+    const batch = writeBatch(db);
+    batch.update(bottleRef(db, "kept"), {
+      filledAt: AT,
+      amountMl: 100,
+      kind: "expressed",
+      notes: "left",
+      ...edited("bob"),
+    });
+    batch.update(bottleRef(db, "poured"), { amountMl: 10, ...edited("bob") });
+    await assertSucceeds(batch.commit());
+  });
+
   it("still refuses the batch when it does not own up to who made it", async () => {
     const db = asBob();
     const batch = writeBatch(db);

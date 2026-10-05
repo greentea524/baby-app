@@ -431,14 +431,23 @@ class _CombineSheetState extends ConsumerState<_CombineSheet> {
   String? _pouredId;
   bool _saving = false;
 
-  void _combine(FridgeBottle kept, FridgeBottle poured) {
+  /// How much of the picked bottle to pour in. Set to [defaultPourMl] when
+  /// a bottle is picked; null until then.
+  double? _pourMl;
+
+  void _pick(FridgeBottle kept, FridgeBottle poured) => setState(() {
+    _pouredId = poured.id;
+    _pourMl = defaultPourMl(kept, poured);
+  });
+
+  void _combine(FridgeBottle kept, FridgeBottle poured, double pourMl) {
     if (_saving) return;
     final repo = ref.read(fridgeRepositoryProvider);
     if (repo == null) return;
     _saving = true;
     saveAndClose(
       context,
-      () => repo.combine(kept, poured),
+      () => repo.combine(kept, poured, pourMl: pourMl),
       failure: 'Could not combine the bottles',
     );
   }
@@ -459,7 +468,11 @@ class _CombineSheetState extends ConsumerState<_CombineSheet> {
         if (b.id != kept.id) b,
     ];
     final poured = others.where((b) => b.id == _pouredId).firstOrNull;
-    final into = poured == null ? null : combined(kept, poured);
+    // Kept within the bottle as it is now, in case it shrank meanwhile.
+    final pour = poured == null
+        ? null
+        : (_pourMl ?? poured.amountMl).clamp(0.0, poured.amountMl);
+    final into = poured == null ? null : combined(kept, poured, pourMl: pour);
     final kind = kept.kind.label.toLowerCase();
 
     String describe(FridgeBottle b) =>
@@ -474,8 +487,8 @@ class _CombineSheetState extends ConsumerState<_CombineSheet> {
         Text('Combine bottles', style: theme.textTheme.titleLarge),
         const SizedBox(height: 8),
         Text(
-          'Pick a bottle to pour into this one '
-          '(${describe(kept)}). Only $kind can go in.',
+          'Pick a bottle to pour from into this one '
+          '(${describe(kept)}), then how much. Only $kind can go in.',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: scheme.onSurfaceVariant,
           ),
@@ -488,15 +501,30 @@ class _CombineSheetState extends ConsumerState<_CombineSheet> {
                 ? null
                 : "${b.kind.label} — can't mix with $kind",
             picked: b.id == _pouredId,
-            onTap: () => setState(() => _pouredId = b.id),
+            onTap: () => _pick(kept, b),
           ),
-        if (poured != null && into != null) ...[
+        if (poured != null && into != null && pour != null) ...[
           const SizedBox(height: 12),
-          _CombinePreview(kept: kept, poured: poured, into: into, units: units),
+          _PourAmount(
+            pourMl: pour,
+            fromMl: poured.amountMl,
+            units: units,
+            onChanged: (v) => setState(() => _pourMl = v),
+          ),
+          const SizedBox(height: 8),
+          _CombinePreview(
+            kept: kept,
+            poured: poured,
+            pourMl: pour,
+            into: into,
+            units: units,
+          ),
         ],
         const SizedBox(height: 16),
         FilledButton(
-          onPressed: poured == null ? null : () => _combine(kept, poured),
+          onPressed: poured == null || pour == null || pour <= 0
+              ? null
+              : () => _combine(kept, poured, pour),
           child: const Text('Combine'),
         ),
       ],
@@ -537,6 +565,65 @@ class _PourChoice extends StatelessWidget {
   }
 }
 
+/// How much of the other bottle to pour in: a slider in whole millilitres,
+/// from a splash up to all of it, the way Split's is.
+class _PourAmount extends StatelessWidget {
+  const _PourAmount({
+    required this.pourMl,
+    required this.fromMl,
+    required this.units,
+    required this.onChanged,
+  });
+
+  final double pourMl;
+
+  /// What the other bottle holds: as far as the slider goes.
+  final double fromMl;
+  final UnitSystem units;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Too little to choose an amount from: it all goes in.
+    if (fromMl < 2) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text('Pour in', style: theme.textTheme.titleSmall)),
+            Text(
+              pourMl >= fromMl
+                  ? 'All ${formatVolume(fromMl, units)}'
+                  : '${formatVolume(pourMl, units)} of '
+                        '${formatVolume(fromMl, units)}',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: pourMl.clamp(1, fromMl),
+          min: 1,
+          max: fromMl,
+          // Whole millilitres, so what is poured and what is left add back
+          // up to the bottle exactly.
+          divisions: (fromMl - 1).round().clamp(1, 1000),
+          label: formatVolume(pourMl, units),
+          onChanged: (v) {
+            // The last step lands on the whole bottle even when it holds a
+            // fraction of a millilitre more than a whole number.
+            final ml = v.roundToDouble();
+            onChanged(ml >= fromMl.floorToDouble() ? fromMl : ml);
+          },
+        ),
+      ],
+    );
+  }
+}
+
 /// What the combined bottle will be, said before it is: "30 ml + 100 ml =
 /// 130 ml", the time it keeps, and a warning when it is more than a bottle
 /// holds.
@@ -544,12 +631,14 @@ class _CombinePreview extends StatelessWidget {
   const _CombinePreview({
     required this.kept,
     required this.poured,
+    required this.pourMl,
     required this.into,
     required this.units,
   });
 
   final FridgeBottle kept;
   final FridgeBottle poured;
+  final double pourMl;
   final FridgeBottle into;
   final UnitSystem units;
 
@@ -558,6 +647,7 @@ class _CombinePreview extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final over = into.amountMl > bottleCapacityMl;
+    final left = poured.amountMl - pourMl;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -569,11 +659,20 @@ class _CombinePreview extends StatelessWidget {
         children: [
           Text(
             '${formatVolume(kept.amountMl, units)} + '
-            '${formatVolume(poured.amountMl, units)} = '
-            '${formatVolume(into.amountMl, units)} in one bottle',
+            '${formatVolume(pourMl, units)} = '
+            '${formatVolume(into.amountMl, units)} in this bottle',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
             ),
+          ),
+          const SizedBox(height: 4),
+          // What happens to the other one, which is the half of a partial
+          // pour that is easy to lose track of.
+          Text(
+            left > 0
+                ? '${formatVolume(left, units)} stays in the other bottle.'
+                : 'The other bottle is used up and comes off the shelf.',
+            style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 4),
           // Said, because the shelf goes by this time: the bottle may move

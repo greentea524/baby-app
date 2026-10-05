@@ -23,17 +23,23 @@ List<FridgeBottle> shelfOrder(List<FridgeBottle> bottles) =>
       return byAge != 0 ? byAge : a.id.compareTo(b.id);
     });
 
-/// [kept] with [poured] poured into it: what the one bottle left holds.
+/// [kept] with [pourMl] of [poured] poured into it — all of it when
+/// [pourMl] is null.
 ///
 /// The exact sum, never rounded, the way a split's halves always add back
 /// up. The older of the two times, because milk is as old as its oldest
 /// part — taking the newer would make the age warnings and the drink-by
-/// date say a mixed bottle is fresher than some of what is in it. Both
-/// notes, so neither is lost, and blank ones skipped.
+/// date say a mixed bottle is fresher than some of what is in it. That holds
+/// for any amount poured: a splash of old milk makes the bottle as old as
+/// the splash. Both notes, so neither is lost, and blank ones skipped.
 ///
 /// Only for two of the same kind: see [canCombine]. Mixing kinds is a
 /// feeding decision, and the result would have no honest kind to show.
-FridgeBottle combined(FridgeBottle kept, FridgeBottle poured) {
+FridgeBottle combined(
+  FridgeBottle kept,
+  FridgeBottle poured, {
+  double? pourMl,
+}) {
   assert(canCombine(kept, poured));
   final notes = [
     for (final n in [kept.notes, poured.notes])
@@ -44,10 +50,21 @@ FridgeBottle combined(FridgeBottle kept, FridgeBottle poured) {
     filledAt: poured.filledAt.isBefore(kept.filledAt)
         ? poured.filledAt
         : kept.filledAt,
-    amountMl: kept.amountMl + poured.amountMl,
+    amountMl: kept.amountMl + (pourMl ?? poured.amountMl),
     kind: kept.kind,
     notes: notes.isEmpty ? null : notes.join(' · '),
   );
+}
+
+/// How much of [poured] to pour into [kept] unless told otherwise: enough
+/// to fill [kept] to a full bottle, or all of [poured] if that is less.
+///
+/// Topping a bottle up is what a partial pour is for, so the slider starts
+/// there rather than at everything, which would overfill it.
+double defaultPourMl(FridgeBottle kept, FridgeBottle poured) {
+  final room = bottleCapacityMl - kept.amountMl;
+  if (room <= 0 || room >= poured.amountMl) return poured.amountMl;
+  return room.roundToDouble().clamp(1.0, poured.amountMl);
 }
 
 /// Whether [poured] can go into [kept]: another bottle, of the same kind.
