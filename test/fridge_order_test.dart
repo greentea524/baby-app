@@ -127,6 +127,25 @@ void main() {
       );
     });
 
+    test('the pour moves 5 ml at a time, and can always take it all', () {
+      expect(pourStops(20), [5, 10, 15, 20]);
+      // Not a whole number of steps: the last stop is all of it.
+      expect(pourStops(23), [5, 10, 15, 20, 23]);
+      // Less than a step: only the whole of it.
+      expect(pourStops(4), [4]);
+    });
+
+    test('and starts on a stop, never past full', () {
+      // 77 ml has room for 43; the stop below that is 40.
+      expect(
+        defaultPourMl(
+          bottle('k', atHour: 1, ml: 77),
+          bottle('p', atHour: 2, ml: 100),
+        ),
+        40,
+      );
+    });
+
     test('only of the same kind, and not with itself', () {
       final milk = bottle('a', atHour: 1);
       expect(canCombine(milk, bottle('b', atHour: 2)), isTrue);

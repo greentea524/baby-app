@@ -56,15 +56,29 @@ FridgeBottle combined(
   );
 }
 
+/// How much the pour slider moves at a time.
+const double pourStepMl = 5;
+
+/// The amounts a pour can be: every [pourStepMl] up to what [fromMl]
+/// holds, and then all of it, so a bottle that is not a whole number of
+/// steps can still be poured out entirely. A bottle of less than one step
+/// can only be poured whole.
+List<double> pourStops(double fromMl) => [
+  for (var ml = pourStepMl; ml < fromMl; ml += pourStepMl) ml,
+  fromMl,
+];
+
 /// How much of [poured] to pour into [kept] unless told otherwise: enough
 /// to fill [kept] to a full bottle, or all of [poured] if that is less.
 ///
 /// Topping a bottle up is what a partial pour is for, so the slider starts
-/// there rather than at everything, which would overfill it.
+/// there rather than at everything, which would overfill it. Rounded down
+/// to a [pourStops] stop, so it never overfills by the rounding.
 double defaultPourMl(FridgeBottle kept, FridgeBottle poured) {
   final room = bottleCapacityMl - kept.amountMl;
   if (room <= 0 || room >= poured.amountMl) return poured.amountMl;
-  return room.roundToDouble().clamp(1.0, poured.amountMl);
+  final stops = pourStops(poured.amountMl);
+  return stops.lastWhere((ml) => ml <= room, orElse: () => stops.first);
 }
 
 /// Whether [poured] can go into [kept]: another bottle, of the same kind.

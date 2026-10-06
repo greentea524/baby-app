@@ -742,6 +742,28 @@ void main() {
       expect(repo.combines.single.pourMl, 40);
     });
 
+    testWidgets('and the slider moves 5 ml at a time', (tester) async {
+      await pumpFridge(
+        tester,
+        size: const Size(1200, 900),
+        bottles: [
+          bottle('a', hoursAgo: 5, ml: 100),
+          bottle('b', hoursAgo: 3, ml: 80),
+        ],
+      );
+      await openCombine(tester, '80');
+      await tapIn(tester, find.textContaining('100 ml · Breast milk'));
+      for (final dx in [37.0, 61.0, -23.0]) {
+        await tester.drag(find.byType(Slider), Offset(dx, 0));
+        await tester.pumpAndSettle();
+        final shown = tester
+            .widget<Text>(find.textContaining(' ml of 100 ml'))
+            .data!;
+        final ml = int.parse(shown.split(' ').first);
+        expect(ml % 5, 0, reason: shown);
+      }
+    });
+
     testWidgets('and the slider pours more, or all of it', (tester) async {
       final repo = _RecordingFridge();
       await pumpFridge(

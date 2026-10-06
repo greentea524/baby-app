@@ -565,8 +565,8 @@ class _PourChoice extends StatelessWidget {
   }
 }
 
-/// How much of the other bottle to pour in: a slider in whole millilitres,
-/// from a splash up to all of it, the way Split's is.
+/// How much of the other bottle to pour in: a slider in steps of
+/// [pourStepMl], up to all of it — see [pourStops].
 class _PourAmount extends StatelessWidget {
   const _PourAmount({
     required this.pourMl,
@@ -586,7 +586,15 @@ class _PourAmount extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     // Too little to choose an amount from: it all goes in.
-    if (fromMl < 2) return const SizedBox.shrink();
+    final stops = pourStops(fromMl);
+    // Too little to choose an amount from: it all goes in.
+    if (stops.length < 2) return const SizedBox.shrink();
+    // The stop nearest what is chosen: the slider moves between stops, not
+    // along a scale of millilitres.
+    var at = 0;
+    for (var i = 1; i < stops.length; i++) {
+      if ((stops[i] - pourMl).abs() < (stops[at] - pourMl).abs()) at = i;
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -605,19 +613,11 @@ class _PourAmount extends StatelessWidget {
           ],
         ),
         Slider(
-          value: pourMl.clamp(1, fromMl),
-          min: 1,
-          max: fromMl,
-          // Whole millilitres, so what is poured and what is left add back
-          // up to the bottle exactly.
-          divisions: (fromMl - 1).round().clamp(1, 1000),
-          label: formatVolume(pourMl, units),
-          onChanged: (v) {
-            // The last step lands on the whole bottle even when it holds a
-            // fraction of a millilitre more than a whole number.
-            final ml = v.roundToDouble();
-            onChanged(ml >= fromMl.floorToDouble() ? fromMl : ml);
-          },
+          value: at.toDouble(),
+          max: (stops.length - 1).toDouble(),
+          divisions: stops.length - 1,
+          label: formatVolume(stops[at], units),
+          onChanged: (v) => onChanged(stops[v.round()]),
         ),
       ],
     );
