@@ -9,11 +9,12 @@ import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
+import 'package:baby_app/features/common/banded_track.dart';
 import 'package:baby_app/features/fridge/fridge_button.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 
-/// The "Last pumped" row on the Home status card, and its countdown.
+/// The pump row on the Home status card, and its countdown.
 ///
 /// Opt-in, like the solids row above it, and that is the part worth pinning:
 /// a household that has never pumped should not carry an empty row for it,
@@ -93,10 +94,12 @@ void main() {
   testWidgets('shows the most recent session', (tester) async {
     await pumpCard(tester, pumping: pumps);
 
-    expect(find.text('Last pumped'), findsOneWidget);
-    expect(find.text('25 min ago'), findsOneWidget);
-    // The newer session, not the 60 ml one five hours back.
-    expect(find.textContaining('15 min · 90 ml'), findsOneWidget);
+    expect(find.text('PUMP'), findsOneWidget);
+    expect(find.text('25m ago'), findsOneWidget);
+    // The newer session, not the 60 ml one five hours back: the amount in
+    // the headline, the time it took underneath.
+    expect(find.text('90\u00a0ml'), findsOneWidget);
+    expect(find.text('15 min'), findsOneWidget);
   });
 
   testWidgets('is there before the first session, to log it from', (
@@ -106,7 +109,7 @@ void main() {
     // buttons gone, its icon is the way to log that first session.
     await pumpCard(tester);
 
-    expect(find.text('Last pumped'), findsOneWidget);
+    expect(find.text('PUMP'), findsOneWidget);
     expect(find.text('No sessions yet'), findsOneWidget);
     expect(find.byTooltip('Log pump'), findsOneWidget);
   });
@@ -120,7 +123,7 @@ void main() {
       prefs: {'show_pumping_action': false},
     );
 
-    expect(find.text('Last pumped'), findsNothing);
+    expect(find.text('PUMP'), findsNothing);
   });
 
   testWidgets('leaves the way into the fridge to a row of its own', (
@@ -131,8 +134,8 @@ void main() {
     await pumpCard(tester, pumping: pumps);
 
     final button = tester.getRect(find.byType(FridgeButton));
-    final pumped = tester.getRect(find.text('Last pumped'));
-    final fridge = tester.getRect(find.text('In the fridge'));
+    final pumped = tester.getRect(find.text('PUMP'));
+    final fridge = tester.getRect(find.text('FRIDGE'));
     expect(button.top, greaterThan(pumped.bottom));
     expect(button.top, lessThan(fridge.bottom + 40));
   });
@@ -155,7 +158,7 @@ void main() {
 
     // Feeding, diapers, pumping and the fridge.
     expect(find.byType(Card), findsNWidgets(4));
-    expect(find.text('Last pumped'), findsOneWidget);
+    expect(find.text('PUMP'), findsOneWidget);
   });
 
   group('the countdown', () {
@@ -169,18 +172,18 @@ void main() {
       ),
     ];
 
-    /// Every background painted behind the pump row. Comparing the whole set
-    /// sidesteps having to identify which box is ours among the ones
-    /// Material paints.
-    List<Color> backdrops(WidgetTester tester) => tester
-        .widgetList<ColoredBox>(
-          find.ancestor(
-            of: find.text('Last pumped'),
-            matching: find.byType(ColoredBox),
-          ),
-        )
-        .map((b) => b.color)
-        .toList();
+    /// The colour of the dot beside [label], or null when there is none.
+    Color? dot(WidgetTester tester, String label) {
+      final found = find.descendant(
+        of: find
+            .ancestor(of: find.text(label), matching: find.byType(Row))
+            .first,
+        matching: find.byKey(const ValueKey('alert-dot')),
+      );
+      if (found.evaluate().isEmpty) return null;
+      final box = tester.widget<Container>(found).decoration! as BoxDecoration;
+      return box.color;
+    }
 
     testWidgets('says when the next one is due', (tester) async {
       await pumpCard(
@@ -210,7 +213,7 @@ void main() {
       // default must not invent a schedule nobody asked for.
       await pumpCard(tester, pumping: pumpedAt(30));
 
-      expect(find.text('Last pumped'), findsOneWidget);
+      expect(find.text('PUMP'), findsOneWidget);
       expect(find.textContaining('pump in'), findsNothing);
       expect(find.textContaining('Pump'), findsNothing);
       // The feeding row's own chip is still there — this is about the pump
@@ -218,13 +221,13 @@ void main() {
       expect(find.byType(DueChip), findsOneWidget);
     });
 
-    testWidgets('and colours the row as it comes due', (tester) async {
+    testWidgets('and marks the row as it comes due', (tester) async {
       await pumpCard(
         tester,
         pumping: pumpedAt(30),
         prefs: {'pump_interval_minutes': 120},
       );
-      final upcoming = backdrops(tester);
+      expect(dot(tester, 'PUMP'), isNull);
 
       // pumpCard reuses the ProviderScope, which updates in place rather
       // than re-resolving the overridden streams.
@@ -235,38 +238,26 @@ void main() {
         prefs: {'pump_interval_minutes': 120},
       );
 
-      expect(backdrops(tester), isNot(upcoming));
+      final context = tester.element(find.text('PUMP'));
+      expect(dot(tester, 'PUMP'), warningInks(context).overdue);
     });
 
     testWidgets('leaving the row calm with no cadence', (tester) async {
-      // The other half of the escalation: an uncoloured row is the promise
+      // The other half of the escalation: an unmarked row is the promise
       // that nothing on it is asking for anything.
       await pumpCard(tester, pumping: pumpedAt(150));
-      final noCadence = backdrops(tester);
-
-      await tester.pumpWidget(const SizedBox());
-      await pumpCard(tester, pumping: pumpedAt(30));
-
-      expect(backdrops(tester), noCadence);
+      expect(dot(tester, 'PUMP'), isNull);
     });
 
     testWidgets('and the feeding row stays out of it', (tester) async {
       // The two rows carry their own clocks. A pump falling overdue must not
-      // tint the row above it.
+      // mark the row above it.
       await pumpCard(
         tester,
         pumping: pumpedAt(30),
         prefs: {'pump_interval_minutes': 120},
       );
-      final calm = tester
-          .widgetList<ColoredBox>(
-            find.ancestor(
-              of: find.text('Last fed'),
-              matching: find.byType(ColoredBox),
-            ),
-          )
-          .map((b) => b.color)
-          .toList();
+      final calm = dot(tester, 'FEED');
 
       await tester.pumpWidget(const SizedBox());
       await pumpCard(
@@ -275,18 +266,7 @@ void main() {
         prefs: {'pump_interval_minutes': 120},
       );
 
-      expect(
-        tester
-            .widgetList<ColoredBox>(
-              find.ancestor(
-                of: find.text('Last fed'),
-                matching: find.byType(ColoredBox),
-              ),
-            )
-            .map((b) => b.color)
-            .toList(),
-        calm,
-      );
+      expect(dot(tester, 'FEED'), calm);
     });
   });
 }

@@ -51,6 +51,22 @@ abstract final class FeedingFormat {
     return parts.join(' · ');
   }
 
+  /// Everything [details] says that [measure] does not: the side, the milk,
+  /// the notes, and the duration when an amount is the measure.
+  ///
+  /// For Home, which puts the measure in the row's headline beside what
+  /// the feed was, and these on the muted line underneath.
+  static String extras(FeedingEvent e, UnitSystem units) {
+    final notes = e.notes?.trim() ?? '';
+    return [
+      if (e.durationMinutes != null && e.amountMl != null)
+        '${e.durationMinutes} min',
+      if (e.side != null) sideLabel(e.side!),
+      if (e.milk != null) e.milk!.label,
+      if (notes.isNotEmpty) notes,
+    ].join(' · ');
+  }
+
   /// The measured part of a feed on its own — the volume, or the time spent
   /// at the breast — and null when the feed carries neither.
   ///
@@ -76,6 +92,25 @@ abstract final class FeedingFormat {
       final h = diff.inHours;
       final m = diff.inMinutes.remainder(60);
       return m == 0 ? '$h hr ago' : '$h hr $m min ago';
+    }
+    final d = diff.inDays;
+    return d == 1 ? '1 day ago' : '$d days ago';
+  }
+
+  /// [timeAgo] in fewer characters: "just now", "15m ago", "2h 20m ago",
+  /// "3 days ago".
+  ///
+  /// For Home's time column, which lines every row's elapsed time up down
+  /// the right edge: at "3 hr 5 min ago" the column was wide enough to
+  /// squeeze what happened into an ellipsis.
+  static String shortAgo(DateTime time, {DateTime? now}) {
+    final diff = (now ?? DateTime.now()).difference(time);
+    if (diff.inSeconds < 60) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) {
+      final h = diff.inHours;
+      final m = diff.inMinutes.remainder(60);
+      return m == 0 ? '${h}h ago' : '${h}h ${m}m ago';
     }
     final d = diff.inDays;
     return d == 1 ? '1 day ago' : '$d days ago';

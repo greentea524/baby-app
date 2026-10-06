@@ -62,8 +62,6 @@ class HomeStatusCard extends ConsumerWidget {
           children: [
             for (final row in rows)
               Card(
-                // The feeding row paints edge to edge when it is tinted.
-                clipBehavior: Clip.antiAlias,
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
@@ -76,15 +74,21 @@ class HomeStatusCard extends ConsumerWidget {
     }
 
     return Card(
-      // The feeding row paints edge to edge when it is tinted.
-      clipBehavior: Clip.antiAlias,
       margin: const EdgeInsets.all(16),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Column(
           children: [
             for (var i = 0; i < rows.length; i++) ...[
-              if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16),
+              // Indented to the text, not the icon: the icons then run down
+              // the card as one column, and each rule underlines the row it
+              // ends rather than cutting across the column.
+              if (i > 0)
+                const Divider(
+                  height: 1,
+                  indent: _StatusRow.textInset,
+                  endIndent: 16,
+                ),
               rows[i],
             ],
           ],
@@ -93,17 +97,18 @@ class HomeStatusCard extends ConsumerWidget {
     );
   }
 
-  /// Last milk feed on top, next due underneath.
+  /// The last milk feed, and when the next one is due.
   Widget _feedingRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastMilkFeedProvider);
     final units = ref.watch(unitSystemProvider);
     final due = ref.watch(nextFeedDueProvider);
 
+    DueState? state;
     Widget? next;
     if (due != null) {
-      final at = TimeOfDay.fromDateTime(due).format(context);
+      final at = _keep(TimeOfDay.fromDateTime(due).format(context));
       final settings = ref.watch(reminderSettingsProvider);
-      final state = feedDueState(due, now: now, within: settings.headsUp);
+      state = feedDueState(due, now: now, within: settings.headsUp);
       next = DueChip(
         state: state,
         remaining: feedRemaining(
@@ -124,46 +129,32 @@ class HomeStatusCard extends ConsumerWidget {
     }
 
     return _StatusRow(
-      // The same escalation the chip carries, behind the whole row. On a
-      // card of three rows the colour says which one is asking for
-      // something before any of them have been read.
-      tint: due == null
-          ? null
-          : dueTint(
-              context,
-              feedDueState(
-                due,
-                now: now,
-                within: ref.watch(reminderSettingsProvider).headsUp,
-              ),
-              Theme.of(context).colorScheme.surfaceContainerLow,
-            ),
+      // The chip says it in words; the dot says it beside the label, where
+      // a glance down the card finds it before reading anything.
+      alert: state,
       icon: last == null ? Icons.child_care : FeedingFormat.typeIcon(last.type),
       onLog: () => logFeed(context, ref),
       logLabel: ref.watch(bottleShortcutProvider) ? 'Log bottle' : 'Log feed',
-      label: 'Last fed',
-      value: last == null
+      label: 'Feed',
+      headline: last == null
           ? 'No feeds yet'
-          : FeedingFormat.timeAgo(last.startTime, now: now),
-      detail: last == null
-          ? null
           : _join(
-              FeedingFormat.clockStamp(context, last.startTime, now: now),
-              _join(
-                FeedingFormat.eventLabel(last),
-                FeedingFormat.details(last, units),
-              ),
+              FeedingFormat.eventLabel(last),
+              _keep(FeedingFormat.measure(last, units) ?? ''),
             ),
-      footer: next,
+      when: last?.startTime,
+      now: now,
+      detail: last == null ? null : FeedingFormat.extras(last, units),
+      chips: [?next],
     );
   }
 
   /// Solids, with no countdown attached.
   ///
-  /// Null until solids have actually been logged — a permanently empty "Last
-  /// ate" row would be clutter for every family not weaning yet. Deliberately
-  /// has no next-feed chip: solids don't drive the milk clock, and there is
-  /// no meaningful "next solids" to predict.
+  /// Null until solids have actually been logged — a permanently empty
+  /// solids row would be clutter for every family not weaning yet.
+  /// Deliberately has no next-feed chip: solids don't drive the milk clock,
+  /// and there is no meaningful "next solids" to predict.
   Widget? _solidsRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastSolidsProvider);
     if (last == null) return null;
@@ -173,49 +164,41 @@ class HomeStatusCard extends ConsumerWidget {
       icon: FeedingFormat.typeIcon(FeedingType.solids),
       onLog: () => showFeedingQuickLog(context, type: FeedingType.solids),
       logLabel: 'Log solids',
-      label: 'Last ate',
-      value: FeedingFormat.timeAgo(last.startTime, now: now),
-      detail: _join(
-        FeedingFormat.clockStamp(context, last.startTime, now: now),
-        _join(
-          FeedingFormat.typeLabel(last.type),
-          FeedingFormat.details(last, units),
-        ),
+      label: 'Solids',
+      headline: _join(
+        FeedingFormat.eventLabel(last),
+        _keep(FeedingFormat.measure(last, units) ?? ''),
       ),
+      when: last.startTime,
+      now: now,
+      detail: FeedingFormat.extras(last, units),
     );
   }
 
   Widget _diaperRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastDiaperProvider);
+    final state = diaperDueState(last?.time, now: now);
+    final notes = last?.notes?.trim() ?? '';
     return _StatusRow(
       // Its own clock, escalating like the feed row above it: amber at two
-      // hours since the last change, red at three.
-      tint: switch (diaperDueState(last?.time, now: now)) {
-        null => null,
-        final state => dueTint(
-          context,
-          state,
-          Theme.of(context).colorScheme.surfaceContainerLow,
-        ),
+      // hours since the last change, red at three. The dot is all that says
+      // so on this row, so it is said to a screen reader too.
+      alert: state,
+      alertLabel: switch (state) {
+        DueState.overdue => 'Change overdue',
+        DueState.soon => 'Change due soon',
+        _ => null,
       },
       icon: last == null
           ? Icons.baby_changing_station
           : DiaperFormat.typeIcon(last.type),
       onLog: () => showDiaperQuickLog(context),
       logLabel: 'Log diaper',
-      label: 'Last diaper changed',
-      value: last == null
-          ? 'No changes yet'
-          : FeedingFormat.timeAgo(last.time, now: now),
-      detail: last == null
-          ? null
-          : _join(
-              FeedingFormat.clockStamp(context, last.time, now: now),
-              _join(
-                DiaperFormat.typeLabel(last.type),
-                DiaperFormat.details(last),
-              ),
-            ),
+      label: 'Diaper',
+      headline: last == null ? 'No changes yet' : DiaperFormat.summary(last),
+      when: last?.time,
+      now: now,
+      detail: notes,
     );
   }
 
@@ -232,7 +215,7 @@ class HomeStatusCard extends ConsumerWidget {
   /// is off until it is). Without one the row is what it was before — when
   /// the last session was, and no colour — because there is nothing to be
   /// late for. With one it escalates exactly like the feeding row, chip and
-  /// tint together, since a caregiver who set a cadence did so to be told
+  /// dot together, since a caregiver who set a cadence did so to be told
   /// when it has slipped.
   Widget? _pumpRow(BuildContext context, WidgetRef ref) {
     if (!ref.watch(showPumpingActionProvider)) return null;
@@ -249,7 +232,7 @@ class HomeStatusCard extends ConsumerWidget {
       // earning its keep only in the settings screen.
       final headsUp = ref.watch(reminderSettingsProvider).headsUp;
       state = feedDueState(due, now: now, within: headsUp);
-      final at = TimeOfDay.fromDateTime(due).format(context);
+      final at = _keep(TimeOfDay.fromDateTime(due).format(context));
       next = DueChip(
         state: state,
         remaining: feedRemaining(
@@ -270,27 +253,24 @@ class HomeStatusCard extends ConsumerWidget {
     }
 
     return _StatusRow(
-      tint: state == null
-          ? null
-          : dueTint(
-              context,
-              state,
-              Theme.of(context).colorScheme.surfaceContainerLow,
-            ),
+      alert: state,
       icon: PumpingFormat.icon,
       onLog: () => showPumpingQuickLog(context),
       logLabel: 'Log pump',
-      label: 'Last pumped',
-      value: last == null
+      label: 'Pump',
+      headline: last == null
           ? 'No sessions yet'
-          : FeedingFormat.timeAgo(last.time, now: now),
-      detail: last == null
-          ? null
-          : _join(
-              FeedingFormat.clockStamp(context, last.time, now: now),
-              PumpingFormat.details(last, units),
-            ),
-      footer: next,
+          : switch ([
+              if (last.side != null) FeedingFormat.sideLabel(last.side!),
+              if (PumpingFormat.measure(last, units) case final m?) _keep(m),
+            ]) {
+              [] => 'Pumped',
+              final parts => parts.join(' · '),
+            },
+      when: last?.time,
+      now: now,
+      detail: last == null ? null : PumpingFormat.extras(last),
+      chips: [?next],
     );
   }
 
@@ -306,6 +286,7 @@ class HomeStatusCard extends ConsumerWidget {
     if (last == null && !ref.watch(showMedicationProvider)) return null;
     final me = ref.watch(authStateProvider).value?.uid;
     final by = last == null ? null : MedicationFormat.givenBy(last, me);
+    final notes = last?.notes?.trim() ?? '';
     // One chip per medicine still inside the wait set on its last dose,
     // soonest first: "Next Tylenol in 2h 10m · 3:40 PM". Amber for as long as
     // it is too soon — the warning here is giving it, not missing it — and
@@ -316,36 +297,27 @@ class HomeStatusCard extends ConsumerWidget {
       icon: MedicationFormat.icon,
       onLog: () => showMedicationQuickLog(context),
       logLabel: 'Log medicine',
-      label: 'Last medicine',
-      footer: waits.isEmpty
-          ? null
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final w in waits)
-                  DueChip(
-                    state: DueState.soon,
-                    icon: Icons.hourglass_bottom,
-                    remaining: waitRemaining(w, now),
-                    text:
-                        'Next ${w.last.name.trim()} '
-                        '${countdownLabel(w.allowedAt, now: now)} · '
-                        '${TimeOfDay.fromDateTime(w.allowedAt).format(context)}',
-                  ),
-              ],
-            ),
-      value: last == null
+      label: 'Medicine',
+      headline: last == null
           ? 'None yet'
-          : FeedingFormat.timeAgo(last.time, now: now),
+          : _join(last.name.trim(), _keep(MedicationFormat.dose(last) ?? '')),
+      when: last?.time,
+      now: now,
       detail: last == null
           ? null
-          : _join(
-              FeedingFormat.clockStamp(context, last.time, now: now),
-              [
-                MedicationFormat.nameAndDose(last),
-                if (by != null) 'by $by',
-              ].join(' · '),
-            ),
+          : [if (by != null) 'by $by', if (notes.isNotEmpty) notes].join(' · '),
+      chips: [
+        for (final w in waits)
+          DueChip(
+            state: DueState.soon,
+            icon: Icons.hourglass_bottom,
+            remaining: waitRemaining(w, now),
+            text:
+                'Next ${w.last.name.trim()} '
+                '${countdownLabel(w.allowedAt, now: now)} · '
+                '${_keep(TimeOfDay.fromDateTime(w.allowedAt).format(context))}',
+          ),
+      ],
     );
   }
 
@@ -357,7 +329,7 @@ class HomeStatusCard extends ConsumerWidget {
   /// is switched on, empty or not — "Empty" is an answer, and the button is
   /// how a first bottle gets added.
   ///
-  /// Tinted by its oldest bottle, the way the fridge's own cards are: amber
+  /// Marked by its oldest bottle, the way the fridge's own cards are: amber
   /// from two days, red from three.
   Widget? _fridgeRow(BuildContext context, WidgetRef ref) {
     if (!ref.watch(showFridgeProvider)) return null;
@@ -379,20 +351,13 @@ class HomeStatusCard extends ConsumerWidget {
         : aging > 0
         ? '$aging ${are(aging)} 2+ days old'
         : '';
-    final state = old > 0
-        ? DueState.overdue
-        : aging > 0
-        ? DueState.soon
-        : null;
 
     return _StatusRow(
-      tint: state == null
-          ? null
-          : dueTint(
-              context,
-              state,
-              Theme.of(context).colorScheme.surfaceContainerLow,
-            ),
+      alert: old > 0
+          ? DueState.overdue
+          : aging > 0
+          ? DueState.soon
+          : null,
       action: const FridgeButton(glyph: Icons.arrow_forward),
       icon: FridgeButton.icon,
       onLog: () => showBottleSheet(
@@ -404,34 +369,32 @@ class HomeStatusCard extends ConsumerWidget {
         ),
       ),
       logLabel: 'Add a bottle to the fridge',
-      label: 'In the fridge',
-      value: switch (shelf.length) {
+      label: 'Fridge',
+      headline: switch (shelf.length) {
         0 => 'Empty',
-        1 => '1 bottle',
-        final n => '$n bottles',
+        final n => _join(
+          n == 1 ? '1 bottle' : '$n bottles',
+          _keep(formatVolume(totalMl(shelf), units)),
+        ),
       },
       picture: _bottlePicture(shelf),
-      detail: shelf.isEmpty
-          ? null
-          : _join(formatVolume(totalMl(shelf), units), warning),
+      detail: warning,
+      now: now,
     );
   }
 
   /// The bottles themselves, up to [_maxDrawn], drawn filled to their
   /// level, oldest first as on the fridge's own shelf: three small bottles
-  /// say "three, and how full" at a glance where "3 bottles" says only the
-  /// first. Past that the count is quicker to read than a row of drawings,
-  /// so null, and the row says the number.
-  static ({Widget widget, double width})? _bottlePicture(
-    List<FridgeBottle> shelf,
-  ) {
+  /// say "three, and how full" at a glance. Past that a row of drawings is
+  /// slower to read than the count the headline already gives, so null.
+  static Widget? _bottlePicture(List<FridgeBottle> shelf) {
     if (shelf.isEmpty || shelf.length > _maxDrawn) return null;
     const height = 40.0;
     const gap = 4.0;
     const width = height * BottleGauge.aspectRatio;
-    return (
-      width: shelf.length * width + (shelf.length - 1) * gap,
-      widget: Row(
+    // The headline says how many and how much; this only says it again.
+    return ExcludeSemantics(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           for (final (i, b) in shelf.indexed) ...[
@@ -448,8 +411,14 @@ class HomeStatusCard extends ConsumerWidget {
     );
   }
 
-  /// The most bottles drawn on the row before it gives the number instead.
+  /// The most bottles drawn on the row before only the count is given.
   static const _maxDrawn = 3;
+
+  /// [text] with each number held to the word after it, so "120 ml" and
+  /// "2:50 PM" never come apart across a line. Only those spaces: "120 ml
+  /// (4.1 fl oz)" can still break between the two.
+  static String _keep(String text) =>
+      text.replaceAll(RegExp(r'(?<=\d) '), '\u00a0');
 
   static String _join(String label, String details) =>
       details.isEmpty ? label : '$label · $details';
@@ -654,7 +623,10 @@ class DueChip extends StatelessWidget {
                       color: foreground,
                       fontWeight: FontWeight.w600,
                     ),
-                    maxLines: 1,
+                    // Two lines before an ellipsis: at a large text size the
+                    // clock time is the end of the line, and the first thing
+                    // a single line would lose.
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -667,33 +639,78 @@ class DueChip extends StatelessWidget {
   }
 }
 
-/// One row: icon, label, headline value, a supporting detail, and an optional
-/// footer widget.
+/// One row: what it is, what happened, when, and what is coming.
+///
+/// Read in three passes, each down one edge of the card. The small capital
+/// label says which row is which; the bold line under it is what happened —
+/// "Bottle · 120 ml" — and the right-hand column is when, "2h 20m ago" over
+/// the clock time, lined up from row to row so the times can be compared
+/// without reading anything else. Detail too long for the headline gets a
+/// line of its own under it rather than an ellipsis, and whatever is coming
+/// next — a countdown, a wait — runs the full width underneath.
+///
+/// The rows used to lead with "Last fed" and the time ago, with what was fed
+/// and the clock time run together into one grey line that the notes pushed
+/// out of sight. Every row was the same shape of sentence, so nothing in it
+/// stood out, and the one thing that varies — what happened — was the
+/// first to be cut.
 class _StatusRow extends StatelessWidget {
   const _StatusRow({
     required this.icon,
     required this.label,
-    required this.value,
+    required this.headline,
+    required this.now,
+    this.when,
     this.detail,
-    this.footer,
-    this.tint,
+    this.chips = const [],
+    this.alert,
+    this.alertLabel,
+    this.picture,
     this.action,
     this.onLog,
     this.logLabel,
-    this.picture,
   });
 
-  /// Drawn in place of [value] — see [_LabelAndValue.picture].
-  final ({Widget widget, double width})? picture;
+  /// Where the text starts: the padding, the icon, and the gap after it.
+  /// The card's dividers start here too.
+  static const double textInset = 16 + 48 + 16;
 
-  /// Logs another of what this row reports — tapping its icon. The way to
-  /// log from Home: the row's icon is the button, so the reading and the way
-  /// to add to it are one thing, and there is no separate row of log buttons
-  /// above the card saying the same three words again.
-  final VoidCallback? onLog;
+  final IconData icon;
 
-  /// What [onLog] does, for its tooltip and for a screen reader: "Log feed".
-  final String? logLabel;
+  /// What the row is about, set small and in capitals above the headline:
+  /// "Feed". A name rather than a phrase like "Last fed", so it reads as a
+  /// heading and not as the start of a sentence.
+  final String label;
+
+  /// What happened: "Bottle · 120 ml", or what to say when nothing has.
+  final String headline;
+
+  /// When it happened, for the time column. Null leaves the column out.
+  final DateTime? when;
+  final DateTime now;
+
+  /// Anything else worth knowing — the milk, the notes, who gave it — on a
+  /// muted line of its own. Empty or null for none.
+  final String? detail;
+
+  /// What happens next, each across the row's full width under the text.
+  final List<Widget> chips;
+
+  /// Whether this row is asking for something: a dot beside its label,
+  /// amber when it soon will be and red once it is.
+  ///
+  /// A dot rather than colouring the whole row, as it used to. A tinted band
+  /// said the same thing, but it also put every word on the row onto a
+  /// coloured ground, and two or three tinted rows on one card made it hard
+  /// to see where one stopped. The dot sits where the eye lands first.
+  final DueState? alert;
+
+  /// What [alert] means, for a screen reader — given only where nothing
+  /// else on the row says it in words. A row with a chip has the chip.
+  final String? alertLabel;
+
+  /// Drawn at the trailing edge, beside the headline: the fridge's bottles.
+  final Widget? picture;
 
   /// A button at the row's trailing edge, for the rows that lead anywhere.
   ///
@@ -704,116 +721,154 @@ class _StatusRow extends StatelessWidget {
   /// is: nothing on the row answers a tap that does not look like it would.
   final Widget? action;
 
-  final IconData icon;
-  final String label;
-  final String value;
-  final String? detail;
+  /// Logs another of what this row reports — tapping its icon. The way to
+  /// log from Home: the row's icon is the button, so the reading and the way
+  /// to add to it are one thing, and there is no separate row of log buttons
+  /// above the card saying the same three words again.
+  final VoidCallback? onLog;
 
-  /// An extra line below the detail, given as a widget so it can carry its
-  /// own emphasis — the next-feed chip needs to outweigh the detail text.
-  ///
-  /// Aligned right, with the elapsed time above it. The two are the row's
-  /// answers to the same question — when they last ate, when they next need
-  /// to — and reading down the right edge is how you get both.
-  final Widget? footer;
-
-  /// Colours the row with a state it carries — for feeding, how close the
-  /// next feed is. See [dueTint].
-  ///
-  /// Painted edge to edge rather than inset, so the row's own padding still
-  /// lines its icon and text up with the untinted rows above and below. The
-  /// cards clip, which is what keeps the band inside their rounded corners.
-  final Color? tint;
+  /// What [onLog] does, for its tooltip and for a screen reader: "Log feed".
+  final String? logLabel;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Captured so the null check below reads as a plain condition rather than
-    // needing a bang operator on every use.
-    final detailText = detail;
+    final at = when;
+    final trailing = [?picture, ?action];
 
-    return ColoredBox(
-      color: tint ?? Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            switch (onLog) {
-              final log? => _LogIcon(
-                icon: icon,
-                label: logLabel ?? 'Log',
-                onPressed: log,
-              ),
-              null => CircleAvatar(
-                radius: 22,
-                backgroundColor: theme.colorScheme.primaryContainer,
-                child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
-              ),
-            },
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _LabelAndValue(label: label, value: value, picture: picture),
-                  if (detailText != null)
-                    Text(
-                      detailText,
-                      // bodyMedium rather than bodySmall: this is the only
-                      // place the actual feed amount is shown on Home.
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  if (footer case final it?)
-                    Align(alignment: Alignment.centerRight, child: it),
-                ],
-              ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        // The icon sits level with the label rather than centred on a row
+        // whose height now changes with its chips.
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          switch (onLog) {
+            final log? => _LogIcon(
+              icon: icon,
+              label: logLabel ?? 'Log',
+              onPressed: log,
             ),
-            if (action case final it?) ...[const SizedBox(width: 8), it],
-          ],
-        ),
+            null => CircleAvatar(
+              radius: 24,
+              backgroundColor: theme.colorScheme.primaryContainer,
+              child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
+            ),
+          },
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Eyebrow(label: label, alert: alert, alertLabel: alertLabel),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _Reading(
+                        headline: headline,
+                        detail: detail,
+                        ago: at == null
+                            ? null
+                            : FeedingFormat.shortAgo(at, now: now),
+                        clock: at == null
+                            ? null
+                            : FeedingFormat.clockStamp(context, at, now: now),
+                      ),
+                    ),
+                    for (final it in trailing) ...[
+                      const SizedBox(width: 8),
+                      it,
+                    ],
+                  ],
+                ),
+                ...chips,
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// A row's label and its elapsed time: paired on one line when they fit,
-/// stacked when they do not, and right-aligned either way.
-///
-/// The elapsed time sits hard right to match the activity list below, where
-/// every row's "x ago" is on the right edge. Pairing the two on one line also
-/// buys back a line of height on what had become a four-line row.
-///
-/// This was a `Wrap` with `WrapAlignment.spaceBetween`, which never did
-/// anything: a `Wrap` inside a `Column` shrink-wraps to its children, so there
-/// is no free space for `spaceBetween` to distribute. The time simply trailed
-/// the label. Rows then disagreed with each other — on a 390pt phone "Last
-/// fed" left its time 25pt short of the edge while the longer "Last diaper
-/// changed" pushed its own onto a second line and against the *left* margin.
-///
-/// A plain `Row` is not the answer either: at a large text size the two no
-/// longer fit across a phone and it overflowed visibly from 150% up. Nor can
-/// a `Wrap` fix the stacked case, since it puts a lone child at the start of
-/// its run. So the fit is measured and the two layouts chosen between —
-/// neither string is ever truncated, because the whole row is the answer to
-/// "when did they last eat".
-class _LabelAndValue extends StatelessWidget {
-  const _LabelAndValue({
-    required this.label,
-    required this.value,
-    this.picture,
-  });
+/// A row's label, small and in capitals, with its [alert] dot in front.
+class _Eyebrow extends StatelessWidget {
+  const _Eyebrow({required this.label, this.alert, this.alertLabel});
 
   final String label;
-  final String value;
+  final DueState? alert;
+  final String? alertLabel;
 
-  /// Shown in place of [value], which is then what a screen reader hears.
-  final ({Widget widget, double width})? picture;
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final inks = warningInks(context);
+    final dot = switch (alert) {
+      DueState.overdue => inks.overdue,
+      DueState.soon => inks.soon,
+      _ => null,
+    };
 
-  /// The least space allowed between them before they stop sharing a line.
+    return Row(
+      children: [
+        if (dot != null) ...[
+          Semantics(
+            label: alertLabel,
+            excludeSemantics: true,
+            child: Container(
+              key: const ValueKey('alert-dot'),
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        Flexible(
+          child: Semantics(
+            label: label,
+            excludeSemantics: true,
+            child: Text(
+              // Spelt out in capitals rather than by a text transform, so
+              // the label is the same everywhere it is measured.
+              label.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.1,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// What happened on the left, when on the right: [headline] level with
+/// [ago], [detail] level with [clock].
+///
+/// The time column takes what it needs and the headline the rest, wrapping
+/// if it has to — neither is ever cut short. When the times would take more
+/// than [_maxTimeShare] of the width, as at a large text size on a phone,
+/// they move onto a line of their own under the detail instead of
+/// squeezing what happened into a sliver.
+class _Reading extends StatelessWidget {
+  const _Reading({required this.headline, this.detail, this.ago, this.clock});
+
+  final String headline;
+  final String? detail;
+  final String? ago;
+  final String? clock;
+
+  static const _maxTimeShare = 0.5;
+
+  /// The widest elapsed time a row commonly shows: hours run to one digit
+  /// between feeds, and figures are tabular, so any such time is this wide.
+  static const _widestAgo = '9h 59m ago';
   static const _gap = 12.0;
 
   static double _widthOf(String text, TextStyle? style, TextScaler scaler) {
@@ -830,45 +885,83 @@ class _LabelAndValue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final labelStyle = theme.textTheme.labelMedium;
-    final valueStyle = theme.textTheme.titleMedium?.copyWith(
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final strong = theme.textTheme.titleMedium?.copyWith(
       fontWeight: FontWeight.w600,
     );
-    final scaler = MediaQuery.textScalerOf(context);
+    // Tabular figures, so "2h 15m" and "11:55" line up digit for digit with
+    // the rows above and below.
+    final agoStyle = strong?.copyWith(
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    final clockStyle = theme.textTheme.bodyMedium?.copyWith(
+      color: muted,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    final detailStyle = theme.textTheme.bodyMedium?.copyWith(color: muted);
+    final extra = detail;
+    final hasDetail = extra != null && extra.isNotEmpty;
 
-    final labelText = Text(label, style: labelStyle);
-    // Right-aligned in both branches: in the Row it is the last child, and in
-    // the stretched Column the alignment is what puts it against the edge.
-    final drawn = picture;
-    final valueText = drawn == null
-        ? Text(value, style: valueStyle, textAlign: TextAlign.right)
-        : Align(
-            alignment: Alignment.centerRight,
-            widthFactor: 1,
-            child: Semantics(
-              label: value,
-              child: ExcludeSemantics(child: drawn.widget),
-            ),
-          );
+    final head = Text(headline, style: strong);
+    final more = hasDetail
+        ? Text(
+            extra,
+            style: detailStyle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          )
+        : null;
+
+    final ago = this.ago;
+    final clock = this.clock;
+    if (ago == null || clock == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [head, ?more],
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final fits =
-            constraints.maxWidth.isFinite &&
-            _widthOf(label, labelStyle, scaler) +
-                    _gap +
-                    (drawn?.width ?? _widthOf(value, valueStyle, scaler)) <=
-                constraints.maxWidth;
+        final scaler = MediaQuery.textScalerOf(context);
+        // Measured against the widest elapsed time a row usually shows as
+        // well as its own, so every row on the card makes the same choice:
+        // decided by each row's own "4h ago" or "2h 20m ago", the card
+        // came out half in columns and half stacked.
+        final timeWidth = [
+          _widthOf(_widestAgo, agoStyle, scaler),
+          _widthOf(ago, agoStyle, scaler),
+          _widthOf(clock, clockStyle, scaler),
+        ].reduce((a, b) => a > b ? a : b);
 
-        if (fits) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [labelText, const Spacer(), valueText],
+        if (timeWidth + _gap > constraints.maxWidth * _maxTimeShare) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              head,
+              ?more,
+              Text('$ago · $clock', style: clockStyle),
+            ],
           );
         }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [labelText, valueText],
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [head, ?more],
+              ),
+            ),
+            const SizedBox(width: _gap),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(ago, style: agoStyle),
+                Text(clock, style: clockStyle),
+              ],
+            ),
+          ],
         );
       },
     );

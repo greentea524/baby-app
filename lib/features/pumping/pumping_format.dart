@@ -33,4 +33,15 @@ abstract final class PumpingFormat {
     if (e.durationMinutes != null) return '${e.durationMinutes} min';
     return null;
   }
+
+  /// Everything [details] says but the side and the [measure]: the duration
+  /// when an amount is the measure, and the notes.
+  static String extras(PumpingEvent e) {
+    final notes = e.notes?.trim() ?? '';
+    return [
+      if (e.durationMinutes != null && e.amountMl != null)
+        '${e.durationMinutes} min',
+      if (notes.isNotEmpty) notes,
+    ].join(' · ');
+  }
 }

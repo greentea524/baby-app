@@ -124,7 +124,7 @@ class BottleShortcutNotifier extends Notifier<bool> {
 
 const _showPumpingKey = 'show_pumping_action';
 
-/// Whether Home has a "Last pumped" row, whose icon logs a session (KAN-181).
+/// Whether Home has a pump row, whose icon logs a session (KAN-181).
 ///
 /// On by default, because that icon is the only way to *create* a pump
 /// entry — the activity list can edit existing sessions but not start new
@@ -149,7 +149,7 @@ class ShowPumpingActionNotifier extends Notifier<bool> {
 
 const _showMedicationKey = 'show_medication';
 
-/// Whether Home has a "Last medicine" row, whose icon logs a dose (#37).
+/// Whether Home has a medicine row, whose icon logs a dose (#37).
 ///
 /// Off by default: most days most babies have no medicine, and a row that
 /// is always empty is clutter. Once a dose has been logged the row shows

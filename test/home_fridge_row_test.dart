@@ -7,12 +7,12 @@ import 'package:baby_app/core/auth/auth_providers.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
+import 'package:baby_app/features/common/banded_track.dart';
 import 'package:baby_app/features/fridge/bottle_gauge.dart';
 import 'package:baby_app/features/fridge/fridge_button.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
-import 'package:baby_app/features/reminders/feed_prediction.dart';
 
-/// The "In the fridge" row on the Home status card: what is in it, and the
+/// The fridge row on the Home status card: what is in it, and the
 /// way in. Its own row rather than a button on the pump row, where it was.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -60,30 +60,28 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Color? rowTint(WidgetTester tester) => tester
-      .widgetList<ColoredBox>(
-        find.ancestor(
-          of: find.text('In the fridge'),
-          matching: find.byType(ColoredBox),
-        ),
-      )
-      .first
-      .color;
+  /// The colour of the dot beside the row's label, or null for none. The
+  /// only row in these fixtures that can have one.
+  Color? dot(WidgetTester tester) {
+    final found = find.byKey(const ValueKey('alert-dot'));
+    if (found.evaluate().isEmpty) return null;
+    final box = tester.widget<Container>(found).decoration! as BoxDecoration;
+    return box.color;
+  }
 
   testWidgets('says how many and how much, with the way in', (tester) async {
     await pumpCard(tester, bottles: [bottle('a', 5, 90), bottle('b', 2, 60)]);
-    expect(find.text('In the fridge'), findsOneWidget);
-    // Drawn rather than counted, up to three: one small bottle each.
+    expect(find.text('FRIDGE'), findsOneWidget);
+    expect(find.text('2 bottles · 150\u00a0ml'), findsOneWidget);
+    // Drawn as well as counted, up to three: one small bottle each.
     expect(find.byKey(const ValueKey('home-bottle-a')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-bottle-b')), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp(r'\b2 bottles')), findsOneWidget);
-    expect(find.text('150 ml'), findsOneWidget);
     expect(find.byType(FridgeButton), findsOneWidget);
     // An arrow, not a second fridge beside the row's own.
     expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
     expect(find.byIcon(FridgeButton.icon), findsOneWidget);
     expect(find.byTooltip('In the fridge'), findsOneWidget);
-    expect(rowTint(tester), Colors.transparent);
+    expect(dot(tester), isNull);
   });
 
   testWidgets('is there without pumping, and says when it is empty', (
@@ -102,7 +100,7 @@ void main() {
       bottles: [bottle('a', 5, 90)],
       prefs: {'show_fridge': false},
     );
-    expect(find.text('In the fridge'), findsNothing);
+    expect(find.text('FRIDGE'), findsNothing);
     expect(find.byType(FridgeButton), findsNothing);
   });
 
@@ -110,10 +108,9 @@ void main() {
     tester,
   ) async {
     await pumpCard(tester, bottles: [bottle('a', 50, 90), bottle('b', 2, 60)]);
-    expect(find.text('150 ml · 1 is 2+ days old'), findsOneWidget);
-    final context = tester.element(find.text('In the fridge'));
-    final surface = Theme.of(context).colorScheme.surfaceContainerLow;
-    expect(rowTint(tester), dueTint(context, DueState.soon, surface));
+    expect(find.text('1 is 2+ days old'), findsOneWidget);
+    final context = tester.element(find.text('FRIDGE'));
+    expect(dot(tester), warningInks(context).soon);
 
     await tester.pumpWidget(const SizedBox());
     await pumpCard(
@@ -121,15 +118,15 @@ void main() {
       bottles: [bottle('a', 100, 90), bottle('b', 80, 60)],
     );
     // Past drink-by outranks merely old.
-    expect(find.text('150 ml · 1 is past drink-by'), findsOneWidget);
-    final again = tester.element(find.text('In the fridge'));
-    expect(rowTint(tester), dueTint(again, DueState.overdue, surface));
+    expect(find.text('1 is past drink-by'), findsOneWidget);
+    final again = tester.element(find.text('FRIDGE'));
+    expect(dot(tester), warningInks(again).overdue);
   });
 
   testWidgets('says one bottle as one', (tester) async {
     await pumpCard(tester, bottles: [bottle('a', 5, 90)]);
     expect(find.byKey(const ValueKey('home-bottle-a')), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp(r'\b1 bottle\b')), findsOneWidget);
+    expect(find.text('1 bottle · 90\u00a0ml'), findsOneWidget);
   });
 
   testWidgets('draws three, oldest first', (tester) async {
@@ -145,15 +142,15 @@ void main() {
         tester.getRect(find.byKey(ValueKey('home-bottle-$id'))).left;
     expect(x('old'), lessThan(x('mid')));
     expect(x('mid'), lessThan(x('new')));
-    expect(find.text('3 bottles'), findsNothing);
+    expect(find.text('3 bottles · 180\u00a0ml'), findsOneWidget);
   });
 
-  testWidgets('but past three, gives the count instead', (tester) async {
+  testWidgets('but past three, gives only the count', (tester) async {
     await pumpCard(
       tester,
       bottles: [for (var i = 0; i < 4; i++) bottle('b$i', i + 1, 60)],
     );
-    expect(find.text('4 bottles'), findsOneWidget);
+    expect(find.text('4 bottles · 240\u00a0ml'), findsOneWidget);
     expect(find.byType(BottleGauge), findsNothing);
   });
 

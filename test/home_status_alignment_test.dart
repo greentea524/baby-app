@@ -12,14 +12,14 @@ import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/home_screen.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 
-/// Where the "x ago" sits on the Home status rows.
+/// How a Home status row is laid out: what happened on the left, when on
+/// the right, and what is coming across the full width underneath.
 ///
-/// It is meant to be hard right, matching the activity list below. It was
-/// not: the `Wrap` that paired label and time shrink-wrapped to its children,
-/// so `WrapAlignment.spaceBetween` had no free space to distribute and the
-/// time simply trailed the label. Rows disagreed with each other — the short
-/// "Last fed" left its time short of the edge, and the long "Last diaper
-/// changed" pushed its own onto a second line against the *left* margin.
+/// Read in passes down the card's edges, so the edges are what is pinned:
+/// every row's elapsed time ends on the same line, the headline it answers
+/// sits level with it, and a row that cannot fit the two side by side moves
+/// its time underneath — as every other row on the card does, so they still
+/// read alike.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -32,16 +32,20 @@ void main() {
     members: const {'alice': CaregiverRole.owner},
   );
 
-  /// A feed two hours back and a change forty minutes back, which is the case
-  /// that matters: "2 hr ago" fits beside its short label and "40 min ago"
-  /// cannot fit beside the longest one, so the two rows exercise both
-  /// branches at once.
+  /// A feed two hours back and a change forty minutes back: two rows whose
+  /// elapsed times differ in width, so lining them up means something.
   Future<void> pumpHome(
     WidgetTester tester, {
     double textScale = 1.0,
-    Size size = const Size(390, 844),
+    // Wider than a phone because the test font is: its glyphs are a full
+    // em square, so a time takes more room than in any real font, and at a
+    // phone's width every row would already have stacked.
+    Size size = const Size(600, 900),
   }) async {
-    SharedPreferences.setMockInitialValues({'reminder_mode': 'fixedInterval'});
+    SharedPreferences.setMockInitialValues({
+      'reminder_mode': 'fixedInterval',
+      'unit_system': 'metric',
+    });
     final stored = await SharedPreferences.getInstance();
 
     tester.view.physicalSize = size;
@@ -92,103 +96,125 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Finders kept to the status card: the activity list under it repeats
+  /// some of the same words.
+  final card = (
+    text: (String t) => find.descendant(
+      of: find.byType(HomeStatusCard),
+      matching: find.text(t),
+    ),
+    textContaining: (String t) => find.descendant(
+      of: find.byType(HomeStatusCard),
+      matching: find.textContaining(t),
+    ),
+    chip: find.descendant(
+      of: find.byType(HomeStatusCard),
+      matching: find.byType(DueChip),
+    ),
+    icon: find
+        .descendant(
+          of: find.byType(HomeStatusCard),
+          matching: find.byType(IconButton),
+        )
+        .first,
+  );
+
   testWidgets('the two rows agree on where the time ends', (tester) async {
     await pumpHome(tester);
 
-    final fed = tester.getRect(find.text('2 hr ago'));
-    final changed = tester.getRect(find.text('40 min ago'));
+    final fed = tester.getRect(card.text('2h ago'));
+    final changed = tester.getRect(card.text('40m ago'));
 
     expect(changed.right, moreOrLessEquals(fed.right, epsilon: 0.5));
   });
 
-  testWidgets('and that is the edge the detail line reaches', (tester) async {
-    // Anchored on a full-width line in the same card rather than a hard
-    // number, so the assertion survives a change of margin.
+  testWidgets('what happened sits level with when', (tester) async {
     await pumpHome(tester);
 
-    final detail = tester.getRect(find.textContaining('· Bottle ·'));
+    // The amount held to its unit, so it never breaks between the two.
+    final what = tester.getRect(card.text('Bottle · 150\u00a0ml'));
+    final when = tester.getRect(card.text('2h ago'));
+    expect(when.top, moreOrLessEquals(what.top, epsilon: 0.5));
+    expect(when.left, greaterThan(what.right));
+
     expect(
-      tester.getRect(find.text('2 hr ago')).right,
-      moreOrLessEquals(detail.right, epsilon: 0.5),
-    );
-    expect(
-      tester.getRect(find.text('40 min ago')).right,
-      moreOrLessEquals(detail.right, epsilon: 0.5),
+      tester.getRect(card.text('40m ago')).top,
+      moreOrLessEquals(tester.getRect(card.text('Wet')).top, epsilon: 0.5),
     );
   });
 
-  testWidgets('a time that fits still shares its label\'s line', (
+  testWidgets('the label is above the headline, level with the icon', (
     tester,
   ) async {
-    // The pairing is the reason the row is three lines and not four; pushing
-    // every time onto its own line would align them and lose that.
     await pumpHome(tester);
 
-    final label = tester.getRect(find.text('Last fed'));
-    final value = tester.getRect(find.text('2 hr ago'));
-    expect(value.top, lessThan(label.bottom));
-    expect(value.left, greaterThan(label.right));
+    final label = tester.getRect(card.text('FEED'));
+    final what = tester.getRect(card.text('Bottle · 150\u00a0ml'));
+    expect(label.bottom, lessThanOrEqualTo(what.top));
+    expect(label.left, moreOrLessEquals(what.left, epsilon: 0.5));
+
+    final icon = tester.getRect(card.icon);
+    expect(icon.top, moreOrLessEquals(label.top, epsilon: 4));
   });
 
-  testWidgets('a time that does not fit drops below its label', (tester) async {
-    await pumpHome(tester);
-
-    final label = tester.getRect(find.text('Last diaper changed'));
-    expect(
-      tester.getRect(find.text('40 min ago')).top,
-      greaterThanOrEqualTo(label.bottom),
-    );
-  });
-
-  testWidgets('stays right-aligned at 200% text', (tester) async {
-    // At this size nothing pairs, so both rows take the stacked branch — the
-    // one a Wrap could not right-align, since it puts a lone child at the
-    // start of its run.
-    await pumpHome(tester, textScale: 2.0);
-    expect(tester.takeException(), isNull);
-
-    final fed = tester.getRect(find.text('2 hr ago'));
-    final changed = tester.getRect(find.text('40 min ago'));
-    expect(changed.right, moreOrLessEquals(fed.right, epsilon: 0.5));
-  });
-
-  testWidgets('the next-feed chip sits on the same right edge', (tester) async {
-    // The elapsed time and the countdown answer the same question from both
-    // ends — when they last ate, when they next need to — so reading down
-    // the right edge should get you both.
-    await pumpHome(tester);
-
-    // Anchored on the elapsed time rather than the detail line: the detail
-    // is a plain Text that stops at its own width once the screen is wide
-    // enough not to clip it, so it is only the content edge by accident.
-    final chip = tester.getRect(find.byType(DueChip));
-    expect(
-      tester.getRect(find.text('2 hr ago')).right,
-      moreOrLessEquals(chip.right, epsilon: 0.5),
-    );
-  });
-
-  testWidgets('and moves right on a wide screen rather than stretching', (
+  testWidgets('the clock time is under the elapsed time, on its edge', (
     tester,
   ) async {
-    // Where the change is actually visible. On a phone the chip already
-    // spans the whole content width, so aligning it looks like nothing; it
-    // was on a desktop that it sat left with a gap beside it.
-    //
-    // Align fills the width it is handed, so the guard is that the chip
-    // inside it did not come along for the ride.
-    await pumpHome(tester, size: const Size(900, 900));
+    await pumpHome(tester);
 
-    final chip = tester.getRect(find.byType(DueChip));
+    final ago = tester.getRect(card.text('2h ago'));
+    final clock = TimeOfDay.fromDateTime(
+      now.subtract(const Duration(hours: 2)),
+    );
+    final element = tester.element(card.text('2h ago'));
+    final at = tester.getRect(card.text(clock.format(element)));
+    expect(at.top, greaterThanOrEqualTo(ago.bottom));
+    expect(at.right, moreOrLessEquals(ago.right, epsilon: 0.5));
+  });
+
+  testWidgets('the next-feed chip runs the width of the text', (tester) async {
+    await pumpHome(tester);
+
+    final chip = tester.getRect(card.chip);
     expect(
-      chip.right,
+      chip.left,
       moreOrLessEquals(
-        tester.getRect(find.text('2 hr ago')).right,
+        tester.getRect(card.text('Bottle · 150\u00a0ml')).left,
         epsilon: 0.5,
       ),
     );
-    // Clear of the left edge the label sits on, so it is a pill that moved
-    // rather than a bar that grew.
-    expect(chip.left, greaterThan(tester.getRect(find.text('Last fed')).left));
+    expect(
+      chip.right,
+      moreOrLessEquals(tester.getRect(card.text('2h ago')).right, epsilon: 0.5),
+    );
+  });
+
+  testWidgets('and keeps the columns on a wide screen', (tester) async {
+    await pumpHome(tester, size: const Size(1200, 900));
+
+    final what = tester.getRect(card.text('Bottle · 150\u00a0ml'));
+    final when = tester.getRect(card.text('2h ago'));
+    expect(when.top, moreOrLessEquals(what.top, epsilon: 0.5));
+    expect(
+      tester.getRect(card.chip).right,
+      moreOrLessEquals(when.right, epsilon: 0.5),
+    );
+  });
+
+  testWidgets('at 200% text every row moves its time underneath', (
+    tester,
+  ) async {
+    // The feed's "2h ago" is narrower than the diaper's "40m ago" would
+    // be at its widest; decided row by row, one would keep its column and
+    // the other not. Measured against the same widest time, both move.
+    await pumpHome(tester, textScale: 2.0);
+    expect(tester.takeException(), isNull);
+
+    final what = tester.getRect(card.text('Bottle · 150\u00a0ml'));
+    final fed = tester.getRect(card.textContaining('2h ago · '));
+    final changed = tester.getRect(card.textContaining('40m ago · '));
+    expect(fed.top, greaterThanOrEqualTo(what.bottom));
+    expect(fed.left, moreOrLessEquals(what.left, epsilon: 0.5));
+    expect(changed.left, moreOrLessEquals(fed.left, epsilon: 0.5));
   });
 }

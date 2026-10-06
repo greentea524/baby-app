@@ -101,7 +101,7 @@ final lastFeedingProvider = Provider<FeedingEvent?>((ref) {
 
 /// The most recent milk feed — breast or bottle — or null.
 ///
-/// Powers the home "Last fed" row, which sits next to the next-feed
+/// Powers the home feed row, which sits next to the next-feed
 /// countdown. Solids are excluded so the two halves of that row answer the
 /// same question: a purée at 5pm shouldn't headline a row whose countdown is
 /// measured from the 3pm bottle.
@@ -128,7 +128,7 @@ final lastClockFeedProvider = Provider<FeedingEvent?>((ref) {
 });
 
 /// The most recent solids, or null when none have been logged. Powers the
-/// home "Last ate" row, which has no prediction attached.
+/// home solids row, which has no prediction attached.
 final lastSolidsProvider = Provider<FeedingEvent?>((ref) {
   final feeds = ref.watch(recentFeedingsProvider).value ?? const [];
   for (final f in feeds) {
@@ -206,7 +206,7 @@ final recentPumpingProvider = StreamProvider<List<PumpingEvent>>((ref) {
 
 /// The most recent pump session, or null when none have been logged.
 ///
-/// Powers the home "Last pumped" row. Like solids that row has no countdown
+/// Powers the home pump row. Like solids that row has no countdown
 /// attached: pumping is a supply rhythm the caregiver sets, not one the app
 /// can read off the baby, so there is nothing here to predict.
 final lastPumpingProvider = Provider<PumpingEvent?>((ref) {

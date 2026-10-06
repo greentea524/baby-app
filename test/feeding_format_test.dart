@@ -267,4 +267,56 @@ void main() {
       );
     });
   });
+
+  group('FeedingFormat.shortAgo', () {
+    final now = DateTime(2026, 10, 6, 14);
+    String ago(Duration d) => FeedingFormat.shortAgo(now.subtract(d), now: now);
+
+    test('is compact, hours carrying their minutes', () {
+      expect(ago(const Duration(seconds: 20)), 'just now');
+      expect(ago(const Duration(minutes: 15)), '15m ago');
+      expect(ago(const Duration(hours: 2)), '2h ago');
+      expect(ago(const Duration(hours: 2, minutes: 20)), '2h 20m ago');
+      expect(ago(const Duration(hours: 30)), '1 day ago');
+      expect(ago(const Duration(days: 3)), '3 days ago');
+    });
+  });
+
+  group('FeedingFormat.extras', () {
+    test('leaves out the measure the headline already gives', () {
+      final bottle = FeedingEvent(
+        id: 'b',
+        type: FeedingType.bottle,
+        startTime: DateTime(2026, 10, 6),
+        amountMl: 120,
+        milk: MilkKind.expressed,
+        notes: ' Vitamin D ',
+      );
+      expect(
+        FeedingFormat.extras(bottle, UnitSystem.metric),
+        'Breast milk · Vitamin D',
+      );
+    });
+
+    test('keeps a duration that is not the measure', () {
+      final timed = FeedingEvent(
+        id: 'b',
+        type: FeedingType.bottle,
+        startTime: DateTime(2026, 10, 6),
+        amountMl: 120,
+        durationMinutes: 20,
+      );
+      expect(FeedingFormat.extras(timed, UnitSystem.metric), '20 min');
+
+      final breast = FeedingEvent(
+        id: 'f',
+        type: FeedingType.breast,
+        startTime: DateTime(2026, 10, 6),
+        durationMinutes: 18,
+        side: BreastSide.left,
+      );
+      expect(FeedingFormat.measure(breast, UnitSystem.metric), '18 min');
+      expect(FeedingFormat.extras(breast, UnitSystem.metric), 'Left');
+    });
+  });
 }

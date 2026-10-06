@@ -16,16 +16,30 @@ import 'package:baby_app/features/home/recent_activity_list.dart';
 import 'package:baby_app/features/insights/day_timeline_strip.dart';
 import 'package:baby_app/features/insights/diaper_mix_bar.dart';
 import 'package:baby_app/core/layout/app_bar_room.dart';
+import 'package:baby_app/features/common/banded_track.dart';
 import 'package:baby_app/features/common/day_time_label.dart';
 import 'package:baby_app/features/home/baby_switcher.dart';
 import 'package:baby_app/features/home/home_screen.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
+import 'package:baby_app/features/reminders/feed_prediction.dart';
 
 /// Home has to survive a small screen at a large text size (#—).
 ///
 /// Everything above the recent list used to be fixed height, with the list
 /// taking whatever remained. Nothing scrolled at the page level, so once the
 /// fixed part grew past the viewport there was nowhere for it to go.
+/// The colour of the dot beside a status row's [label], or null when there
+/// is none.
+Color? alertDot(WidgetTester tester, String label) {
+  final found = find.descendant(
+    of: find.ancestor(of: find.text(label), matching: find.byType(Row)).first,
+    matching: find.byKey(const ValueKey('alert-dot')),
+  );
+  if (found.evaluate().isEmpty) return null;
+  final box = tester.widget<Container>(found).decoration! as BoxDecoration;
+  return box.color;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -157,10 +171,10 @@ void main() {
     // deliver, and without it every test below would be quietly measuring an
     // empty Home — which is the short one, and not the one that overflows.
     await pumpHome(tester);
-    expect(find.text('Last fed'), findsOneWidget);
-    expect(find.text('Last ate'), findsOneWidget);
-    expect(find.text('Last diaper changed'), findsOneWidget);
-    expect(find.text('Last pumped'), findsOneWidget);
+    expect(find.text('FEED'), findsOneWidget);
+    expect(find.text('SOLIDS'), findsOneWidget);
+    expect(find.text('DIAPER'), findsOneWidget);
+    expect(find.text('PUMP'), findsOneWidget);
     expect(find.textContaining('Next feed'), findsOneWidget);
   });
 
@@ -183,7 +197,7 @@ void main() {
     // be able to move out of the way, rather than pinning the list into
     // whatever is left over.
     await pumpHome(tester, size: const Size(390, 600));
-    final card = find.text('Last fed');
+    final card = find.text('FEED');
     expect(card, findsOneWidget);
     final before = tester.getTopLeft(card).dy;
 
@@ -219,7 +233,7 @@ void main() {
     ) async {
       await pumpHome(tester);
       final icon = tester.getRect(find.byTooltip('Log bottle'));
-      final fed = tester.getRect(find.text('Last fed'));
+      final fed = tester.getRect(find.text('FEED'));
       expect((icon.center.dy - fed.center.dy).abs(), lessThan(48));
       expect(icon.bottom, lessThan(tester.view.physicalSize.height));
     });
@@ -233,19 +247,6 @@ void main() {
   });
 
   group('the feeding row carries how close the next feed is', () {
-    /// Every background painted above [label]. Comparing the whole set
-    /// sidesteps having to identify which box is ours among the ones
-    /// Material paints.
-    List<Color> backdrops(WidgetTester tester, String label) => tester
-        .widgetList<ColoredBox>(
-          find.ancestor(
-            of: find.text(label),
-            matching: find.byType(ColoredBox),
-          ),
-        )
-        .map((b) => b.color)
-        .toList();
-
     FeedingEvent feedAt(int minutesAgo) => FeedingEvent(
       id: 'f1',
       type: FeedingType.bottle,
@@ -254,49 +255,57 @@ void main() {
     );
 
     testWidgets('so the row says it before it is read', (tester) async {
-      // On a card of three rows the colour is what picks out the one asking
-      // for something.
+      // On a card of several rows the dot beside the label is what picks
+      // out the one asking for something.
       await pumpHome(tester, feedings: [feedAt(15)]);
-      final justFed = backdrops(tester, 'Last fed');
+      expect(alertDot(tester, 'FEED'), isNull);
 
       // pumpHome reuses the ProviderScope, which updates in place rather
       // than re-resolving the overridden streams — without this the second
       // pump quietly measures the first feed again.
       await tester.pumpWidget(const SizedBox());
       await pumpHome(tester, feedings: [feedAt(400)]);
-      expect(backdrops(tester, 'Last fed'), isNot(justFed));
+      expect(
+        alertDot(tester, 'FEED'),
+        warningInks(tester.element(find.text('FEED'))).overdue,
+      );
     });
 
     testWidgets('and the diaper row stays out of it', (tester) async {
       await pumpHome(tester, feedings: [feedAt(15)]);
-      final calm = backdrops(tester, 'Last diaper changed');
+      final calm = alertDot(tester, 'DIAPER');
 
-      // pumpHome reuses the ProviderScope, which updates in place rather
-      // than re-resolving the overridden streams — without this the second
-      // pump quietly measures the first feed again.
       await tester.pumpWidget(const SizedBox());
       await pumpHome(tester, feedings: [feedAt(400)]);
-      expect(backdrops(tester, 'Last diaper changed'), calm);
+      expect(alertDot(tester, 'DIAPER'), calm);
     });
 
     testWidgets('in the separate layout too', (tester) async {
       await pumpHome(
         tester,
         prefs: {'home_layout': 'separate'},
-        feedings: [feedAt(15)],
-      );
-      final justFed = backdrops(tester, 'Last fed');
-
-      // pumpHome reuses the ProviderScope, which updates in place rather
-      // than re-resolving the overridden streams — without this the second
-      // pump quietly measures the first feed again.
-      await tester.pumpWidget(const SizedBox());
-      await pumpHome(
-        tester,
-        prefs: {'home_layout': 'separate'},
         feedings: [feedAt(400)],
       );
-      expect(backdrops(tester, 'Last fed'), isNot(justFed));
+      expect(alertDot(tester, 'FEED'), isNotNull);
+    });
+
+    testWidgets('with no colour behind the row itself', (tester) async {
+      // The row used to be tinted. The dot replaced that, so the words on
+      // the row stay on the card's own surface whatever state it is in.
+      await pumpHome(tester, feedings: [feedAt(400)]);
+      final tints = tester
+          .widgetList<ColoredBox>(
+            find.ancestor(
+              of: find.text('FEED'),
+              matching: find.byType(ColoredBox),
+            ),
+          )
+          .map((b) => b.color);
+      final context = tester.element(find.text('FEED'));
+      expect(
+        tints,
+        isNot(contains(dueColors(context, DueState.overdue).background)),
+      );
     });
   });
 
@@ -340,17 +349,7 @@ void main() {
   });
 
   group('the diaper row carries how long it has been', () {
-    List<Color> backdrops(WidgetTester tester, String label) => tester
-        .widgetList<ColoredBox>(
-          find.ancestor(
-            of: find.text(label),
-            matching: find.byType(ColoredBox),
-          ),
-        )
-        .map((b) => b.color)
-        .toList();
-
-    Future<List<Color>> at(WidgetTester tester, Duration ago) async {
+    Future<Color?> at(WidgetTester tester, Duration ago) async {
       await tester.pumpWidget(const SizedBox());
       await pumpHome(
         tester,
@@ -362,19 +361,20 @@ void main() {
           ),
         ],
       );
-      return backdrops(tester, 'Last diaper changed');
+      return alertDot(tester, 'DIAPER');
     }
 
     testWidgets('calm, then amber at two hours, then red at three', (
       tester,
     ) async {
-      final fresh = await at(tester, const Duration(minutes: 30));
+      expect(await at(tester, const Duration(minutes: 30)), isNull);
       final amber = await at(tester, const Duration(hours: 2, minutes: 30));
+      expect(amber, warningInks(tester.element(find.text('DIAPER'))).soon);
+      // Nothing else on the row says so, so the dot says it out loud.
+      expect(find.bySemanticsLabel(RegExp('Change due soon')), findsOneWidget);
       final red = await at(tester, const Duration(hours: 3, minutes: 30));
-
-      expect(amber, isNot(fresh));
-      expect(red, isNot(amber));
-      expect(red, isNot(fresh));
+      expect(red, warningInks(tester.element(find.text('DIAPER'))).overdue);
+      expect(find.bySemanticsLabel(RegExp('Change overdue')), findsOneWidget);
     });
   });
 
@@ -460,7 +460,7 @@ void main() {
       // With the log buttons gone, the row has to be there to log the first
       // session from, not wait for one.
       await pumpHome(tester);
-      expect(find.text('Last pumped'), findsOneWidget);
+      expect(find.text('PUMP'), findsOneWidget);
       await tester.tap(find.byTooltip('Log pump'));
       await tester.pumpAndSettle();
       expect(find.text('Log pumping'), findsOneWidget);
@@ -468,7 +468,7 @@ void main() {
 
     testWidgets('and is gone with pumping switched off', (tester) async {
       await pumpHome(tester, prefs: {'show_pumping_action': false});
-      expect(find.text('Last pumped'), findsNothing);
+      expect(find.text('PUMP'), findsNothing);
       expect(find.byTooltip('Log pump'), findsNothing);
     });
   });

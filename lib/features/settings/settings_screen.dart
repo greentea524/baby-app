@@ -262,7 +262,7 @@ class _BottleShortcutToggle extends ConsumerWidget {
   }
 }
 
-/// Whether Home has a "Last pumped" row, whose icon logs a session
+/// Whether Home has a pump row, whose icon logs a session
 /// (KAN-181). On by default, since it is the only way to start a pump entry;
 /// the subtitle spells out what turning it off costs.
 class _PumpingActionToggle extends ConsumerWidget {
@@ -276,7 +276,7 @@ class _PumpingActionToggle extends ConsumerWidget {
       title: const Text('Pumping'),
       subtitle: Text(
         enabled
-            ? 'A "Last pumped" row on Home — tap its icon to log one'
+            ? 'A pump row on Home — tap its icon to log one'
             : 'Hidden — turn on to log pump sessions',
       ),
       value: enabled,
@@ -285,7 +285,7 @@ class _PumpingActionToggle extends ConsumerWidget {
   }
 }
 
-/// Whether Home has a "Last medicine" row — see [showMedicationProvider].
+/// Whether Home has a medicine row — see [showMedicationProvider].
 class _MedicationToggle extends ConsumerWidget {
   const _MedicationToggle();
 
@@ -297,7 +297,7 @@ class _MedicationToggle extends ConsumerWidget {
       title: const Text('Medication'),
       subtitle: Text(
         enabled
-            ? 'A "Last medicine" row on Home — tap its icon to log a dose'
+            ? 'A medicine row on Home — tap its icon to log a dose'
             : 'Hidden until a dose is logged',
       ),
       value: enabled,

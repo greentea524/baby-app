@@ -10,7 +10,7 @@ import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 import 'package:baby_app/features/reminders/feed_prediction.dart';
 
-/// The "Last medicine" row on Home (#37).
+/// The medicine row on Home (#37).
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -47,14 +47,14 @@ void main() {
     tester,
   ) async {
     await pumpCard(tester);
-    expect(find.text('Last medicine'), findsNothing);
+    expect(find.text('MEDICINE'), findsNothing);
   });
 
   testWidgets('switched on, it is there to log the first dose from', (
     tester,
   ) async {
     await pumpCard(tester, prefs: {'show_medication': true});
-    expect(find.text('Last medicine'), findsOneWidget);
+    expect(find.text('MEDICINE'), findsOneWidget);
     expect(find.text('None yet'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Log medicine'));
@@ -77,9 +77,10 @@ void main() {
         ),
       ],
     );
-    expect(find.text('Last medicine'), findsOneWidget);
-    expect(find.text('3 hr ago'), findsOneWidget);
-    expect(find.textContaining('Tylenol 2.5 ml · by Alex'), findsOneWidget);
+    expect(find.text('MEDICINE'), findsOneWidget);
+    expect(find.text('3h ago'), findsOneWidget);
+    expect(find.text('Tylenol · 2.5\u00a0ml'), findsOneWidget);
+    expect(find.text('by Alex'), findsOneWidget);
   });
 
   testWidgets('counts down to the next dose while it is too soon', (
