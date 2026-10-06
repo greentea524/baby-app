@@ -13,6 +13,7 @@ import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../fridge/fridge_button.dart';
+import '../medication/medicine_sheet.dart';
 import '../pumping/pump_schedule.dart';
 import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
@@ -111,7 +112,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(baby: baby),
+                _Header(baby: baby, now: widget.now),
                 const SizedBox(height: 12),
                 Expanded(
                   child: LayoutBuilder(
@@ -438,9 +439,12 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.baby});
+  const _Header({required this.baby, required this.now});
 
   final Baby? baby;
+
+  /// The screen's clock, when fixed for a test; null for the live one.
+  final DateTime? now;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -468,6 +472,11 @@ class _Header extends ConsumerWidget {
             ],
           ),
         ),
+        // Medicine has no card here — it is not a clock to read from the
+        // doorway the way feeds are — but "can I give this yet?" gets asked
+        // at the cot all the same. One tap answers it.
+        MedicineButton(now: now),
+        const SizedBox(width: 8),
         // The only way out. The navigation bar is hidden in this mode, so
         // without this the device is stuck here and Settings is unreachable.
         IconButton(
