@@ -42,6 +42,7 @@ class MedicationEvent implements BabyEvent {
     this.notes,
     this.createdBy,
     this.byName,
+    this.waitHours,
   });
 
   @override
@@ -63,6 +64,15 @@ class MedicationEvent implements BabyEvent {
   /// dose" is the question two caregivers sharing a baby most need answered.
   final String? byName;
 
+  /// How long to wait after this dose before the next of the same medicine,
+  /// as the caregiver set it from the label or their doctor — never filled
+  /// in by the app. Null for no wait.
+  ///
+  /// On the dose rather than kept somewhere of its own, so the rule in force
+  /// is simply the latest dose's, and both caregivers see the same one
+  /// without a second thing to keep in step.
+  final int? waitHours;
+
   factory MedicationEvent.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
     return MedicationEvent(
@@ -74,6 +84,7 @@ class MedicationEvent implements BabyEvent {
       notes: data['notes'] as String?,
       createdBy: data['createdBy'] as String?,
       byName: data['byName'] as String?,
+      waitHours: (data['waitHours'] as num?)?.toInt(),
     );
   }
 
@@ -85,5 +96,6 @@ class MedicationEvent implements BabyEvent {
     'unit': unit?.name,
     'notes': notes,
     'byName': byName,
+    'waitHours': waitHours,
   };
 }

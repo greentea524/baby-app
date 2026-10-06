@@ -276,7 +276,11 @@ service cloud.firestore {
             && optional(d.get('unit', null),
                 ['ml', 'mg', 'drops', 'tablet', 'puff'])
             && text(d.get('notes', null))
-            && text(d.get('byName', null));
+            && text(d.get('byName', null))
+            // Hours to wait before the next dose: whole, and at most a week.
+            && (d.get('waitHours', null) == null
+                || (d.waitHours is int && d.waitHours > 0
+                    && d.waitHours <= 168));
         }
       }
 

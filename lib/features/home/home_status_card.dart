@@ -14,6 +14,7 @@ import '../feeding/feeding_format.dart';
 import '../fridge/fridge_button.dart';
 import '../fridge/fridge_order.dart';
 import '../medication/medication_format.dart';
+import '../medication/med_spacing.dart';
 import '../medication/medication_quick_log.dart';
 import '../pumping/pump_schedule.dart';
 import '../pumping/pumping_format.dart';
@@ -305,12 +306,34 @@ class HomeStatusCard extends ConsumerWidget {
     if (last == null && !ref.watch(showMedicationProvider)) return null;
     final me = ref.watch(authStateProvider).value?.uid;
     final by = last == null ? null : MedicationFormat.givenBy(last, me);
+    // One chip per medicine still inside the wait set on its last dose,
+    // soonest first: "Next Tylenol in 2h 10m · 3:40 PM". Amber for as long as
+    // it is too soon — the warning here is giving it, not missing it — and
+    // gone once it is allowed again.
+    final waits = activeWaits(ref.watch(recentMedsProvider).value ?? [], now);
 
     return _StatusRow(
       icon: MedicationFormat.icon,
       onLog: () => showMedicationQuickLog(context),
       logLabel: 'Log medicine',
       label: 'Last medicine',
+      footer: waits.isEmpty
+          ? null
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final w in waits)
+                  DueChip(
+                    state: DueState.soon,
+                    icon: Icons.hourglass_bottom,
+                    remaining: waitRemaining(w, now),
+                    text:
+                        'Next ${w.last.name.trim()} '
+                        '${countdownLabel(w.allowedAt, now: now)} · '
+                        '${TimeOfDay.fromDateTime(w.allowedAt).format(context)}',
+                  ),
+              ],
+            ),
       value: last == null
           ? 'None yet'
           : FeedingFormat.timeAgo(last.time, now: now),
@@ -545,10 +568,15 @@ class DueChip extends StatelessWidget {
     required this.state,
     this.remaining,
     this.soonFrom,
+    this.icon,
   });
 
   final String text;
   final DueState state;
+
+  /// In place of the state's own icon. Its bell says a reminder is coming,
+  /// which is not true of every chip.
+  final IconData? icon;
 
   /// How much of the gap to the next feed is left, 1 to 0, drawn as a track
   /// depleting along the chip's own bottom edge. Null draws nothing.
@@ -571,7 +599,11 @@ class DueChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (:background, :foreground, :icon) = dueColors(context, state);
+    final (:background, :foreground, icon: stateIcon) = dueColors(
+      context,
+      state,
+    );
+    final icon = this.icon ?? stateIcon;
     final inks = warningInks(context);
     final left = remaining;
     final amber = soonFrom;

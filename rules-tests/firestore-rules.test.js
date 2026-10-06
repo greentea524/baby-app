@@ -1187,6 +1187,16 @@ describe("medicine", () => {
     await assertFails(setDoc(medRef(asAlice(), "cup"), med({ unit: "cup" })));
   });
 
+  it("accepts a wait before the next dose, in whole hours", async () => {
+    await assertSucceeds(setDoc(medRef(asAlice(), "wait"), med({ waitHours: 6 })));
+  });
+
+  it("refuses a wait of nothing, of a fraction, or past a week", async () => {
+    await assertFails(setDoc(medRef(asAlice(), "w0"), med({ waitHours: 0 })));
+    await assertFails(setDoc(medRef(asAlice(), "wf"), med({ waitHours: 2.5 })));
+    await assertFails(setDoc(medRef(asAlice(), "wl"), med({ waitHours: 200 })));
+  });
+
   it("lets the other caregiver correct a dose", async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(medRef(ctx.firestore(), "given"), med());

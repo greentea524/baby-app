@@ -26,6 +26,7 @@ void main() {
     String? by,
     String? createdBy,
     String id = '',
+    int? wait,
   }) => MedicationEvent(
     id: id.isEmpty ? '$name-$hoursAgo' : id,
     time: now.subtract(Duration(hours: hoursAgo)),
@@ -34,6 +35,7 @@ void main() {
     unit: unit,
     byName: by,
     createdBy: createdBy,
+    waitHours: wait,
   );
 
   group('how a dose is said', () {
@@ -249,6 +251,68 @@ void main() {
       await tapIn(tester, find.widgetWithText(FilledButton, 'Save changes'));
       expect(meds.updated.single.dose, 3);
       expect(meds.updated.single.byName, 'Alex');
+    });
+
+    testWidgets('records the wait chosen before the next dose', (tester) async {
+      await openSheet(tester);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Medicine'),
+        'Tylenol',
+      );
+      await tapIn(tester, find.widgetWithText(ChoiceChip, '6 h'));
+      await tapIn(tester, save());
+      expect(meds.added.single.waitHours, 6);
+    });
+
+    testWidgets('a medicine given before brings its wait, and when it was', (
+      tester,
+    ) async {
+      await openSheet(
+        tester,
+        history: [dose('Tylenol', hoursAgo: 8, dose: 2.5, wait: 6)],
+      );
+      await tapIn(tester, find.widgetWithText(ActionChip, 'Tylenol'));
+      expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '6 h'))
+            .selected,
+        isTrue,
+      );
+      expect(find.textContaining('Last given 8 hr ago'), findsOneWidget);
+      expect(find.textContaining('1 in the last 24 hr'), findsOneWidget);
+    });
+
+    testWidgets('inside the wait, it asks before logging', (tester) async {
+      await openSheet(
+        tester,
+        history: [dose('Tylenol', hoursAgo: 2, dose: 2.5, wait: 6)],
+      );
+      await tapIn(tester, find.widgetWithText(ActionChip, 'Tylenol'));
+      await tapIn(tester, save());
+      expect(find.text('Before the wait is over'), findsOneWidget);
+      expect(find.textContaining('2 hr ago'), findsWidgets);
+
+      // Cancel keeps the sheet, and saves nothing.
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(meds.added, isEmpty);
+
+      // Asked again, and logged anyway: a doctor may have said to.
+      await tapIn(tester, save());
+      await tester.tap(find.text('Log anyway'));
+      await tester.pumpAndSettle();
+      expect(meds.added.single.name, 'Tylenol');
+    });
+
+    testWidgets('after the wait, it just logs', (tester) async {
+      await openSheet(
+        tester,
+        history: [dose('Tylenol', hoursAgo: 7, dose: 2.5, wait: 6)],
+      );
+      await tapIn(tester, find.widgetWithText(ActionChip, 'Tylenol'));
+      await tapIn(tester, save());
+      expect(find.text('Before the wait is over'), findsNothing);
+      expect(meds.added, hasLength(1));
     });
 
     testWidgets('says it records, and does not advise', (tester) async {

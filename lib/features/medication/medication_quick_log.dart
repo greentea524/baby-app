@@ -8,6 +8,8 @@ import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import '../common/number_input.dart';
 import '../common/save_and_close.dart';
+import '../feeding/feeding_format.dart';
+import 'med_spacing.dart';
 
 /// Opens the medicine sheet (#37). Pass [existing] to edit a dose.
 Future<void> showMedicationQuickLog(
@@ -63,6 +65,13 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
   /// Guards a second tap landing while the sheet closes (#21).
   bool _saving = false;
 
+  /// Hours to wait before the next dose of this medicine; null for none.
+  int? _waitHours;
+
+  /// Whether the wait has been chosen here. Until it has, it follows the
+  /// medicine typed: the wait set on that medicine's last dose.
+  bool _waitTouched = false;
+
   @override
   void initState() {
     super.initState();
@@ -73,7 +82,22 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
       if (e.dose != null) _dose.text = _number(e.dose!);
       _unit = e.unit ?? DoseUnit.ml;
       if (e.notes != null) _notes.text = e.notes!;
+      _waitHours = e.waitHours;
+      _waitTouched = true;
     }
+  }
+
+  List<MedicationEvent> get _history =>
+      ref.read(recentMedsProvider).value ?? const [];
+
+  /// The wait follows the medicine, until it is chosen by hand.
+  void _followWait(String name) {
+    if (_waitTouched) return;
+    _waitHours = lastDoseOf(
+      _history,
+      name,
+      excludeId: widget.existing?.id,
+    )?.waitHours;
   }
 
   @override
@@ -93,6 +117,7 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
     _name.text = last.name;
     _dose.text = last.dose == null ? '' : _number(last.dose!);
     _unit = last.unit ?? _unit;
+    _followWait(last.name);
   });
 
   double? get _doseValue {
@@ -110,6 +135,45 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
     if (text.isEmpty) return true;
     final dose = double.tryParse(text);
     return dose != null && dose > 0;
+  }
+
+  /// Saves, asking first when the dose comes before the wait set on the one
+  /// before it is over. Asked, never refused: a doctor may say to give it
+  /// early, and the record should be kept either way.
+  Future<void> _confirmAndSave() async {
+    if (_saving || !_valid) return;
+    final name = _name.text.trim();
+    final early = tooSoonAfter(
+      _history,
+      name,
+      _time,
+      excludeId: widget.existing?.id,
+    );
+    if (early != null && widget.existing == null) {
+      final ago = FeedingFormat.timeAgo(early.time, now: _time);
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Before the wait is over'),
+          content: Text(
+            'The last $name was $ago, and the wait set for it is '
+            '${early.waitHours} hr. Log this dose anyway?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Log anyway'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+    _save();
   }
 
   void _save() {
@@ -131,6 +195,7 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
       dose: dose,
       unit: dose == null ? null : _unit,
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      waitHours: _waitHours,
       // Who gave it is who logged it first; an edit keeps that.
       byName: existing != null
           ? existing.byName
@@ -150,7 +215,8 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isEdit = widget.existing != null;
-    final recent = recentMedicines(ref.watch(recentMedsProvider).value ?? []);
+    final recentAll = ref.watch(recentMedsProvider).value ?? const [];
+    final recent = recentMedicines(recentAll);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -171,8 +237,23 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
             border: OutlineInputBorder(),
             counterText: '',
           ),
-          onChanged: (_) => setState(() {}),
+          onChanged: (name) => setState(() => _followWait(name)),
         ),
+        // When this one was last given, once it has been: the question to
+        // answer before giving another.
+        if (lastDoseOf(recentAll, _name.text, excludeId: widget.existing?.id)
+            case final last?)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Last given ${FeedingFormat.timeAgo(last.time)}'
+              ' · ${dosesInLast24h(recentAll, last.name, DateTime.now())}'
+              ' in the last 24 hr',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
         // What has been given before, so the usual one is a tap: name and
         // last dose together.
         if (!isEdit && recent.isNotEmpty)
@@ -223,6 +304,26 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
               ),
           ],
         ),
+        const SizedBox(height: 16),
+        Text('Wait before the next dose', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final hours in [null, ...waitChoices])
+              ChoiceChip(
+                label: Text(hours == null ? 'None' : '$hours h'),
+                selected: _waitHours == hours,
+                showCheckmark: false,
+                visualDensity: VisualDensity.compact,
+                onSelected: (_) => setState(() {
+                  _waitHours = hours;
+                  _waitTouched = true;
+                }),
+              ),
+          ],
+        ),
         const SizedBox(height: 12),
         EventTimeRow(time: _time, onChanged: (t) => setState(() => _time = t)),
         const SizedBox(height: 12),
@@ -237,14 +338,14 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
         // Said once, plainly: this is a record, not advice.
         Text(
           'Record what was given. Follow the label or your doctor for how '
-          'much and how often.',
+          'much, how often and how long to wait.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 16),
         FilledButton(
-          onPressed: _valid && !isFutureLogTime(_time) ? _save : null,
+          onPressed: _valid && !isFutureLogTime(_time) ? _confirmAndSave : null,
           child: Text(isEdit ? 'Save changes' : 'Save'),
         ),
       ],

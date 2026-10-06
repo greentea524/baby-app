@@ -8,6 +8,7 @@ import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/medication_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
+import 'package:baby_app/features/reminders/feed_prediction.dart';
 
 /// The "Last medicine" row on Home (#37).
 void main() {
@@ -79,5 +80,42 @@ void main() {
     expect(find.text('Last medicine'), findsOneWidget);
     expect(find.text('3 hr ago'), findsOneWidget);
     expect(find.textContaining('Tylenol 2.5 ml · by Alex'), findsOneWidget);
+  });
+
+  testWidgets('counts down to the next dose while it is too soon', (
+    tester,
+  ) async {
+    await pumpCard(
+      tester,
+      meds: [
+        MedicationEvent(
+          id: 'm1',
+          time: now.subtract(const Duration(hours: 2)),
+          name: 'Tylenol',
+          dose: 2.5,
+          unit: DoseUnit.ml,
+          waitHours: 6,
+        ),
+      ],
+    );
+    expect(find.textContaining('Next Tylenol in 4h'), findsOneWidget);
+    final chip = tester.widget<DueChip>(find.byType(DueChip));
+    expect(chip.state, DueState.soon);
+    expect(chip.remaining, closeTo(4 / 6, 0.01));
+  });
+
+  testWidgets('and says nothing more once it is allowed', (tester) async {
+    await pumpCard(
+      tester,
+      meds: [
+        MedicationEvent(
+          id: 'm1',
+          time: now.subtract(const Duration(hours: 7)),
+          name: 'Tylenol',
+          waitHours: 6,
+        ),
+      ],
+    );
+    expect(find.byType(DueChip), findsNothing);
   });
 }
