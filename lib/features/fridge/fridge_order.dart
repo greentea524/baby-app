@@ -68,6 +68,30 @@ List<double> pourStops(double fromMl) => [
   fromMl,
 ];
 
+/// The amounts the first of two bottles can be, splitting one of
+/// [totalMl]: every [pourStepMl], from one step to one short of the whole.
+/// The second takes the rest, odd millilitres and all, so neither is ever
+/// less than a step. Empty for a bottle too small to make two.
+///
+/// The same 5 ml steps as [pourStops], so pouring one bottle into two moves
+/// the way pouring two into one does.
+List<double> splitStops(double totalMl) => [
+  for (var ml = pourStepMl; ml <= totalMl - pourStepMl; ml += pourStepMl) ml,
+];
+
+/// Where a split starts: the stop nearest half, the lower one on a tie.
+/// Null for a bottle too small to split.
+double? defaultSplitMl(double totalMl) {
+  final stops = splitStops(totalMl);
+  if (stops.isEmpty) return null;
+  final half = totalMl / 2;
+  var best = stops.first;
+  for (final ml in stops) {
+    if ((ml - half).abs() < (best - half).abs()) best = ml;
+  }
+  return best;
+}
+
 /// How much of [poured] to pour into [kept] unless told otherwise: enough
 /// to fill [kept] to a full bottle, or all of [poured] if that is less.
 ///

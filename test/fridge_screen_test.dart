@@ -643,6 +643,43 @@ void main() {
       expect(find.text('Adds up to 100 ml.'), findsOneWidget);
     });
 
+    testWidgets('and its slider moves 5 ml at a time, like Combine', (
+      tester,
+    ) async {
+      // An odd amount, so the second bottle is the one that takes the odd
+      // millilitres: the first always lands on a step.
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        size: const Size(1200, 900),
+        bottles: [bottle('a', hoursAgo: 2, ml: 123)],
+      );
+      await tester.tap(find.text('123'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Split'));
+      await tester.pumpAndSettle();
+
+      // Nearest half on a step: 60 and the rest.
+      expect(find.text('60 ml'), findsOneWidget);
+      expect(find.text('63 ml'), findsOneWidget);
+
+      for (final dx in [37.0, 61.0, -23.0, 2000.0]) {
+        await tester.drag(find.byType(Slider), Offset(dx, 0));
+        await tester.pumpAndSettle();
+        final first = tester.widget<Slider>(find.byType(Slider)).label!;
+        final ml = int.parse(first.split(' ').first);
+        expect(ml % 5, 0, reason: first);
+      }
+      // As far as it goes, the second keeps more than a step.
+      expect(find.text('115 ml'), findsOneWidget);
+      expect(find.text('8 ml'), findsOneWidget);
+
+      await tester.tap(find.text('Split into two bottles'));
+      await tester.pumpAndSettle();
+      expect(repo.splits.single.firstMl, 115);
+    });
+
     testWidgets('but one too small to divide says so', (tester) async {
       // Five millilitres a side is the floor; a 9 ml bottle cannot make two.
       await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 2, ml: 9)]);
@@ -1447,7 +1484,12 @@ class _RecordingFridge extends FridgeRepository {
   final deleted = <String>[];
   final combines =
       <({FridgeBottle kept, FridgeBottle poured, double? pourMl})>[];
+  final splits = <({FridgeBottle bottle, double firstMl})>[];
   bool failCombine = false;
+
+  @override
+  Future<void> split(FridgeBottle bottle, double firstMl) async =>
+      splits.add((bottle: bottle, firstMl: firstMl));
 
   @override
   Future<String> add(FridgeBottle event) async {

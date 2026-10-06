@@ -305,17 +305,13 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
   late double _firstMl;
   bool _saving = false;
 
-  /// The smallest either half may be.
-  ///
-  /// Not zero: a split that leaves one side empty is a split that did not
-  /// happen, and the rules refuse a bottle of nothing. Five millilitres is
-  /// also about the least anyone pours on purpose.
-  static const _floor = 5.0;
+  /// Every amount the first bottle can be — see [splitStops].
+  late final List<double> _stops = splitStops(widget.bottle.amountMl);
 
   @override
   void initState() {
     super.initState();
-    _firstMl = (widget.bottle.amountMl / 2).roundToDouble();
+    _firstMl = defaultSplitMl(widget.bottle.amountMl) ?? 0;
   }
 
   void _split() {
@@ -336,8 +332,9 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
     final units = ref.watch(unitSystemProvider);
     final total = widget.bottle.amountMl;
     final rest = total - _firstMl;
-    // A bottle too small to divide: the slider would have no room to move.
-    final divisible = total >= _floor * 2;
+    // A bottle too small to divide: not a step for each side.
+    final divisible = _stops.isNotEmpty;
+    final at = _stops.indexOf(_firstMl);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -374,16 +371,18 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
               ),
             ],
           ),
-          Slider(
-            value: _firstMl,
-            min: _floor,
-            max: total - _floor,
-            // Whole millilitres. The two halves have to add back up to the
-            // bottle, so the step cannot be a fraction the display rounds.
-            divisions: (total - _floor * 2).round().clamp(1, 1000),
-            label: formatVolume(_firstMl, units),
-            onChanged: (v) => setState(() => _firstMl = v.roundToDouble()),
-          ),
+          // Only one way to split it, five and the rest: nothing to slide.
+          if (_stops.length > 1)
+            Slider(
+              // Along the stops rather than a scale of millilitres, so it
+              // moves 5 ml at a time like Combine's pour, and the second
+              // bottle takes whatever odd amount is left.
+              value: at.toDouble(),
+              max: (_stops.length - 1).toDouble(),
+              divisions: _stops.length - 1,
+              label: formatVolume(_firstMl, units),
+              onChanged: (v) => setState(() => _firstMl = _stops[v.round()]),
+            ),
           const SizedBox(height: 4),
           Text(
             'Adds up to ${formatVolume(total, units)}.',

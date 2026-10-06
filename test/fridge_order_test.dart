@@ -135,6 +135,23 @@ void main() {
       expect(pourStops(4), [4]);
     });
 
+    test('a split moves in the same steps, a step each side at least', () {
+      expect(splitStops(20), [5, 10, 15]);
+      // The second bottle takes the odd millilitres.
+      expect(splitStops(23), [5, 10, 15]);
+      expect(splitStops(10), [5]);
+      expect(splitStops(9), isEmpty);
+    });
+
+    test('and starts on the step nearest half', () {
+      expect(defaultSplitMl(100), 50);
+      expect(defaultSplitMl(123), 60);
+      // A tie goes to the lower.
+      expect(defaultSplitMl(125), 60);
+      expect(defaultSplitMl(10), 5);
+      expect(defaultSplitMl(9), isNull);
+    });
+
     test('and starts on a stop, never past full', () {
       // 77 ml has room for 43; the stop below that is 40.
       expect(
