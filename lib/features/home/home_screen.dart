@@ -10,6 +10,7 @@ import '../../core/router/app_router.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_filter.dart';
 import '../appointments/next_appointment_button.dart';
+import '../medication/medicine_sheet.dart';
 import '../caregivers/incoming_invites.dart';
 import '../../core/layout/app_bar_room.dart';
 import '../common/day_time_label.dart';
@@ -83,7 +84,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     // Three things want this bar and only the name is flexible, so without
     // this it absorbed every shortfall — down to 10pt on a 390pt phone (#29).
-    final showClock = baby != null && AppBarRoom.of(context).showsClock;
+    // The medicine button, while medicine is being given: in the corner
+    // rather than a row of the status card, so a course that has ended
+    // leaves nothing behind once the button goes.
+    final medicine = baby != null && watchMedicineButtonShown(ref, _now);
+    final room = AppBarRoom.of(context, medicine: medicine);
+    final showClock = baby != null && room.showsClock;
+    final double corner =
+        (medicine ? AppBarRoom.medicineWidth : 0) +
+        (showClock ? AppBarRoom.clockWidth : 0);
 
     return Scaffold(
       appBar: AppBar(
@@ -95,29 +104,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Only where there is room for the name as well. On a phone there is
         // not, and dropping it there is right twice over: the name needs the
         // width, and iOS is already showing the time a few points above.
-        leadingWidth: showClock ? AppBarRoom.clockWidth : null,
-        leading: !showClock
+        //
+        // The medicine button goes before it, at the very corner.
+        leadingWidth: corner > 0 ? corner : null,
+        leading: corner == 0
             ? null
-            : Padding(
-                padding: const EdgeInsets.only(left: 12),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: DayTimeLabel(
-                    clock: _now,
-                    timeStyle: Theme.of(context).textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                    dayStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+            : Row(
+                children: [
+                  if (medicine)
+                    const SizedBox(
+                      width: AppBarRoom.medicineWidth,
+                      child: Center(child: MedicineButton()),
                     ),
-                  ),
-                ),
+                  if (showClock)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: DayTimeLabel(
+                            clock: _now,
+                            timeStyle: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            dayStyle: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
         title: baby == null ? const Text('Home') : const BabySwitcher(),
         // The next visit lives in the corner rather than in the status card:
         // it is the one thing on Home you cannot act on today, so it wants to
         // be visible without taking a row from the things you can.
-        actions: [if (baby != null) NextAppointmentButton(now: _now)],
+        actions: [
+          if (baby != null)
+            NextAppointmentButton(now: _now, maxWidth: room.appointmentWidth),
+        ],
       ),
       body: babiesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

@@ -20,10 +20,14 @@ import 'appointment_format.dart';
 /// Renders nothing when there is no upcoming visit, so the corner stays empty
 /// for anyone not using appointments rather than showing a dead button.
 class NextAppointmentButton extends ConsumerWidget {
-  const NextAppointmentButton({super.key, this.now});
+  const NextAppointmentButton({super.key, this.now, this.maxWidth});
 
   /// Injectable clock, for deterministic day labels in tests.
   final DateTime? now;
+
+  /// The most the button may take; by default the bar's share for it. Home
+  /// passes its own when the medicine button takes some of the bar too.
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,6 +38,7 @@ class NextAppointmentButton extends ConsumerWidget {
     return NextAppointmentLabel(
       appt: upcoming.first,
       now: now ?? DateTime.now(),
+      widthLimit: maxWidth,
       onTap: () => context.push(AppRoutes.appointments),
     );
   }
@@ -47,11 +52,16 @@ class NextAppointmentLabel extends StatelessWidget {
     required this.appt,
     required this.now,
     required this.onTap,
+    this.widthLimit,
   });
 
   final Appointment appt;
   final DateTime now;
   final VoidCallback onTap;
+
+  /// In place of [AppBarRoom.appointmentWidth], when the caller knows more
+  /// about what else is in the bar.
+  final double? widthLimit;
 
   /// Keeps the button from crowding out the baby switcher in the title. The
   /// label ellipsizes inside this rather than the app bar overflowing.
@@ -105,7 +115,7 @@ class NextAppointmentLabel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: AppBarRoom.of(context).appointmentWidth,
+          maxWidth: widthLimit ?? AppBarRoom.of(context).appointmentWidth,
         ),
         // A filled pill with a chevron, rather than bare text: in an app bar a
         // plain label reads as a heading, and nothing about it invites a tap.

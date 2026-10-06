@@ -149,12 +149,12 @@ class ShowPumpingActionNotifier extends Notifier<bool> {
 
 const _showMedicationKey = 'show_medication';
 
-/// Whether Home has a medicine row, whose icon logs a dose (#37).
+/// Whether Home's medicine button is always there (#37).
 ///
-/// Off by default: most days most babies have no medicine, and a row that
-/// is always empty is clutter. Once a dose has been logged the row shows
-/// anyway — see the status card — so turning this on is only needed to log
-/// the first one from Home.
+/// Off by default: most days most babies have no medicine. The button shows
+/// anyway while a dose has been given in the last week — see
+/// `medicineButtonShown` — so this is for logging the first dose of a
+/// course from Home, or for a household that gives something every day.
 final showMedicationProvider = NotifierProvider<ShowMedicationNotifier, bool>(
   ShowMedicationNotifier.new,
 );

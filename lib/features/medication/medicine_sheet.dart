@@ -189,12 +189,39 @@ class _MedicineEntry extends StatelessWidget {
   }
 }
 
-/// Nursery mode's way to the medicine sheet: a button in its header.
+/// How long after the last dose the medicine button stays without being
+/// switched on: a week, so it is there for the whole of a course and the
+/// days just after, then goes once the baby is better.
+const medicineQuietAfter = Duration(days: 7);
+
+/// Whether the medicine button is shown: always when switched on in
+/// Settings, and otherwise while a dose has been given within
+/// [medicineQuietAfter].
 ///
-/// Shown on the terms Home's medicine row is — switched on in Settings, or
-/// any dose logged — so a household that has never given medicine is not
-/// handed a button for it. Marked with a dot while a wait is running, so
-/// "is something too soon to give?" is answered from across the room
+/// Not "once any dose has been logged", as the Home row used to be: a
+/// course of medicine ends, and a button that stayed for good after one
+/// dose of Tylenol would be clutter nobody could get rid of.
+bool medicineButtonShown({
+  required List<MedicationEvent> doses,
+  required bool switchedOn,
+  required DateTime now,
+}) =>
+    switchedOn || doses.any((d) => now.difference(d.time) < medicineQuietAfter);
+
+/// [medicineButtonShown] for this household, as of [now].
+bool watchMedicineButtonShown(WidgetRef ref, DateTime now) =>
+    medicineButtonShown(
+      doses: ref.watch(recentMedsProvider).value ?? const [],
+      switchedOn: ref.watch(showMedicationProvider),
+      now: now,
+    );
+
+/// The way to the medicine sheet: a button in Home's top-left corner and
+/// in nursery mode's header.
+///
+/// Shown by [medicineButtonShown], so a household that is not giving
+/// medicine is not handed a button for it. Marked with a dot while a wait
+/// is running, so "is something too soon to give?" is answered at a glance
 /// before the sheet is opened.
 class MedicineButton extends ConsumerWidget {
   const MedicineButton({super.key, this.now});
@@ -204,11 +231,12 @@ class MedicineButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final doses = ref.watch(recentMedsProvider).value ?? const [];
-    if (doses.isEmpty && !ref.watch(showMedicationProvider)) {
+    final clock = now ?? DateTime.now();
+    if (!watchMedicineButtonShown(ref, clock)) {
       return const SizedBox.shrink();
     }
-    final waiting = activeWaits(doses, now ?? DateTime.now()).isNotEmpty;
+    final doses = ref.watch(recentMedsProvider).value ?? const [];
+    final waiting = activeWaits(doses, clock).isNotEmpty;
 
     return IconButton.filledTonal(
       tooltip: 'Medicine',

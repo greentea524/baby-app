@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/auth/auth_providers.dart';
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
@@ -13,9 +12,6 @@ import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
 import '../fridge/fridge_button.dart';
 import '../fridge/fridge_order.dart';
-import '../medication/medication_format.dart';
-import '../medication/med_spacing.dart';
-import '../medication/medication_quick_log.dart';
 import '../pumping/pump_schedule.dart';
 import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
@@ -51,7 +47,6 @@ class HomeStatusCard extends ConsumerWidget {
       ?_solidsRow(context, ref),
       _diaperRow(context, ref),
       ?_pumpRow(context, ref),
-      ?_medicationRow(context, ref),
       ?_fridgeRow(context, ref),
     ];
 
@@ -271,53 +266,6 @@ class HomeStatusCard extends ConsumerWidget {
       now: now,
       detail: last == null ? null : PumpingFormat.extras(last),
       chips: [?next],
-    );
-  }
-
-  /// The last dose of medicine: what, how much, how long ago, and who gave
-  /// it (#37) — the question two caregivers sharing a baby most need
-  /// answered, so a dose is not given twice.
-  ///
-  /// Shown when switched on in Settings, or once any dose has been logged:
-  /// a household that has given medicine has said it is part of their day,
-  /// and one that never has is spared an empty row.
-  Widget? _medicationRow(BuildContext context, WidgetRef ref) {
-    final last = ref.watch(lastMedProvider);
-    if (last == null && !ref.watch(showMedicationProvider)) return null;
-    final me = ref.watch(authStateProvider).value?.uid;
-    final by = last == null ? null : MedicationFormat.givenBy(last, me);
-    final notes = last?.notes?.trim() ?? '';
-    // One chip per medicine still inside the wait set on its last dose,
-    // soonest first: "Next Tylenol in 2h 10m · 3:40 PM". Amber for as long as
-    // it is too soon — the warning here is giving it, not missing it — and
-    // gone once it is allowed again.
-    final waits = activeWaits(ref.watch(recentMedsProvider).value ?? [], now);
-
-    return _StatusRow(
-      icon: MedicationFormat.icon,
-      onLog: () => showMedicationQuickLog(context),
-      logLabel: 'Log medicine',
-      label: 'Medicine',
-      headline: last == null
-          ? 'None yet'
-          : _join(last.name.trim(), _keep(MedicationFormat.dose(last) ?? '')),
-      when: last?.time,
-      now: now,
-      detail: last == null
-          ? null
-          : [if (by != null) 'by $by', if (notes.isNotEmpty) notes].join(' · '),
-      chips: [
-        for (final w in waits)
-          DueChip(
-            state: DueState.soon,
-            icon: Icons.hourglass_bottom,
-            remaining: waitRemaining(w, now),
-            text:
-                'Next ${w.last.name.trim()} '
-                '${countdownLabel(w.allowedAt, now: now)} · '
-                '${_keep(TimeOfDay.fromDateTime(w.allowedAt).format(context))}',
-          ),
-      ],
     );
   }
 

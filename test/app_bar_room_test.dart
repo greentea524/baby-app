@@ -10,7 +10,11 @@ import 'package:baby_app/core/layout/app_bar_room.dart';
 /// shortfall. On a 390pt phone it was left with 10pt and "Jonathan" rendered
 /// as "J…".
 void main() {
-  Future<AppBarRoom> roomAt(WidgetTester tester, double width) async {
+  Future<AppBarRoom> roomAt(
+    WidgetTester tester,
+    double width, {
+    bool medicine = false,
+  }) async {
     tester.view.physicalSize = Size(width, 896);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -20,7 +24,7 @@ void main() {
       MaterialApp(
         home: Builder(
           builder: (context) {
-            room = AppBarRoom.of(context);
+            room = AppBarRoom.of(context, medicine: medicine);
             return const SizedBox();
           },
         ),
@@ -95,6 +99,31 @@ void main() {
       // instead of the name being the only thing that does.
       expect((await roomAt(tester, 390)).appointmentWidth, lessThan(220));
       expect((await roomAt(tester, 640)).appointmentWidth, 220);
+    });
+  });
+
+  group('with the medicine button', () {
+    testWidgets('still leaves the name its floor at every width', (
+      tester,
+    ) async {
+      for (final width in [360.0, 375.0, 430.0, 560.0, 640.0]) {
+        final room = await roomAt(tester, width, medicine: true);
+        final forName =
+            room.width -
+            AppBarRoom.medicineWidth -
+            (room.showsClock ? AppBarRoom.clockWidth : 0) -
+            room.appointmentWidth -
+            AppBarRoom.barPadding;
+        expect(
+          forName,
+          greaterThanOrEqualTo(AppBarRoom.nameFloor),
+          reason: 'at $width',
+        );
+      }
+    });
+
+    testWidgets('and keeps the clock on a tablet', (tester) async {
+      expect((await roomAt(tester, 834, medicine: true)).showsClock, isTrue);
     });
   });
 }

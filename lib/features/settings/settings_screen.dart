@@ -285,7 +285,8 @@ class _PumpingActionToggle extends ConsumerWidget {
   }
 }
 
-/// Whether Home has a medicine row — see [showMedicationProvider].
+/// Whether Home always has its medicine button — see
+/// [showMedicationProvider].
 class _MedicationToggle extends ConsumerWidget {
   const _MedicationToggle();
 
@@ -297,8 +298,8 @@ class _MedicationToggle extends ConsumerWidget {
       title: const Text('Medication'),
       subtitle: Text(
         enabled
-            ? 'A medicine row on Home — tap its icon to log a dose'
-            : 'Hidden until a dose is logged',
+            ? 'A medicine button at the top of Home, always'
+            : 'Shown while medicine is being given, and for a week after',
       ),
       value: enabled,
       onChanged: (v) => ref.read(showMedicationProvider.notifier).set(v),

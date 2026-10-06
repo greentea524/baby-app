@@ -6,18 +6,32 @@ import 'content_width.dart';
 
 /// How Home's app bar shares itself out (#29).
 ///
-/// Three things want that bar: the clock, the baby's name, and the next
-/// appointment. Only the name is flexible, so it absorbed every shortfall —
+/// Three things want that bar — the clock, the baby's name, and the next
+/// appointment — and a fourth, the medicine button, while medicine is
+/// being given. Only the name is flexible, so it absorbed every shortfall —
 /// on a 390pt phone it was left with 10pt and the name rendered as "J…".
 /// This is the arithmetic that stops that.
 class AppBarRoom {
-  const AppBarRoom._(this.width);
+  const AppBarRoom._(this.width, this.medicine);
 
   /// The bar's own width, which is the screen's until the content cap bites.
-  factory AppBarRoom.of(BuildContext context) =>
-      AppBarRoom._(math.min(MediaQuery.sizeOf(context).width, maxContentWidth));
+  ///
+  /// [medicine] when the medicine button is in the corner as well, which
+  /// the rest has to make room for.
+  factory AppBarRoom.of(BuildContext context, {bool medicine = false}) =>
+      AppBarRoom._(
+        math.min(MediaQuery.sizeOf(context).width, maxContentWidth),
+        medicine,
+      );
 
   final double width;
+
+  /// Whether the medicine button is in the bar.
+  final bool medicine;
+
+  /// What the medicine button costs when shown: the bar's standard leading
+  /// slot.
+  static const medicineWidth = 56.0;
 
   /// The least the baby's name may be left with before something else gives
   /// way. Below roughly this it stops being a name and becomes an initial.
@@ -49,12 +63,25 @@ class AppBarRoom {
   /// over — the name needs the room, and the operating system is already
   /// showing the time a few points above the bar.
   bool get showsClock =>
-      width - clockWidth - appointmentWidth - barPadding >= nameFloor;
+      width -
+          clockWidth -
+          (medicine ? medicineWidth : 0) -
+          appointmentWidth -
+          barPadding >=
+      nameFloor;
 
   /// What the next appointment may take.
   ///
   /// A share rather than a fixed 220, so the name keeps its floor on a narrow
   /// bar instead of being the only thing that gives. The pill ellipsizes
-  /// inside whatever it gets.
-  double get appointmentWidth => math.min(220, width * 0.42);
+  /// inside whatever it gets — and never more than leaves the name its
+  /// floor, which on a phone with the medicine button too is the tighter of
+  /// the two.
+  double get appointmentWidth => math.max(
+    0,
+    math.min(
+      math.min(220, width * 0.42),
+      width - (medicine ? medicineWidth : 0) - barPadding - nameFloor,
+    ),
+  );
 }
