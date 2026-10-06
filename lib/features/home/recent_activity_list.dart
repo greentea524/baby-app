@@ -40,10 +40,12 @@ class RecentActivityList extends ConsumerWidget {
     final feedsAsync = ref.watch(recentFeedingsProvider);
     final diapersAsync = ref.watch(recentDiapersProvider);
     final pumpsAsync = ref.watch(recentPumpingProvider);
+    final medsAsync = ref.watch(recentMedsProvider);
 
     if ((!feedsAsync.hasValue && feedsAsync.isLoading) ||
         (!diapersAsync.hasValue && diapersAsync.isLoading) ||
-        (!pumpsAsync.hasValue && pumpsAsync.isLoading)) {
+        (!pumpsAsync.hasValue && pumpsAsync.isLoading) ||
+        (!medsAsync.hasValue && medsAsync.isLoading)) {
       return const SliverToBoxAdapter(
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -56,6 +58,7 @@ class RecentActivityList extends ConsumerWidget {
       feedsAsync.value ?? const [],
       diapersAsync.value ?? const [],
       pumps: pumpsAsync.value ?? const [],
+      meds: medsAsync.value ?? const [],
     );
 
     if (all.isEmpty) {

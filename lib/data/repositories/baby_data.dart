@@ -28,6 +28,7 @@ class BabyData {
     'diapers',
     'growth',
     'pumps',
+    'meds',
     'bottles',
     'appointments',
     'invites',
@@ -41,6 +42,7 @@ class BabyData {
     'diapers': ('diaper change', 'diaper changes'),
     'growth': ('growth measurement', 'growth measurements'),
     'pumps': ('pumping session', 'pumping sessions'),
+    'meds': ('dose of medicine', 'doses of medicine'),
     'bottles': ('bottle in the fridge', 'bottles in the fridge'),
     'appointments': ('appointment', 'appointments'),
   };

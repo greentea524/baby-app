@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/activity_entry.dart';
+import '../../data/models/medication_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_filter.dart';
 import '../activity/activity_tile.dart';
 import '../insights/milk_mix.dart';
+import '../medication/medication_format.dart';
 import 'day_stats.dart';
 import 'timeline_format.dart';
 
@@ -22,12 +24,14 @@ class TimelineScreen extends ConsumerWidget {
     final feedsAsync = ref.watch(feedingsForDayProvider);
     final diapersAsync = ref.watch(diapersForDayProvider);
     final pumpsAsync = ref.watch(pumpingForDayProvider);
+    final medsAsync = ref.watch(medsForDayProvider);
     final baby = ref.watch(currentBabyProvider);
 
     final loading =
         (!feedsAsync.hasValue && feedsAsync.isLoading) ||
         (!diapersAsync.hasValue && diapersAsync.isLoading) ||
-        (!pumpsAsync.hasValue && pumpsAsync.isLoading);
+        (!pumpsAsync.hasValue && pumpsAsync.isLoading) ||
+        (!medsAsync.hasValue && medsAsync.isLoading);
 
     final feeds = feedsAsync.value ?? const [];
     final diapers = diapersAsync.value ?? const [];
@@ -36,6 +40,7 @@ class TimelineScreen extends ConsumerWidget {
       feeds,
       diapers,
       pumps: pumps,
+      meds: medsAsync.value ?? const [],
       descending: false,
     );
     final filter = ref.watch(activityFilterProvider);
@@ -66,7 +71,12 @@ class TimelineScreen extends ConsumerWidget {
           // through a slot, on exactly the busy days with most to read.
           : CustomScrollView(
               slivers: [
-                SliverToBoxAdapter(child: _StatsCard(stats: stats)),
+                SliverToBoxAdapter(
+                  child: _StatsCard(
+                    stats: stats,
+                    meds: medsAsync.value ?? const [],
+                  ),
+                ),
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _PinnedFilterBar(
@@ -223,9 +233,13 @@ class _DayAppBar extends ConsumerWidget implements PreferredSizeWidget {
 }
 
 class _StatsCard extends ConsumerWidget {
-  const _StatsCard({required this.stats});
+  const _StatsCard({required this.stats, this.meds = const []});
 
   final DayStats stats;
+
+  /// The day's doses of medicine, counted per medicine on a chip of their
+  /// own when there are any.
+  final List<MedicationEvent> meds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -299,6 +313,13 @@ class _StatsCard extends ConsumerWidget {
             value: '${stats.diaperCount}',
             detail: diaperDetail.isEmpty ? null : diaperDetail,
           ),
+          if (meds.isNotEmpty)
+            _StatChip(
+              icon: MedicationFormat.icon,
+              label: 'Medicine',
+              value: '${meds.length}',
+              detail: dosesByMedicine(meds),
+            ),
         ],
       ),
     );

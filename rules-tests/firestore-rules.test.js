@@ -107,6 +107,18 @@ const bottle = (over = {}) => ({
   ...over,
 });
 
+// A dose of medicine (#37), as the medicine sheet writes it.
+const med = (over = {}) => ({
+  time: AT,
+  name: "Tylenol",
+  dose: 2.5,
+  unit: "ml",
+  notes: null,
+  byName: "Alice",
+  ...stamped(),
+  ...over,
+});
+
 const appointment = (over = {}) => ({
   at: AT,
   kind: "checkup",
@@ -349,6 +361,7 @@ describe("what the app writes today", () => {
     diapers: diaper,
     growth: growth,
     pumps: pump,
+    meds: med,
     bottles: bottle,
     appointments: appointment,
   };
@@ -1124,5 +1137,62 @@ describe("combining two bottles, between caregivers", () => {
     batch.update(bottleRef(db, "kept"), { amountMl: 110, ...edited("alice") });
     batch.delete(bottleRef(db, "poured"));
     await assertFails(batch.commit());
+  });
+});
+
+// Doses of medicine (#37): what is accepted, what is refused, and that the
+// other caregiver can correct a dose they did not log.
+describe("medicine", () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(babyDoc(ctx.firestore()), {
+        name: "Ada",
+        ownerUid: "alice",
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+      });
+    });
+  });
+
+  const medRef = (db, id) => doc(db, "babies", BABY, "meds", id);
+
+  it("accepts a dose with no amount written down", async () => {
+    await assertSucceeds(
+      setDoc(medRef(asAlice(), "no-dose"), med({ dose: null, unit: null })),
+    );
+  });
+
+  for (const unit of ["ml", "mg", "drops", "tablet", "puff"]) {
+    it(`accepts a dose in ${unit}`, async () => {
+      await assertSucceeds(setDoc(medRef(asAlice(), `u-${unit}`), med({ unit })));
+    });
+  }
+
+  it("refuses a dose with no name", async () => {
+    await assertFails(setDoc(medRef(asAlice(), "nameless"), med({ name: "" })));
+  });
+
+  it("refuses a name past 60 characters", async () => {
+    await assertFails(
+      setDoc(medRef(asAlice(), "long"), med({ name: "x".repeat(61) })),
+    );
+  });
+
+  it("refuses a dose of nothing, or less", async () => {
+    await assertFails(setDoc(medRef(asAlice(), "zero"), med({ dose: 0 })));
+    await assertFails(setDoc(medRef(asAlice(), "neg"), med({ dose: -1 })));
+  });
+
+  it("refuses a unit the app does not offer", async () => {
+    await assertFails(setDoc(medRef(asAlice(), "cup"), med({ unit: "cup" })));
+  });
+
+  it("lets the other caregiver correct a dose", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(medRef(ctx.firestore(), "given"), med());
+    });
+    await assertSucceeds(
+      updateDoc(medRef(asBob(), "given"), { dose: 5, ...edited("bob") }),
+    );
   });
 });

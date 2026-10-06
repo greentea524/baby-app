@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/auth_providers.dart';
 import '../../core/format/unit_system.dart';
 import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -9,6 +10,8 @@ import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
+import '../medication/medication_format.dart';
+import '../medication/medication_quick_log.dart';
 import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
 
@@ -108,6 +111,22 @@ class ActivityTile extends ConsumerWidget {
         onTap: () => showPumpingQuickLog(context, existing: event),
         onDelete: () async =>
             ref.read(pumpingRepositoryProvider)?.delete(event.id),
+      ),
+      MedicationEntry(:final event) => EventTile(
+        key: ValueKey('med_${event.id}'),
+        icon: MedicationFormat.icon,
+        title: event.name,
+        subtitle: MedicationFormat.details(
+          event,
+          ref.watch(authStateProvider).value?.uid,
+        ),
+        trailing: trailing,
+        trailingDetail: trailingDetail,
+        confirmTitle: 'Delete medicine?',
+        deletedMessage: 'Medicine deleted',
+        onTap: () => showMedicationQuickLog(context, existing: event),
+        onDelete: () async =>
+            ref.read(medicationRepositoryProvider)?.delete(event.id),
       ),
     };
   }

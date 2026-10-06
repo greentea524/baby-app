@@ -13,6 +13,7 @@ import '../models/fridge_bottle.dart';
 import '../models/appointment.dart';
 import '../models/growth_measurement.dart';
 import '../models/notification_prefs.dart';
+import '../models/medication_event.dart';
 import '../models/pumping_event.dart';
 import 'appointments_repository.dart';
 import 'account_data.dart';
@@ -23,6 +24,7 @@ import 'feeding_repository.dart';
 import 'fridge_repository.dart';
 import 'growth_repository.dart';
 import 'notification_prefs_repository.dart';
+import 'medication_repository.dart';
 import 'pumping_repository.dart';
 
 final firestoreProvider = Provider<FirebaseFirestore>((ref) {
@@ -214,6 +216,33 @@ final lastPumpingProvider = Provider<PumpingEvent?>((ref) {
 
 final pumpingForDayProvider = StreamProvider<List<PumpingEvent>>((ref) {
   final repo = ref.watch(pumpingRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchForDay(ref.watch(selectedDayProvider));
+});
+
+// --- Medication (#37) -------------------------------------------------------
+
+final medicationRepositoryProvider = Provider<MedicationRepository?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final baby = ref.watch(currentBabyProvider);
+  if (user == null || baby == null) return null;
+  return MedicationRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+});
+
+final recentMedsProvider = StreamProvider<List<MedicationEvent>>((ref) {
+  final repo = ref.watch(medicationRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchRecent();
+});
+
+/// The most recent dose, of anything, or null when none have been logged.
+final lastMedProvider = Provider<MedicationEvent?>((ref) {
+  final meds = ref.watch(recentMedsProvider).value ?? const [];
+  return meds.isEmpty ? null : meds.first;
+});
+
+final medsForDayProvider = StreamProvider<List<MedicationEvent>>((ref) {
+  final repo = ref.watch(medicationRepositoryProvider);
   if (repo == null) return Stream.value(const []);
   return repo.watchForDay(ref.watch(selectedDayProvider));
 });

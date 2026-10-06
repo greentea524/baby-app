@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/auth_providers.dart';
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
@@ -12,6 +13,8 @@ import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
 import '../fridge/fridge_button.dart';
 import '../fridge/fridge_order.dart';
+import '../medication/medication_format.dart';
+import '../medication/medication_quick_log.dart';
 import '../pumping/pump_schedule.dart';
 import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
@@ -47,6 +50,7 @@ class HomeStatusCard extends ConsumerWidget {
       ?_solidsRow(context, ref),
       _diaperRow(context, ref),
       ?_pumpRow(context, ref),
+      ?_medicationRow(context, ref),
       ?_fridgeRow(context, ref),
     ];
 
@@ -286,6 +290,39 @@ class HomeStatusCard extends ConsumerWidget {
               PumpingFormat.details(last, units),
             ),
       footer: next,
+    );
+  }
+
+  /// The last dose of medicine: what, how much, how long ago, and who gave
+  /// it (#37) — the question two caregivers sharing a baby most need
+  /// answered, so a dose is not given twice.
+  ///
+  /// Shown when switched on in Settings, or once any dose has been logged:
+  /// a household that has given medicine has said it is part of their day,
+  /// and one that never has is spared an empty row.
+  Widget? _medicationRow(BuildContext context, WidgetRef ref) {
+    final last = ref.watch(lastMedProvider);
+    if (last == null && !ref.watch(showMedicationProvider)) return null;
+    final me = ref.watch(authStateProvider).value?.uid;
+    final by = last == null ? null : MedicationFormat.givenBy(last, me);
+
+    return _StatusRow(
+      icon: MedicationFormat.icon,
+      onLog: () => showMedicationQuickLog(context),
+      logLabel: 'Log medicine',
+      label: 'Last medicine',
+      value: last == null
+          ? 'None yet'
+          : FeedingFormat.timeAgo(last.time, now: now),
+      detail: last == null
+          ? null
+          : _join(
+              FeedingFormat.clockStamp(context, last.time, now: now),
+              [
+                MedicationFormat.nameAndDose(last),
+                if (by != null) 'by $by',
+              ].join(' · '),
+            ),
     );
   }
 

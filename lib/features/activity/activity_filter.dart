@@ -16,7 +16,8 @@ enum ActivityFilter {
   all('All', Icons.list),
   feeds('Feeds', Icons.local_drink),
   diapers('Diapers', Icons.baby_changing_station),
-  pumps('Pumping', Icons.opacity);
+  pumps('Pumping', Icons.opacity),
+  meds('Medicine', Icons.medication_outlined);
 
   const ActivityFilter(this.label, this.icon);
 
@@ -28,6 +29,7 @@ enum ActivityFilter {
     ActivityFilter.feeds => entry is FeedingEntry,
     ActivityFilter.diapers => entry is DiaperEntry,
     ActivityFilter.pumps => entry is PumpingEntry,
+    ActivityFilter.meds => entry is MedicationEntry,
   };
 }
 

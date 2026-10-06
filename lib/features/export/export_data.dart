@@ -3,6 +3,7 @@ import '../../data/models/baby.dart';
 import '../../data/models/diaper_event.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/models/growth_measurement.dart';
+import '../../data/models/medication_event.dart';
 import '../../data/models/pumping_event.dart';
 
 /// Everything one export covers: the baby, the reporting window, and the
@@ -18,6 +19,7 @@ class ExportData {
     // Defaulted rather than required: pumping is opt-in, and every existing
     // caller predates it.
     this.pumps = const [],
+    this.meds = const [],
     this.units = UnitSystem.us,
   });
 
@@ -34,9 +36,16 @@ class ExportData {
   /// Pump sessions in the window. Empty for caregivers who don't pump.
   final List<PumpingEvent> pumps;
 
+  /// Doses of medicine in the window (#37). Empty for most.
+  final List<MedicationEvent> meds;
+
   /// Units the report is rendered in; storage stays metric.
   final UnitSystem units;
 
   bool get isEmpty =>
-      feedings.isEmpty && diapers.isEmpty && growth.isEmpty && pumps.isEmpty;
+      feedings.isEmpty &&
+      diapers.isEmpty &&
+      growth.isEmpty &&
+      pumps.isEmpty &&
+      meds.isEmpty;
 }

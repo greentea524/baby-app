@@ -1,5 +1,6 @@
 import '../../core/format/volume_format.dart';
 import '../growth/growth_units.dart';
+import '../medication/medication_format.dart';
 import 'export_data.dart';
 
 /// Builds a flat CSV of every logged record (KAN-164), one row per entry
@@ -25,6 +26,8 @@ String buildCsv(ExportData data) {
     metric ? 'Height (cm)' : 'Height (in)',
     metric ? 'Head (cm)' : 'Head (in)',
     'Notes',
+    // Last, so a spreadsheet built on the columns before it still lines up.
+    'Dose',
   ];
 
   final rows = <({DateTime at, List<String> cells})>[
@@ -50,6 +53,7 @@ String buildCsv(ExportData data) {
           '',
           '',
           f.notes ?? '',
+          '',
         ],
       ),
     // Pumping fits the existing columns exactly — duration, amount, side —
@@ -74,6 +78,7 @@ String buildCsv(ExportData data) {
           '',
           '',
           p.notes ?? '',
+          '',
         ],
       ),
     for (final d in data.diapers)
@@ -95,6 +100,7 @@ String buildCsv(ExportData data) {
           '',
           '',
           d.notes ?? '',
+          '',
         ],
       ),
     for (final g in data.growth)
@@ -116,6 +122,31 @@ String buildCsv(ExportData data) {
           g.heightCm == null ? '' : formatLength(g.heightCm!, units),
           g.headCm == null ? '' : formatLength(g.headCm!, units),
           '',
+          '',
+        ],
+      ),
+    // Medicine: the name as its subtype, and the dose in a column of its
+    // own, since "2.5 ml" of a medicine is not millilitres of milk.
+    for (final m in data.meds)
+      (
+        at: m.time,
+        cells: [
+          'Medicine',
+          _date(m.time),
+          _time(m.time),
+          m.name,
+          '',
+          '',
+          '',
+          '',
+          if (!metric) '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          m.notes ?? '',
+          MedicationFormat.dose(m) ?? '',
         ],
       ),
   ]..sort((a, b) => a.at.compareTo(b.at));

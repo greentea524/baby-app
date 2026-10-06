@@ -3,6 +3,7 @@ import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/growth_measurement.dart';
+import 'package:baby_app/data/models/medication_event.dart';
 import 'package:baby_app/data/models/milk_kind.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/features/export/csv_export.dart';
@@ -14,6 +15,7 @@ ExportData _data({
   List<DiaperEvent> diapers = const [],
   List<GrowthMeasurement> growth = const [],
   List<PumpingEvent> pumps = const [],
+  List<MedicationEvent> meds = const [],
   UnitSystem units = UnitSystem.us,
 }) => ExportData(
   units: units,
@@ -30,6 +32,7 @@ ExportData _data({
   diapers: diapers,
   growth: growth,
   pumps: pumps,
+  meds: meds,
 );
 
 void main() {
@@ -450,6 +453,68 @@ void main() {
       final widths = csv.trim().split('\n').map((r) => r.split(',').length);
       expect(widths.toSet(), hasLength(1));
       expect(csv, isNot(contains('fl oz')));
+    });
+  });
+
+  group('medicine (#37)', () {
+    test('gets a row of its own, with its dose in the Dose column', () {
+      final csv = buildCsv(
+        _data(
+          meds: [
+            MedicationEvent(
+              id: 'm',
+              time: DateTime(2026, 7, 10, 9, 30),
+              name: 'Tylenol',
+              dose: 2.5,
+              unit: DoseUnit.ml,
+            ),
+          ],
+        ),
+      );
+      final lines = csv.trim().split('\n');
+      expect(lines.first, endsWith(',Notes,Dose'));
+      final row = lines.firstWhere((l) => l.startsWith('Medicine'));
+      expect(row, contains('Tylenol'));
+      expect(row, endsWith(',2.5 ml'));
+    });
+
+    test('and every row still has a cell for every column', () {
+      for (final units in UnitSystem.values) {
+        final csv = buildCsv(
+          _data(
+            units: units,
+            feedings: [
+              FeedingEvent(
+                id: 'f',
+                type: FeedingType.bottle,
+                startTime: DateTime(2026, 7, 10, 8),
+                amountMl: 90,
+              ),
+            ],
+            diapers: [
+              DiaperEvent(
+                id: 'd',
+                type: DiaperType.wet,
+                time: DateTime(2026, 7, 10, 8, 30),
+              ),
+            ],
+            pumps: [PumpingEvent(id: 'p', time: DateTime(2026, 7, 10, 9))],
+            growth: [GrowthMeasurement(id: 'g', date: DateTime(2026, 7, 10))],
+            meds: [
+              MedicationEvent(
+                id: 'm',
+                time: DateTime(2026, 7, 10, 10),
+                name: 'Tylenol',
+              ),
+            ],
+          ),
+        );
+        final lines = csv.trim().split('\n');
+        final columns = lines.first.split(',').length;
+        for (final l in lines) {
+          expect(l.split(',').length, columns, reason: '$units: $l');
+        }
+      }
     });
   });
 }

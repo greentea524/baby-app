@@ -17,6 +17,7 @@ import '../feeding/feeding_format.dart';
 import '../home/home_prefs.dart';
 import '../notifications/push_service.dart';
 import '../pumping/pump_schedule.dart';
+import '../medication/medication_format.dart';
 import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
@@ -66,6 +67,7 @@ class SettingsScreen extends ConsumerWidget {
           const _PumpingActionToggle(),
           const _PumpIntervalTile(),
           const _FridgeToggle(),
+          const _MedicationToggle(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.group_outlined),
@@ -279,6 +281,27 @@ class _PumpingActionToggle extends ConsumerWidget {
       ),
       value: enabled,
       onChanged: (v) => ref.read(showPumpingActionProvider.notifier).set(v),
+    );
+  }
+}
+
+/// Whether Home has a "Last medicine" row — see [showMedicationProvider].
+class _MedicationToggle extends ConsumerWidget {
+  const _MedicationToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(showMedicationProvider);
+    return SwitchListTile(
+      secondary: const Icon(MedicationFormat.icon),
+      title: const Text('Medication'),
+      subtitle: Text(
+        enabled
+            ? 'A "Last medicine" row on Home — tap its icon to log a dose'
+            : 'Hidden until a dose is logged',
+      ),
+      value: enabled,
+      onChanged: (v) => ref.read(showMedicationProvider.notifier).set(v),
     );
   }
 }

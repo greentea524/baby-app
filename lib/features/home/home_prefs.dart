@@ -147,6 +147,31 @@ class ShowPumpingActionNotifier extends Notifier<bool> {
   }
 }
 
+const _showMedicationKey = 'show_medication';
+
+/// Whether Home has a "Last medicine" row, whose icon logs a dose (#37).
+///
+/// Off by default: most days most babies have no medicine, and a row that
+/// is always empty is clutter. Once a dose has been logged the row shows
+/// anyway — see the status card — so turning this on is only needed to log
+/// the first one from Home.
+final showMedicationProvider = NotifierProvider<ShowMedicationNotifier, bool>(
+  ShowMedicationNotifier.new,
+);
+
+class ShowMedicationNotifier extends Notifier<bool> {
+  @override
+  bool build() =>
+      ref.read(sharedPreferencesProvider).getBool(_showMedicationKey) ?? false;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setBool(_showMedicationKey, value);
+  }
+}
+
 const _showFridgeKey = 'show_fridge';
 
 /// Whether the app offers the fridge at all: the shelf of bottles, the way

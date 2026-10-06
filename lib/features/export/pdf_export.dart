@@ -8,6 +8,7 @@ import '../../core/format/volume_format.dart';
 import '../growth/growth_metric.dart';
 import '../growth/growth_units.dart';
 import '../timeline/timeline_format.dart';
+import '../medication/medication_format.dart';
 import 'export_data.dart';
 import 'report_summary.dart';
 
@@ -37,6 +38,12 @@ Future<Uint8List> buildPdfReport(ExportData data) async {
           _sectionTitle('Growth measurements'),
           pw.SizedBox(height: 6),
           _growthTable(data, units),
+          pw.SizedBox(height: 20),
+        ],
+        if (data.meds.isNotEmpty) ...[
+          _sectionTitle('Medicine'),
+          pw.SizedBox(height: 6),
+          _medicineTable(data),
         ],
         if (data.isEmpty)
           pw.Text(ascii('No entries were logged in this period.')),
@@ -184,6 +191,42 @@ pw.Widget _growthTable(ExportData data, UnitSystem units) {
     ],
   );
 }
+
+/// Every dose in the window, in order: what a pediatrician asks for when
+/// medicine has been given.
+pw.Widget _medicineTable(ExportData data) {
+  final doses = [...data.meds]..sort((a, b) => a.time.compareTo(b.time));
+  return pw.Table(
+    border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+    children: [
+      pw.TableRow(
+        decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+        children: [
+          _cell('Date', bold: true),
+          _cell('Time', bold: true),
+          _cell('Medicine', bold: true),
+          _cell('Dose', bold: true),
+          _cell('Given by', bold: true),
+          _cell('Notes', bold: true),
+        ],
+      ),
+      for (final m in doses)
+        pw.TableRow(
+          children: [
+            _cell(_date(m.time)),
+            _cell(_clock(m.time)),
+            _cell(m.name),
+            _cell(MedicationFormat.dose(m) ?? ''),
+            _cell(m.byName ?? ''),
+            _cell(m.notes ?? ''),
+          ],
+        ),
+    ],
+  );
+}
+
+String _clock(DateTime t) =>
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
 pw.Widget _sectionTitle(String text) => pw.Text(
   ascii(text),

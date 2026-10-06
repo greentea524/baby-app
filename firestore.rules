@@ -202,7 +202,7 @@ service cloud.firestore {
       // a member create any collection they liked under a baby, and it also
       // matched `invites` — and because Firestore allows an operation if
       // *any* rule allows it, a blanket member-write here silently overrode
-      // the narrower invite rules above, whatever they said. Naming the five
+      // the narrower invite rules above, whatever they said. Naming the ones
       // the app actually uses closes both at once.
       //
       // The realistic threat is not a malicious co-parent. It is that these
@@ -256,6 +256,27 @@ service cloud.firestore {
             && amount(d.get('weightKg', null))
             && amount(d.get('heightCm', null))
             && amount(d.get('headCm', null));
+        }
+      }
+
+      // Doses of medicine (#37). A record of what was given, by whom: the
+      // name is required and short, the dose optional but never zero or
+      // less, and the unit one of the few the app offers.
+      match /meds/{docId} {
+        allow read, delete: if isMember(babyId);
+        allow create: if isMember(babyId) && authored() && medShape();
+        allow update: if isMember(babyId) && reauthored() && medShape();
+
+        function medShape() {
+          let d = request.resource.data;
+          return d.time is timestamp
+            && d.name is string && d.name.size() > 0 && d.name.size() <= 60
+            && (d.get('dose', null) == null
+                || (d.dose is number && d.dose > 0))
+            && optional(d.get('unit', null),
+                ['ml', 'mg', 'drops', 'tablet', 'puff'])
+            && text(d.get('notes', null))
+            && text(d.get('byName', null));
         }
       }
 

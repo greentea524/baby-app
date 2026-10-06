@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:baby_app/data/models/activity_entry.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
+import 'package:baby_app/data/models/medication_event.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/features/activity/activity_filter.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,11 +35,24 @@ void main() {
     ),
   );
 
-  final entries = <ActivityEntry>[feed(1), diaper(2), pump(3), feed(4)];
+  MedicationEntry med(int hour) => MedicationEntry(
+    MedicationEvent(
+      id: 'm$hour',
+      time: base.add(Duration(hours: hour)),
+      name: 'Tylenol',
+    ),
+  );
+
+  final entries = <ActivityEntry>[feed(1), diaper(2), pump(3), feed(4), med(5)];
 
   group('applyActivityFilter', () {
     test('all keeps everything', () {
       expect(applyActivityFilter(entries, ActivityFilter.all), entries);
+    });
+
+    test('medicine keeps only doses (#37)', () {
+      final got = applyActivityFilter(entries, ActivityFilter.meds);
+      expect(got.single, isA<MedicationEntry>());
     });
 
     test('feeds keeps only feedings', () {

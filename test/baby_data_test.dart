@@ -78,6 +78,7 @@ void main() {
         'diapers',
         'growth',
         'pumps',
+        'meds',
         'bottles',
         'appointments',
         'invites',
