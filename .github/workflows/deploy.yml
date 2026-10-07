@@ -52,6 +52,12 @@ jobs:
           --dart-define=APP_BUILD=${GITHUB_SHA::7}
           "--dart-define=APP_BUILT_AT=$(date -u '+%Y-%m-%d %H:%M UTC')"
 
+      # Fills in the offline worker's version and file list from what was
+      # just built (#34). Unstamped, the worker installs and does nothing, so
+      # skipping this would quietly ship an app that cannot open offline.
+      - name: Stamp the offline service worker
+        run: dart run tool/stamp_service_worker.dart build/web
+
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:

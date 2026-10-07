@@ -132,6 +132,80 @@ awaits, since a boot that fails usually fails by never returning.
 Both files are stock Flutter templates with local edits, so re-running
 `flutter create` over this project would discard them.
 
+### Opening with no connection (#34)
+
+Once it has been opened online, the installed app opens with no signal at
+all: in a basement, a lift, on a plane. `web/app_sw.js`, the app's own service
+worker, keeps a copy of the app; Firestore's offline cache keeps the data.
+
+**What works offline**
+- Opening the app, including from a cold start after the phone has closed it.
+- Everything already synced to the device: the Home card, the timeline,
+  Insights, the fridge.
+- Logging anything. Writes queue on the device, survive the app being closed,
+  and sync when the signal comes back — then they appear for other
+  caregivers.
+
+**What needs signal**
+- The very first launch on a device, and signing in. After that, the sign-in
+  is remembered.
+- Seeing what *other* caregivers have logged since this device was last
+  online.
+- Inviting caregivers, exporting, and anything else that is a request to the
+  server rather than a record on the device.
+
+**How it works.** The worker caches two things:
+- *The shell* — this build's own files (`index.html`, `main.dart.js`, the
+  icons, fonts and assets), about 4 MB, fetched together when the worker
+  installs and always served from the cache after that, as one version.
+- *The CDN files* — CanvasKit, the Firebase JS SDK and the fallback fonts,
+  which Flutter and FlutterFire load from `www.gstatic.com` and
+  `fonts.gstatic.com` rather than from our hosting. They sit under versioned
+  paths and are cached the first time they are loaded. On the very first
+  visit they load before the worker is running, so the page hands the worker
+  the list once it is up (`warmOfflineCache` in `web/flutter_bootstrap.js`).
+
+Requests to Firestore, Auth, push and any other API are never touched, and
+neither is Hosting's own `/__/` (the sign-in helper).
+
+`web/app_sw.js` is a template. `tool/stamp_service_worker.dart` fills in its
+version (a hash of the shell's files) and file list after `flutter build web`,
+and the deploy workflow runs it. Unstamped — under `flutter run`, or a build
+someone forgot to stamp — the worker installs and does nothing. To try
+offline locally:
+
+```bash
+flutter build web --release
+dart run tool/stamp_service_worker.dart build/web
+firebase serve --only hosting   # http://localhost:5000
+```
+
+Open it once, then stop the server (or tick *Offline* in DevTools →
+Application → Service workers) and reload.
+
+**Updates.** Because the app is served from its saved copy, a deploy does not
+take effect just by opening the app. The browser checks for a new worker on
+every launch (and whenever the app comes back to the foreground); a new
+version downloads in the background, and the app shows *A new version of the
+app is ready · Reload*. Tapping Reload switches to it; old copies are then
+deleted. It asks rather than reloading by itself, because a reload in the
+middle of typing a note would lose it. A device that stays offline keeps the
+version it has, and is offered the new one when it next has signal.
+
+**Push notifications** are unaffected: the Firebase SDK registers
+`firebase-messaging-sw.js` at its own scope,
+`/firebase-cloud-messaging-push-scope`, so the two workers do not replace
+each other.
+
+**iPhone.** Home-screen apps support all of this, but iOS may clear a web
+app's stored data after a few weeks of not being opened. The next launch then
+needs a connection, like a first one.
+
+**Turning it off.** If the worker ever needs removing, deploy an `app_sw.js`
+whose `activate` handler calls `self.registration.unregister()`. Browsers
+always fetch the worker script itself from the network, so the replacement
+reaches every device the next time it opens online.
+
 ## Native mobile builds (Android / iOS)
 
 The `android/` and `ios/` projects are scaffolded and the auth code already
@@ -343,21 +417,21 @@ would make an iPhone worse rather than better.
 ### Why hosting sends `Cache-Control: no-cache`
 
 `firebase.json` sets `no-cache` on every hosted file. Without it, Hosting
-defaults to `max-age=3600` on *everything* — including `index.html` and
-`flutter_service_worker.js` — so a returning device wouldn't even ask whether
-a new build exists until an hour after a deploy.
+defaults to `max-age=3600` on *everything* — including `index.html` and the
+service worker — so a returning device wouldn't even ask whether a new build
+exists until an hour after a deploy.
 
 `no-cache` means "revalidate before using", not "don't store". Hosting sends
-strong ETags, so unchanged files come back as tiny `304`s and the service
-worker still serves assets from the Cache API. It applies to everything
-because none of Flutter's web output is content-hashed in its filename
-(`main.dart.js` is always `main.dart.js`), so a stale HTTP cache can hand the
-service worker an old copy of a file it is trying to update.
+strong ETags, so unchanged files come back as tiny `304`s. It applies to
+everything because none of Flutter's web output is content-hashed in its
+filename (`main.dart.js` is always `main.dart.js`), so a stale HTTP cache
+could hand the service worker an old copy of a file while it is installing a
+new version — it asks for each with `cache: 'reload'` as well, for the same
+reason.
 
-Note that even with this, the service worker activates a new build on the
-*next* load — so a returning visitor sees the previous version once. That is
-inherent to how the Flutter service worker updates, not something the headers
-can fix.
+It does not make the app depend on the network: offline, the service worker
+serves its own copy, and the headers only decide how fresh an *online* load
+is. See [Opening with no connection](#opening-with-no-connection-34).
 
 ## Background push notifications (KAN-156) — built, not deployed
 

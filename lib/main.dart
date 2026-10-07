@@ -12,6 +12,7 @@ import 'core/theme/app_accent.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_provider.dart';
 import 'core/web/loading_screen.dart';
+import 'features/common/app_update_prompt.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -70,8 +71,9 @@ class BabyApp extends ConsumerWidget {
       themeMode: themeMode,
       routerConfig: router,
       // Every route, and every sheet and dialog opened inside one.
-      builder: (context, child) =>
-          ContentWidth(child: child ?? const SizedBox()),
+      builder: (context, child) => AppUpdatePrompt(
+        child: ContentWidth(child: child ?? const SizedBox()),
+      ),
     );
   }
 }
