@@ -68,15 +68,11 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
   ///
   /// The id is taken from Firestore locally rather than awaited, so the whole
   /// split is one atomic batch.
+  ///
+  /// What the two bottles become is [splitBottle]'s; this only writes it.
   Future<void> split(FridgeBottle bottle, double firstMl) {
     final fresh = col.doc();
-    final sibling = FridgeBottle(
-      id: fresh.id,
-      filledAt: bottle.filledAt,
-      amountMl: bottle.amountMl - firstMl,
-      kind: bottle.kind,
-      notes: bottle.notes,
-    );
+    final (:kept, :sibling) = splitBottle(bottle, firstMl, siblingId: fresh.id);
     final batch = firestore.batch()
       ..set(fresh, {
         ...sibling.toMap(),
@@ -84,7 +80,7 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
         'createdAt': FieldValue.serverTimestamp(),
       })
       ..update(col.doc(bottle.id), {
-        ...bottle.copyWith(amountMl: firstMl).toMap(),
+        ...kept.toMap(),
         'updatedBy': uid,
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -96,27 +92,31 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
   /// [kept] becomes [combined] of the two. [poured] keeps what was left in
   /// it, or goes when it was poured out entirely. One batch, so no device
   /// ever sees the milk counted twice, or gone.
+  ///
+  /// What each bottle becomes is [combined] and [pouredRemainder]'s, each
+  /// saying what happened in its notes; this only writes it.
   Future<void> combine(
     FridgeBottle kept,
     FridgeBottle poured, {
     double? pourMl,
   }) {
     final pour = pourMl ?? poured.amountMl;
-    final left = poured.amountMl - pour;
     final batch = firestore.batch()
       ..update(col.doc(kept.id), {
         ...combined(kept, poured, pourMl: pour).toMap(),
         'updatedBy': uid,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-    if (left > 0) {
-      batch.update(col.doc(poured.id), {
-        'amountMl': left,
-        'updatedBy': uid,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } else {
-      batch.delete(col.doc(poured.id));
+    switch (pouredRemainder(poured, pour)) {
+      case final left?:
+        batch.update(col.doc(poured.id), {
+          'amountMl': left.amountMl,
+          'notes': left.notes,
+          'updatedBy': uid,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      case null:
+        batch.delete(col.doc(poured.id));
     }
     return batch.commit();
   }
