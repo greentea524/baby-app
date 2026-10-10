@@ -83,25 +83,16 @@ void main() {
           FridgeBottle(id: id, filledAt: base, amountMl: ml, notes: notes);
       expect(
         combined(noted('a', 'left side'), noted('b', 'for daycare')).notes,
-        'left side · for daycare · Combined 50 + 50 ml',
+        'left side · for daycare · Combined',
       );
       expect(
         combined(noted('a', '  '), noted('b', 'for daycare')).notes,
-        'for daycare · Combined 50 + 50 ml',
+        'for daycare · Combined',
       );
       // Notes or not, the bottle remembers why it holds what it does.
       expect(
         combined(noted('a', null, ml: 60), noted('b', null, ml: 100)).notes,
-        'Combined 60 + 100 ml',
-      );
-      // A partial pour records what was poured, not what the other held.
-      expect(
-        combined(
-          noted('a', null, ml: 60),
-          noted('b', null, ml: 100),
-          pourMl: 40,
-        ).notes,
-        'Combined 60 + 40 ml',
+        'Combined',
       );
     });
 
@@ -448,35 +439,13 @@ void main() {
   });
 
   group('what happened to a bottle, in its notes', () {
-    test('a split says where both halves came from', () {
-      expect(
-        splitEntry(totalMl: 123, firstMl: 60),
-        'Split from 123 ml into 60 + 63 ml',
-      );
-      // Half millilitres stay as they are rather than rounding off the sum.
-      expect(
-        splitEntry(totalMl: 125, firstMl: 62.5),
-        'Split from 125 ml into 62.5 + 62.5 ml',
-      );
-    });
-
-    test('a bottle poured from says how much went', () {
-      expect(
-        pouredOutEntry(pouredMl: 40, fromMl: 100),
-        'Poured 40 of 100 ml into another bottle',
-      );
-    });
-
     test('goes after what was written, which stays first', () {
-      expect(withHistory(null, 'Combined 60 + 40 ml'), 'Combined 60 + 40 ml');
-      expect(withHistory('  ', 'Combined 60 + 40 ml'), 'Combined 60 + 40 ml');
+      expect(withHistory(null, 'Combined'), 'Combined');
+      expect(withHistory('  ', 'Combined'), 'Combined');
+      expect(withHistory('Vitamin D', 'Combined'), 'Vitamin D · Combined');
       expect(
-        withHistory('Vitamin D', 'Combined 60 + 40 ml'),
-        'Vitamin D · Combined 60 + 40 ml',
-      );
-      expect(
-        withHistory('Vitamin D · Combined 60 + 40 ml', 'Split from 100 ml'),
-        'Vitamin D · Combined 60 + 40 ml · Split from 100 ml',
+        withHistory('Vitamin D · Combined', 'Split'),
+        'Vitamin D · Combined · Split',
       );
     });
 
@@ -493,7 +462,7 @@ void main() {
 
     test('and leaves a note already at the limit as it is', () {
       final full = 'x' * bottleNotesMax;
-      expect(withHistory(full, 'Combined 60 + 40 ml'), full);
+      expect(withHistory(full, 'Combined'), full);
     });
   });
 
@@ -516,7 +485,7 @@ void main() {
       // Same age and kind: one pour, two containers.
       expect(sibling.filledAt, filled);
       expect(sibling.kind, MilkKind.formula);
-      const note = 'Vitamin D · Split from 123 ml into 60 + 63 ml';
+      const note = 'Vitamin D · Split';
       expect(kept.notes, note);
       expect(sibling.notes, note);
     });
@@ -526,7 +495,7 @@ void main() {
       expect(left.id, 'a');
       expect(left.amountMl, 83);
       expect(left.filledAt, filled);
-      expect(left.notes, 'Vitamin D · Poured 40 of 123 ml into another bottle');
+      expect(left.notes, 'Vitamin D · Poured');
     });
 
     test('and is gone when it was poured out entirely', () {

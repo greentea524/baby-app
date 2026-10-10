@@ -55,7 +55,7 @@ FridgeBottle combined(
     kind: kept.kind,
     notes: withHistory(
       notes.isEmpty ? null : notes.join(noteSeparator),
-      combinedEntry(keptMl: kept.amountMl, pouredMl: pour),
+      combinedNote,
     ),
   );
 }
@@ -71,10 +71,7 @@ FridgeBottle combined(
   double firstMl, {
   required String siblingId,
 }) {
-  final notes = withHistory(
-    bottle.notes,
-    splitEntry(totalMl: bottle.amountMl, firstMl: firstMl),
-  );
+  final notes = withHistory(bottle.notes, splitNote);
   return (
     kept: bottle.copyWith(amountMl: firstMl, notes: notes),
     sibling: FridgeBottle(
@@ -94,10 +91,7 @@ FridgeBottle? pouredRemainder(FridgeBottle poured, double pourMl) {
   if (left <= 0) return null;
   return poured.copyWith(
     amountMl: left,
-    notes: withHistory(
-      poured.notes,
-      pouredOutEntry(pouredMl: pourMl, fromMl: poured.amountMl),
-    ),
+    notes: withHistory(poured.notes, pouredNote),
   );
 }
 
@@ -105,13 +99,12 @@ FridgeBottle? pouredRemainder(FridgeBottle poured, double pourMl) {
 //
 // Splitting and combining change a bottle's amount with nothing to say why,
 // and "this was 150 ml yesterday" is the question a caregiver is left with.
-// So each leaves a line in the bottle's notes: added after whatever is
+// So each leaves a word in the bottle's notes: added after whatever is
 // written there, so a note someone typed stays first, where the card's one
 // line of notes shows it, and the history follows.
 //
-// In millilitres whatever the reader's units. A note is shared text read on
-// every caregiver's device, and the amounts are stored in ml; a converted
-// "60 ml (2 fl oz) + 40 ml (1.4 fl oz)" would also not fit the card.
+// A word, not a sentence: "Split" is enough to explain an amount that
+// changed, and the card has one line for notes.
 
 /// What joins a bottle's notes: the same separator combining has always put
 /// between two bottles' notes.
@@ -120,19 +113,15 @@ const noteSeparator = ' · ';
 /// The longest a bottle's notes may be — the rules' cap on any free text.
 const bottleNotesMax = 1000;
 
-/// "Split from 120 ml into 60 + 60 ml": on both bottles a split leaves.
-String splitEntry({required double totalMl, required double firstMl}) =>
-    'Split from ${_ml(totalMl)} ml into '
-    '${_ml(firstMl)} + ${_ml(totalMl - firstMl)} ml';
+/// On both bottles a split leaves.
+const splitNote = 'Split';
 
-/// "Combined 60 + 40 ml": on the bottle poured into.
-String combinedEntry({required double keptMl, required double pouredMl}) =>
-    'Combined ${_ml(keptMl)} + ${_ml(pouredMl)} ml';
+/// On the bottle poured into.
+const combinedNote = 'Combined';
 
-/// "Poured 40 of 100 ml into another bottle": on a bottle poured from that
-/// still has some left. One poured out entirely is gone, and needs none.
-String pouredOutEntry({required double pouredMl, required double fromMl}) =>
-    'Poured ${_ml(pouredMl)} of ${_ml(fromMl)} ml into another bottle';
+/// On a bottle poured from that still has some left. One poured out
+/// entirely is gone, and needs none.
+const pouredNote = 'Poured';
 
 /// [notes] with [entry] added at the end.
 ///
@@ -152,10 +141,6 @@ String withHistory(String? notes, String entry) {
   final joined = join();
   return joined.length > bottleNotesMax ? text : joined;
 }
-
-/// "60", or "62.5": whole millilitres without a decimal point.
-String _ml(double ml) =>
-    ml == ml.roundToDouble() ? ml.round().toString() : ml.toStringAsFixed(1);
 
 /// How much the pour slider moves at a time.
 const double pourStepMl = 5;
