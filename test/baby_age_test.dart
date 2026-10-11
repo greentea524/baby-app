@@ -27,10 +27,20 @@ void main() {
   });
 
   group('then weeks, while that is how appointments are counted', () {
-    test('rounds down to whole weeks', () {
+    test('with the days since the last whole week', () {
       expect(at(DateTime(2026, 3, 29)), '2 weeks old');
-      expect(at(DateTime(2026, 4, 4)), '2 weeks old');
+      expect(at(DateTime(2026, 3, 30)), '2 weeks 1 day old');
+      expect(at(DateTime(2026, 4, 4)), '2 weeks 6 days old');
       expect(at(DateTime(2026, 4, 5)), '3 weeks old');
+    });
+
+    test('so a week does not read as arriving early', () {
+      // What was reported: "11 weeks" all week, even before the day it
+      // turned. Born on a Sunday (15 Mar 2026), the Saturday before the
+      // eleventh week is still ten weeks and six days.
+      expect(at(DateTime(2026, 5, 30)), '10 weeks 6 days old');
+      expect(at(DateTime(2026, 5, 31)), '11 weeks old');
+      expect(at(DateTime(2026, 6, 1)), '11 weeks 1 day old');
     });
 
     test('holds until three months', () {
@@ -73,8 +83,9 @@ void main() {
         '4 weeks old',
       );
       expect(
+        // 59 days: still counted in weeks, two months not being three.
         babyAgeLabel(endOfMonth, now: DateTime(2026, 3, 31)),
-        '8 weeks old',
+        '8 weeks 3 days old',
       );
     });
 

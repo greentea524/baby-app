@@ -20,8 +20,15 @@ String babyAgeLabel(DateTime birthDate, {DateTime? now}) {
 
   final months = _monthsBetween(birthDate, today);
   if (months < 3) {
+    // Weeks and the days since, rather than whole weeks alone. A week of
+    // age turns on the weekday of the birth, so "11 weeks" read all week
+    // and seemed to arrive early: on a Monday, a baby born on a Monday is
+    // eleven weeks old, and on the Sunday still eleven weeks and six days.
     final weeks = days ~/ 7;
-    return weeks == 1 ? '1 week old' : '$weeks weeks old';
+    final extra = days % 7;
+    final w = weeks == 1 ? '1 week' : '$weeks weeks';
+    if (extra == 0) return '$w old';
+    return '$w ${extra == 1 ? '1 day' : '$extra days'} old';
   }
   if (months < 24) return '$months months old';
 
