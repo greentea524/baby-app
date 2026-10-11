@@ -58,8 +58,34 @@ void main() {
       expect(at(DateTime(2026, 10, 15)), '7 months old');
     });
 
+    test('born on the 31st, on the last day of a shorter month', () {
+      // Not on the 1st of the next: 30 June is four months after 28
+      // February's turn, and 1 July would leave June with no anniversary.
+      final late = DateTime(2026, 1, 31);
+      expect(
+        babyAgeLabel(late, now: DateTime(2026, 6, 29)),
+        '4 months 4 weeks old',
+      );
+      expect(babyAgeLabel(late, now: DateTime(2026, 6, 30)), '5 months old');
+      expect(
+        babyAgeLabel(late, now: DateTime(2026, 7, 7)),
+        '5 months 1 week old',
+      );
+      expect(babyAgeLabel(late, now: DateTime(2026, 7, 31)), '6 months old');
+    });
+
+    test('with the weeks since the month turned', () {
+      expect(at(DateTime(2026, 7, 21)), '4 months old');
+      expect(at(DateTime(2026, 7, 22)), '4 months 1 week old');
+      expect(at(DateTime(2026, 8, 1)), '4 months 2 weeks old');
+      expect(at(DateTime(2026, 8, 14)), '4 months 4 weeks old');
+      expect(at(DateTime(2026, 8, 15)), '5 months old');
+    });
+
     test('runs up to two years', () {
       expect(at(DateTime(2028, 2, 15)), '23 months old');
+      // 2028 is a leap year: 15 Feb to 14 Mar is 28 days.
+      expect(at(DateTime(2028, 3, 14)), '23 months 4 weeks old');
     });
   });
 
@@ -76,7 +102,8 @@ void main() {
 
   group('awkward dates', () {
     test('a month shorter than the birth day has not turned over', () {
-      // Born the 31st: the 28th of February is not yet a month later.
+      // Born the 31st: still counted in weeks this early, so the weeks and
+      // days are what show.
       final endOfMonth = DateTime(2026, 1, 31);
       expect(
         babyAgeLabel(endOfMonth, now: DateTime(2026, 2, 28)),

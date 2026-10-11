@@ -30,7 +30,15 @@ String babyAgeLabel(DateTime birthDate, {DateTime? now}) {
     if (extra == 0) return '$w old';
     return '$w ${extra == 1 ? '1 day' : '$extra days'} old';
   }
-  if (months < 24) return '$months months old';
+  if (months < 24) {
+    // The weeks since this month began, for the same reason as the weeks
+    // and days above: "4 months" held for a whole month and said nothing of
+    // how far through it the baby was. Weeks rather than days: "4 months
+    // 17 days" is more than anyone counts in.
+    final weeks = _daysBetween(_monthsAfter(birthDate, months), today) ~/ 7;
+    if (weeks == 0) return '$months months old';
+    return '$months months ${weeks == 1 ? '1 week' : '$weeks weeks'} old';
+  }
 
   final years = months ~/ 12;
   final rest = months % 12;
@@ -50,11 +58,25 @@ int _daysBetween(DateTime from, DateTime to) => DateTime.utc(
 ).difference(DateTime.utc(from.year, from.month, from.day)).inDays;
 
 /// Whole calendar months, so a baby born on the 15th turns a month older on
-/// the 15th rather than after some average number of days.
+/// the 15th rather than after some average number of days — and one born on
+/// the 31st on the last day of a shorter month: see [_monthsAfter].
 int _monthsBetween(DateTime from, DateTime to) {
   var months = (to.year - from.year) * 12 + (to.month - from.month);
-  // The day of the month has not come round yet, so the last month is not
-  // complete.
-  if (to.day < from.day) months--;
+  // This month's anniversary has not come round yet, so the last month is
+  // not complete.
+  if (_daysBetween(_monthsAfter(from, months), to) < 0) months--;
   return months;
+}
+
+/// The day [from] turns [months] months old: the same day of the month, or
+/// the month's last day when it has no such day — a baby born on the 31st
+/// turns a month older on 30 April and 28 February, not on 1 May or 3 March.
+DateTime _monthsAfter(DateTime from, int months) {
+  final first = DateTime.utc(from.year, from.month + months);
+  final lastDay = DateTime.utc(first.year, first.month + 1, 0).day;
+  return DateTime.utc(
+    first.year,
+    first.month,
+    from.day < lastDay ? from.day : lastDay,
+  );
 }
