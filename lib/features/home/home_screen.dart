@@ -17,6 +17,7 @@ import '../common/day_time_label.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../insights/day_timeline_strip.dart';
 import '../insights/day_view_data.dart';
+import '../insights/diaper_mix_bar.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
 import 'home_access.dart';
@@ -327,16 +328,12 @@ class _PinnedActivityControls extends SliverPersistentHeaderDelegate {
       old.background != background;
 }
 
-/// Today at a glance: the Insights day view's timeline.
+/// Today at a glance: the same two charts the Insights day view draws.
 ///
 /// Built from the recent streams Home already subscribes to rather than the
 /// range query behind Insights — they hold the last fifty of each, which
-/// covers a day comfortably, and it means the chart moves the instant
+/// covers a day comfortably, and it means the charts move the instant
 /// something is logged instead of on a refetch.
-///
-/// The day view's other chart, the diapers by what was in them, is on the
-/// status card's diaper row instead, where it is there whichever list is
-/// showing.
 class _TodayCharts extends ConsumerWidget {
   const _TodayCharts({required this.now});
 
@@ -345,16 +342,31 @@ class _TodayCharts extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final today = ref.watch(todayEventsProvider);
+    // Not limited to today: "none yet" means something different at six in
+    // the morning than at six in the evening, and what separates them is
+    // when the last one actually was.
+    final recentDiapers = ref.watch(recentDiapersProvider).value ?? const [];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: DayTimelineStrip(
-        marks: dayMarks(
-          day: now,
-          feedings: today.feedings,
-          diapers: today.diapers,
-          pumps: today.pumps,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DayTimelineStrip(
+            marks: dayMarks(
+              day: now,
+              feedings: today.feedings,
+              diapers: today.diapers,
+              pumps: today.pumps,
+            ),
+          ),
+          const SizedBox(height: 20),
+          DiaperMixBar(
+            mix: diaperMix(today.diapers),
+            lastWithPoop: lastWithPoop(recentDiapers),
+            now: now,
+          ),
+        ],
       ),
     );
   }

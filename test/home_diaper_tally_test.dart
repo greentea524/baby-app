@@ -10,12 +10,17 @@ import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 import 'package:baby_app/features/insights/diaper_mix_bar.dart';
 
-/// Today's diapers by what was in them, on Home's diaper row: the Insights
-/// day view's bar, where "has there been a dirty one yet" gets asked.
+/// Today's wet and dirty counts on Home's diaper row: one short line
+/// beside the clock time, where the row had room to spare.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final now = DateTime(2026, 10, 16, 15);
+
+  /// One count on the line — "3 wet" — which is part of a single run of
+  /// text, held together by non-breaking spaces.
+  Finder count(String text) =>
+      find.textContaining(text.replaceAll(' ', '\u00a0'), findRichText: true);
   DiaperEvent change(String id, DiaperType type, Duration ago) =>
       DiaperEvent(id: id, type: type, time: now.subtract(ago));
 
@@ -41,49 +46,52 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  final bar = find.byKey(const ValueKey('home-diaper-mix'));
-
-  testWidgets('counts today\'s changes by what was in them', (tester) async {
+  testWidgets('counts today\'s wet and dirty, a both in each', (tester) async {
     await pumpCard(tester, [
       change('a', DiaperType.wet, const Duration(hours: 1)),
-      change('b', DiaperType.wet, const Duration(hours: 4)),
-      change('c', DiaperType.dirty, const Duration(hours: 6)),
+      change('b', DiaperType.both, const Duration(hours: 3)),
+      change('c', DiaperType.wet, const Duration(hours: 5)),
+      change('d', DiaperType.dirty, const Duration(hours: 7)),
       // Yesterday: not today's.
-      change('d', DiaperType.both, const Duration(hours: 20)),
+      change('e', DiaperType.dirty, const Duration(hours: 20)),
     ]);
-    expect(bar, findsOneWidget);
-    expect(tester.widget<DiaperMixBar>(bar).mix, (wet: 2, dirty: 1, both: 0));
-    expect(find.text('2 Wet'), findsOneWidget);
-    expect(find.text('1 Dirty'), findsOneWidget);
-    expect(find.text('0 Both'), findsOneWidget);
-    // With a dirty one today the counts say it; no line repeats it.
-    expect(find.textContaining('dirty diaper'), findsNothing);
-    expect(find.textContaining('None yet today'), findsNothing);
-  });
-
-  testWidgets('and says how long since the last dirty one, when not today', (
-    tester,
-  ) async {
-    await pumpCard(tester, [
-      change('a', DiaperType.wet, const Duration(hours: 1)),
-      change('b', DiaperType.both, const Duration(hours: 20)),
-    ]);
+    expect(count('3 wet'), findsOneWidget);
+    expect(count('2 dirty'), findsOneWidget);
     expect(
-      find.textContaining('None yet today — the last was'),
+      find.bySemanticsLabel(RegExp('Today: 3 wet, 2 dirty')),
       findsOneWidget,
     );
   });
 
-  testWidgets('is thinner than the Insights one', (tester) async {
+  testWidgets('keeps a nought, which is the count that matters', (
+    tester,
+  ) async {
+    await pumpCard(tester, [
+      change('a', DiaperType.wet, const Duration(hours: 1)),
+      change('b', DiaperType.dirty, const Duration(hours: 20)),
+    ]);
+    expect(count('1 wet'), findsOneWidget);
+    expect(count('0 dirty'), findsOneWidget);
+  });
+
+  testWidgets('sits beside the clock time rather than below the row', (
+    tester,
+  ) async {
     await pumpCard(tester, [
       change('a', DiaperType.wet, const Duration(hours: 1)),
     ]);
-    expect(tester.widget<DiaperMixBar>(bar).compact, isTrue);
+    // On the test's default 800-wide screen: the test font's glyphs are
+    // wider than any real one's, and at a phone's width the times stack.
+    final counts = tester.getRect(count('1 wet'));
+    final clock = tester.getRect(find.text('2:00 PM'));
+    expect((counts.center.dy - clock.center.dy).abs(), lessThan(4));
+    // No bar: the Insights one is three lines of height.
+    expect(find.byType(DiaperMixBar), findsNothing);
   });
 
   testWidgets('and is not there before the first change ever', (tester) async {
     await pumpCard(tester, const []);
     expect(find.text('No changes yet'), findsOneWidget);
-    expect(bar, findsNothing);
+    expect(count(' wet'), findsNothing);
   });
 }

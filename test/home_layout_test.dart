@@ -481,39 +481,28 @@ void main() {
       matching: find.text(label),
     );
 
-    // A tall screen for the two that look for the list: below a full status
-    // card it starts past the bottom of a phone, where a lazy list builds
-    // nothing.
-    const tall = Size(390, 1400);
-
     testWidgets('Recent is the activity list, with its kind filter', (
       tester,
     ) async {
-      await pumpHome(tester, size: tall);
+      await pumpHome(tester);
       expect(find.byType(RecentActivityList), findsOneWidget);
       expect(find.byType(ActivityFilterBar), findsOneWidget);
       expect(find.byType(DayTimelineStrip), findsNothing);
     });
 
-    testWidgets('Today is the day chart instead', (tester) async {
-      // The Insights day view's timeline, so a glance at how today has gone
-      // does not cost a tab change. Its diaper bar is on the status card's
-      // diaper row, so it is not drawn here a second time.
+    testWidgets('Today is the day charts instead', (tester) async {
+      // The same two the Insights day view draws, so a glance at how today
+      // has gone does not cost a tab change.
       await pumpHome(tester, prefs: {'home_activity_scope': 'today'});
       expect(find.byType(DayTimelineStrip), findsOneWidget);
       expect(find.byType(DiaperMixBar), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('home-diaper-mix')),
-        findsOneWidget,
-        reason: 'the one there is, is the card\'s',
-      );
       expect(find.byType(RecentActivityList), findsNothing);
       // The charts have nothing to filter by kind.
       expect(find.byType(ActivityFilterBar), findsNothing);
     });
 
     testWidgets('the toggle swaps one for the other', (tester) async {
-      await pumpHome(tester, size: tall);
+      await pumpHome(tester);
       expect(find.byType(RecentActivityList), findsOneWidget);
 
       await tester.tap(segment('Today'));

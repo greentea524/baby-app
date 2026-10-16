@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
+import '../../data/models/diaper_event.dart';
 import '../../data/models/fridge_bottle.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -21,7 +22,7 @@ import '../feeding/feeding_quick_log.dart';
 import '../pumping/pumping_quick_log.dart';
 import '../fridge/bottle_gauge.dart';
 import '../insights/day_view_data.dart';
-import '../insights/diaper_mix_bar.dart';
+import '../insights/chart_palette.dart';
 import '../timeline/timeline_format.dart';
 import '../fridge/bottle_sheet.dart';
 import 'home_prefs.dart';
@@ -175,9 +176,8 @@ class HomeStatusCard extends ConsumerWidget {
 
   Widget _diaperRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastDiaperProvider);
-    final recent = ref.watch(recentDiapersProvider).value ?? const [];
-    final today = [
-      for (final d in recent)
+    final today = <DiaperEvent>[
+      for (final d in ref.watch(recentDiapersProvider).value ?? const [])
         if (TimelineFormat.isSameDay(d.time, now)) d,
     ];
     final state = diaperDueState(last?.time, now: now);
@@ -202,23 +202,11 @@ class HomeStatusCard extends ConsumerWidget {
       when: last?.time,
       now: now,
       detail: notes,
-      // Today's changes by what was in them: the Insights day view's bar,
-      // where the question it answers — has there been a dirty one yet —
-      // is asked. Not before the first change ever, when it would be an
-      // empty bar about nothing.
-      chips: [
-        if (last != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: DiaperMixBar(
-              key: const ValueKey('home-diaper-mix'),
-              mix: diaperMix(today),
-              lastWithPoop: lastWithPoop(recent),
-              now: now,
-              compact: true,
-            ),
-          ),
-      ],
+      // Today's changes by what was in them, on the line beside the clock
+      // time, which this row otherwise leaves empty — so it costs no height.
+      // The Insights day view's bar said the same at three lines' height.
+      // Not before the first change ever, when it would count nothing.
+      tally: last == null ? null : _DiaperTally(mix: diaperMix(today)),
     );
   }
 
@@ -635,6 +623,7 @@ class _StatusRow extends StatelessWidget {
     required this.now,
     this.when,
     this.detail,
+    this.tally,
     this.chips = const [],
     this.alert,
     this.alertLabel,
@@ -665,6 +654,10 @@ class _StatusRow extends StatelessWidget {
   /// Anything else worth knowing — the milk, the notes, who gave it — on a
   /// muted line of its own. Empty or null for none.
   final String? detail;
+
+  /// A small reading of its own on the line under the headline, level with
+  /// the clock time, before [detail]: the diaper row's counts for today.
+  final Widget? tally;
 
   /// What happens next, each across the row's full width under the text.
   final List<Widget> chips;
@@ -741,6 +734,7 @@ class _StatusRow extends StatelessWidget {
                       child: _Reading(
                         headline: headline,
                         detail: detail,
+                        tally: tally,
                         ago: at == null
                             ? null
                             : FeedingFormat.shortAgo(at, now: now),
@@ -830,10 +824,17 @@ class _Eyebrow extends StatelessWidget {
 /// they move onto a line of their own under the detail instead of
 /// squeezing what happened into a sliver.
 class _Reading extends StatelessWidget {
-  const _Reading({required this.headline, this.detail, this.ago, this.clock});
+  const _Reading({
+    required this.headline,
+    this.detail,
+    this.tally,
+    this.ago,
+    this.clock,
+  });
 
   final String headline;
   final String? detail;
+  final Widget? tally;
   final String? ago;
   final String? clock;
 
@@ -890,7 +891,7 @@ class _Reading extends StatelessWidget {
     if (ago == null || clock == null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [head, ?more],
+        children: [head, ?tally, ?more],
       );
     }
 
@@ -912,6 +913,7 @@ class _Reading extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               head,
+              ?tally,
               ?more,
               Text('$ago · $clock', style: clockStyle),
             ],
@@ -923,7 +925,7 @@ class _Reading extends StatelessWidget {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [head, ?more],
+                children: [head, ?tally, ?more],
               ),
             ),
             const SizedBox(width: _gap),
@@ -937,6 +939,68 @@ class _Reading extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Today's diapers in one short line — "■ 3 wet  ■ 2 dirty" — each square
+/// in the colour the Insights day view gives it.
+///
+/// A wet-and-dirty change counts in both, which is how the question is
+/// asked ("how many wet, how many dirty?") and keeps the line to two
+/// counts: a third, for "both", did not fit beside the clock time on a
+/// phone and pushed the row a line taller. Insights still splits them.
+///
+/// Both always, a nought included — "0 dirty" late in the day is the one
+/// count anyone is looking for.
+class _DiaperTally extends StatelessWidget {
+  const _DiaperTally({required this.mix});
+
+  final DiaperMix mix;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colours = DayColours.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final style = theme.textTheme.bodyMedium?.copyWith(color: muted);
+    final parts = [
+      (count: mix.wet + mix.both, label: 'wet', colour: colours.wet),
+      (count: mix.withPoop, label: 'dirty', colour: colours.diaper),
+    ];
+
+    return Semantics(
+      label:
+          'Today: ${[for (final p in parts) '${p.count} ${p.label}'].join(', ')}',
+      excludeSemantics: true,
+      // One run of text rather than a row of pieces, so at a large text
+      // size it wraps like any other line instead of overflowing.
+      child: Text.rich(
+        TextSpan(
+          style: style,
+          children: [
+            for (final (i, p) in parts.indexed) ...[
+              if (i > 0) const TextSpan(text: '   '),
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    // A nought's square is left empty, like the count beside
+                    // it is: there is nothing of that colour today.
+                    color: p.count == 0
+                        ? theme.colorScheme.surfaceContainerHighest
+                        : p.colour,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              TextSpan(text: '\u00a0${p.count}\u00a0${p.label}'),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
