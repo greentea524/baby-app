@@ -20,6 +20,9 @@ import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../pumping/pumping_quick_log.dart';
 import '../fridge/bottle_gauge.dart';
+import '../insights/day_view_data.dart';
+import '../insights/diaper_mix_bar.dart';
+import '../timeline/timeline_format.dart';
 import '../fridge/bottle_sheet.dart';
 import 'home_prefs.dart';
 
@@ -172,6 +175,11 @@ class HomeStatusCard extends ConsumerWidget {
 
   Widget _diaperRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastDiaperProvider);
+    final recent = ref.watch(recentDiapersProvider).value ?? const [];
+    final today = [
+      for (final d in recent)
+        if (TimelineFormat.isSameDay(d.time, now)) d,
+    ];
     final state = diaperDueState(last?.time, now: now);
     final notes = last?.notes?.trim() ?? '';
     return _StatusRow(
@@ -194,6 +202,23 @@ class HomeStatusCard extends ConsumerWidget {
       when: last?.time,
       now: now,
       detail: notes,
+      // Today's changes by what was in them: the Insights day view's bar,
+      // where the question it answers — has there been a dirty one yet —
+      // is asked. Not before the first change ever, when it would be an
+      // empty bar about nothing.
+      chips: [
+        if (last != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: DiaperMixBar(
+              key: const ValueKey('home-diaper-mix'),
+              mix: diaperMix(today),
+              lastWithPoop: lastWithPoop(recent),
+              now: now,
+              compact: true,
+            ),
+          ),
+      ],
     );
   }
 

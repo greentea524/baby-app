@@ -24,7 +24,14 @@ class DiaperMixBar extends StatelessWidget {
     required this.mix,
     required this.lastWithPoop,
     required this.now,
+    this.compact = false,
   });
+
+  /// For Home's diaper row: a thinner bar, and the line about poo only when
+  /// it says something the counts do not — that none has come yet today,
+  /// and how long it has been. With one already, "1 dirty" beside the bar
+  /// says it.
+  final bool compact;
 
   final DiaperMix mix;
 
@@ -62,7 +69,7 @@ class DiaperMixBar extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: SizedBox(
-                    height: 18,
+                    height: compact ? 10 : 18,
                     child: present.isEmpty
                         ? ColoredBox(color: scheme.surfaceContainerHighest)
                         // Stretch, not the default centre: a ColoredBox with
@@ -93,7 +100,7 @@ class DiaperMixBar extends StatelessWidget {
                           ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: compact ? 6 : 8),
                 // A Wrap so the counts fold rather than overflow.
                 Wrap(
                   spacing: 14,
@@ -113,8 +120,17 @@ class DiaperMixBar extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 10),
-        Text(_pooLine(), style: theme.textTheme.bodyMedium),
+        if (!compact || mix.withPoop == 0) ...[
+          SizedBox(height: compact ? 6 : 10),
+          Text(
+            _pooLine(),
+            style: compact
+                ? theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  )
+                : theme.textTheme.bodyMedium,
+          ),
+        ],
       ],
     );
   }
