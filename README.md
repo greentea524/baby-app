@@ -247,8 +247,16 @@ flutter test
 its own emulator-backed suite in `rules-tests/`:
 
 ```bash
-cd rules-tests && npm install && npm test
+cd rules-tests && npm ci && npm test
 ```
+
+It needs Node 24 (`@firebase/rules-unit-testing` 6 requires it) and Java 21
+for the emulator, the versions CI uses.
+
+`package.json` overrides `@grpc/grpc-js` to 1.14.6 or later: Firebase 13's
+Firestore pins 1.9, which has two published advisories, and the suite runs
+against the emulator through the patched one. Drop the override once
+Firebase ships a fixed version itself.
 
 This boots the Firestore emulator, runs the real rules against it, and checks
 that non-members are locked out, that only the owner can delete a profile or

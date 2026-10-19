@@ -45,14 +45,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The Firestore emulator is a Java process; ubuntu-latest ships a JDK.
+      # Node 24: @firebase/rules-unit-testing 6 requires it.
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
+          cache: npm
+          cache-dependency-path: rules-tests/package-lock.json
 
+      # The Firestore emulator is a Java program, and firebase-tools 15 wants
+      # Java 21. Pinned rather than left to the runner, whose default JDK is
+      # older — the deploy workflow pins the same.
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # `npm ci`, not `npm install`: the exact versions in the lockfile, so
+      # what is tested here is what the deploy workflow releases with.
       - name: Install dependencies
-        run: npm install
+        run: npm ci
         working-directory: rules-tests
 
       - name: Run security rules tests
