@@ -311,11 +311,18 @@ and creates nothing new.
 
 **One-time setup: let the service account release rules.** The key in
 `FIREBASE_SERVICE_ACCOUNT` was set up for Hosting and may not be allowed to
-touch rules. If `rules-deploy` fails with a permission error, open Google
-Cloud console → **IAM**, find the account (the `client_email` in the key
-file), and grant it **Firebase Rules Admin**. That is the only role the deploy
-uses — it calls the Firebase Rules API and nothing else. Until then, only this
-job goes red; releases carry on.
+touch rules. Open Google Cloud console → **IAM**, find the account (the
+`client_email` in the key file), and grant it two roles:
+
+- **Firebase Rules Admin** — to release the rules, through the Firebase
+  Rules API.
+- **Service Usage Consumer** — since firebase-tools 15, the deploy first
+  asks the Service Usage API whether Firestore is enabled, billed to the
+  project, and stops with *403, Permission denied to get service
+  [firestore.googleapis.com]* if it may not. This role lets it ask; it
+  cannot turn APIs on or off.
+
+Until both are in place, only this job goes red; releases carry on.
 
 Runs are queued one at a time in push order (`concurrency: deploy-main`), so
 two merges close together cannot finish out of order and leave older rules in
