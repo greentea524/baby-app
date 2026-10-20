@@ -481,10 +481,19 @@ void main() {
       matching: find.text(label),
     );
 
+    // A tall screen for the two that look for the list, which starts below
+    // the status card. The fixture's times follow the real clock, so the
+    // card's text — the next-feed chip, the clock times — changes with the
+    // hour, and in the test font (every glyph a full em wide) some of it
+    // wraps at some hours and not others. On a phone-height screen the card
+    // then sometimes pushed the list past the bottom, where a lazy list
+    // builds nothing, and these failed only at certain times of day.
+    const tall = Size(390, 1600);
+
     testWidgets('Recent is the activity list, with its kind filter', (
       tester,
     ) async {
-      await pumpHome(tester);
+      await pumpHome(tester, size: tall);
       expect(find.byType(RecentActivityList), findsOneWidget);
       expect(find.byType(ActivityFilterBar), findsOneWidget);
       expect(find.byType(DayTimelineStrip), findsNothing);
@@ -502,7 +511,7 @@ void main() {
     });
 
     testWidgets('the toggle swaps one for the other', (tester) async {
-      await pumpHome(tester);
+      await pumpHome(tester, size: tall);
       expect(find.byType(RecentActivityList), findsOneWidget);
 
       await tester.tap(segment('Today'));
