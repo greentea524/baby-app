@@ -186,6 +186,40 @@ void main() {
       expect(find.textContaining('1:20 PM · Wet'), findsOneWidget);
     });
 
+    testWidgets('with today\'s wet and dirty counts, as on Home', (
+      tester,
+    ) async {
+      DiaperEvent change(String id, DiaperType type, Duration ago) =>
+          DiaperEvent(id: id, type: type, time: now.subtract(ago));
+      await pumpNursery(
+        tester,
+        diapers: [
+          change('a', DiaperType.wet, const Duration(minutes: 40)),
+          change('b', DiaperType.both, const Duration(hours: 3)),
+          change('c', DiaperType.dirty, const Duration(hours: 5)),
+          // Yesterday: not today's.
+          change('d', DiaperType.wet, const Duration(hours: 20)),
+        ],
+      );
+
+      final tally = find.byType(DiaperTally);
+      expect(tally, findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('Today: 2 wet, 2 dirty')),
+        findsOneWidget,
+      );
+      // Inside the diaper card, under its reading.
+      expect(
+        tester.getRect(tally).top,
+        greaterThan(tester.getRect(find.text('40 min ago')).bottom),
+      );
+    });
+
+    testWidgets('but no counts before the first change', (tester) async {
+      await pumpNursery(tester, withData: false);
+      expect(find.byType(DiaperTally), findsNothing);
+    });
+
     testWidgets('and nothing at all when the feed was never measured', (
       tester,
     ) async {

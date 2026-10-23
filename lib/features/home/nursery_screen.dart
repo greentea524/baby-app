@@ -208,6 +208,21 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         detail: lastChanged == null
                             ? null
                             : DiaperFormat.summary(lastChanged),
+                        // Today's wet and dirty counts, as on Home, where the
+                        // feed card has its next-feed chip: "has there been a
+                        // dirty one today?" is asked at the cot as often as
+                        // "when was the last?". Not before the first change.
+                        footer: lastChanged == null
+                            ? null
+                            : DiaperTally(
+                                mix: watchTodaysDiaperMix(ref, clock),
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
                         // The feed card's escalation, on its own clock: amber
                         // at two hours since the last change, red at three.
                         // Written when the feed card got its colour that this

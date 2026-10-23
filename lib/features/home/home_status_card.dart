@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
-import '../../data/models/diaper_event.dart';
 import '../../data/models/fridge_bottle.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -176,10 +175,6 @@ class HomeStatusCard extends ConsumerWidget {
 
   Widget _diaperRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastDiaperProvider);
-    final today = <DiaperEvent>[
-      for (final d in ref.watch(recentDiapersProvider).value ?? const [])
-        if (TimelineFormat.isSameDay(d.time, now)) d,
-    ];
     final state = diaperDueState(last?.time, now: now);
     final notes = last?.notes?.trim() ?? '';
     return _StatusRow(
@@ -206,7 +201,9 @@ class HomeStatusCard extends ConsumerWidget {
       // time, which this row otherwise leaves empty — so it costs no height.
       // The Insights day view's bar said the same at three lines' height.
       // Not before the first change ever, when it would count nothing.
-      tally: last == null ? null : _DiaperTally(mix: diaperMix(today)),
+      tally: last == null
+          ? null
+          : DiaperTally(mix: watchTodaysDiaperMix(ref, now)),
     );
   }
 
@@ -953,17 +950,36 @@ class _Reading extends StatelessWidget {
 ///
 /// Both always, a nought included — "0 dirty" late in the day is the one
 /// count anyone is looking for.
-class _DiaperTally extends StatelessWidget {
-  const _DiaperTally({required this.mix});
+/// Today's diaper changes, by what was in them, as of [now].
+DiaperMix watchTodaysDiaperMix(WidgetRef ref, DateTime now) => diaperMix([
+  for (final d in ref.watch(recentDiapersProvider).value ?? const [])
+    if (TimelineFormat.isSameDay(d.time, now)) d,
+]);
+
+/// Today's wet and dirty counts on one line — "■ 3 wet   ■ 2 dirty" — on
+/// Home's diaper row and the nursery's diaper card.
+class DiaperTally extends StatelessWidget {
+  const DiaperTally({super.key, required this.mix, this.style});
 
   final DiaperMix mix;
+
+  /// The line's text style; Home's muted body text when null. The squares
+  /// are sized from it, so they keep step with the nursery's larger text.
+  final TextStyle? style;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colours = DayColours.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    final style = theme.textTheme.bodyMedium?.copyWith(color: muted);
+    final style =
+        this.style ?? theme.textTheme.bodyMedium?.copyWith(color: muted);
+    // 9pt beside 14pt text, as Home has it, and scaled with the text: a
+    // WidgetSpan's child is not, so at a large text size a fixed square
+    // shrank beside the numbers.
+    final square = MediaQuery.textScalerOf(
+      context,
+    ).scale((style?.fontSize ?? 14) * 9 / 14);
     final parts = [
       (count: mix.wet + mix.both, label: 'wet', colour: colours.wet),
       (count: mix.withPoop, label: 'dirty', colour: colours.diaper),
@@ -984,8 +1000,8 @@ class _DiaperTally extends StatelessWidget {
               WidgetSpan(
                 alignment: PlaceholderAlignment.middle,
                 child: Container(
-                  width: 9,
-                  height: 9,
+                  width: square,
+                  height: square,
                   decoration: BoxDecoration(
                     // A nought's square is left empty, like the count beside
                     // it is: there is nothing of that colour today.
