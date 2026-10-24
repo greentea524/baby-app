@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/baby.dart';
 import '../models/caregiver_invite.dart';
+import '../models/daily_check.dart';
 
 /// Reads/writes shared baby profiles at the top-level `babies/{babyId}`
 /// collection (KAN-134). Access is by membership: a user sees the babies
@@ -67,6 +68,12 @@ class BabiesRepository {
   /// Updates only the profile fields; never touches membership.
   Future<void> updateBaby(Baby baby) =>
       _baby(baby.id).update(baby.toProfileMap());
+
+  /// Replaces the daily checklist, the whole list in its new order.
+  Future<void> updateChecklist(String babyId, List<ChecklistItem> items) =>
+      _baby(babyId).update({
+        'checklist': [for (final item in items) item.toMap()],
+      });
 
   // deleteBaby is deliberately absent. Deleting the profile document leaves
   // every subcollection under it stored and — because the subcollection rules

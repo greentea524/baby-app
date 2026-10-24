@@ -12,6 +12,7 @@ import '../activity/activity_filter.dart';
 import '../appointments/next_appointment_button.dart';
 import '../medication/medicine_sheet.dart';
 import '../caregivers/incoming_invites.dart';
+import '../checklist/daily_checklist.dart';
 import '../../core/layout/app_bar_room.dart';
 import '../common/day_time_label.dart';
 import '../diaper/diaper_quick_log.dart';
@@ -165,6 +166,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   // Logging is what the app is opened for, and it starts
                   // here: each row's icon is its log button.
                   SliverToBoxAdapter(child: HomeStatusCard(now: _now)),
+                  // Today's checklist, when the household keeps one: under
+                  // the readings, since it is ticked rather than logged.
+                  SliverToBoxAdapter(child: DailyChecklistCard(now: _now)),
                   // The day charts' legend carries the counts, so the row
                   // above them is left with the volumes it alone can show.
                   SliverToBoxAdapter(

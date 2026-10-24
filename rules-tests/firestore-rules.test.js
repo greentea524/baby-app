@@ -131,6 +131,14 @@ const appointment = (over = {}) => ({
   ...over,
 });
 
+const check = (over = {}) => ({
+  itemId: "vitamin-d",
+  time: AT,
+  byName: "Alice",
+  ...stamped(),
+  ...over,
+});
+
 before(async () => {
   testEnv = await initializeTestEnvironment({
     projectId: "demo-baby-app",
@@ -364,6 +372,7 @@ describe("what the app writes today", () => {
     meds: med,
     bottles: bottle,
     appointments: appointment,
+    checks: check,
   };
 
   for (const [sub, build] of Object.entries(cases)) {
@@ -1204,5 +1213,63 @@ describe("medicine", () => {
     await assertSucceeds(
       updateDoc(medRef(asBob(), "given"), { dose: 5, ...edited("bob") }),
     );
+  });
+});
+
+describe("the daily checklist", () => {
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(babyDoc(ctx.firestore()), {
+        name: "Ada",
+        ownerUid: "alice",
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+      });
+    });
+  });
+
+  const item = (id) => ({ id, label: id, icon: "other" });
+  const checkRef = (db, id) => doc(db, "babies", BABY, "checks", id);
+
+  it("lets any caregiver set the list, as the app sends it", async () => {
+    await assertSucceeds(
+      updateDoc(babyDoc(asBob()), {
+        checklist: [{ id: "vitamin-d", label: "Vitamin D", icon: "vitamin" }],
+      }),
+    );
+  });
+
+  it("refuses a list past twelve items", async () => {
+    const thirteen = Array.from({ length: 13 }, (_, i) => item(`i${i}`));
+    await assertFails(updateDoc(babyDoc(asAlice()), { checklist: thirteen }));
+  });
+
+  it("refuses a checklist that is not a list", async () => {
+    await assertFails(
+      updateDoc(babyDoc(asAlice()), { checklist: { a: item("a") } }),
+    );
+  });
+
+  it("still lets a profile without one be edited", async () => {
+    await assertSucceeds(updateDoc(babyDoc(asAlice()), { name: "Ada B" }));
+  });
+
+  it("lets the other caregiver untick it", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(checkRef(ctx.firestore(), "c1"), check());
+    });
+    await assertSucceeds(deleteDoc(checkRef(asBob(), "c1")));
+  });
+
+  it("refuses a tick with no item, or someone else's name on it", async () => {
+    await assertFails(setDoc(checkRef(asAlice(), "none"), check({ itemId: "" })));
+    await assertFails(
+      setDoc(checkRef(asAlice(), "forged"), check({ ...stamped("bob") })),
+    );
+  });
+
+  it("keeps a non-member out", async () => {
+    await assertFails(setDoc(checkRef(asMallory(), "m1"), check()));
+    await assertFails(getDoc(checkRef(asMallory(), "m1")));
   });
 });

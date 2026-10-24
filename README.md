@@ -36,12 +36,20 @@ lib/
 
 ### Firestore data model
 
-Everything is scoped under the signed-in user so security rules stay simple:
+Each baby is a top-level document shared by its caregivers (`memberUids`),
+with everything logged for it underneath:
 
 ```
-users/{uid}/babies/{babyId}
-users/{uid}/babies/{babyId}/feedings/{eventId}
-users/{uid}/babies/{babyId}/diapers/{eventId}
+babies/{babyId}                  profile, caregivers, daily checklist items
+babies/{babyId}/feedings/{id}
+babies/{babyId}/diapers/{id}
+babies/{babyId}/pumps/{id}
+babies/{babyId}/meds/{id}
+babies/{babyId}/growth/{id}
+babies/{babyId}/bottles/{id}     what is in the fridge now
+babies/{babyId}/appointments/{id}
+babies/{babyId}/checks/{id}      daily checklist ticks
+babies/{babyId}/invites/{email}
 ```
 
 ## One-time setup — connect Firebase (required)

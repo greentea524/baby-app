@@ -81,6 +81,7 @@ void main() {
         'meds',
         'bottles',
         'appointments',
+        'checks',
         'invites',
       ]);
     });

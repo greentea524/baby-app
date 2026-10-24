@@ -60,6 +60,24 @@ abstract class EventRepository<T extends BabyEvent> {
     return doc.id;
   }
 
+  /// Stores [event] and hands back its id straight away, with the write to
+  /// wait on if wanted.
+  ///
+  /// For an undo, which has to name the document it takes back, and cannot
+  /// wait for [add] to learn it: offline that would be when the phone next
+  /// reconnects.
+  ({String id, Future<void> written}) addNow(T event) {
+    final doc = col.doc();
+    return (
+      id: doc.id,
+      written: doc.set({
+        ...event.toMap(),
+        'createdBy': uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      }),
+    );
+  }
+
   /// Overwrites the stored fields of [event], leaving `createdBy` and
   /// `createdAt` as they were — the rules reject an edit that rewrites them.
   Future<void> update(T event) => col.doc(event.id).update({
@@ -99,6 +117,13 @@ abstract class TimelineRepository<T extends BabyEvent>
       start.add(const Duration(days: 1)),
     ).snapshots().map(parse);
   }
+
+  /// Everything from [start] on, earliest first.
+  Stream<List<T>> watchSince(DateTime start) => col
+      .where(timeField, isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+      .orderBy(timeField)
+      .snapshots()
+      .map(parse);
 
   /// One-shot fetch of everything in [start, end), earliest first. Used by
   /// export (KAN-137) and insights, which want an answer rather than a feed.

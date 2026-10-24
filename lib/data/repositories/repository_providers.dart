@@ -7,6 +7,7 @@ import '../../core/theme/theme_mode_provider.dart';
 import '../../features/fridge/fridge_order.dart';
 import '../models/baby.dart';
 import '../models/caregiver_invite.dart';
+import '../models/daily_check.dart';
 import '../models/diaper_event.dart';
 import '../models/feeding_event.dart';
 import '../models/fridge_bottle.dart';
@@ -19,6 +20,7 @@ import 'appointments_repository.dart';
 import 'account_data.dart';
 import 'baby_data.dart';
 import 'babies_repository.dart';
+import 'checks_repository.dart';
 import 'diaper_repository.dart';
 import 'feeding_repository.dart';
 import 'fridge_repository.dart';
@@ -246,6 +248,26 @@ final medsForDayProvider = StreamProvider<List<MedicationEvent>>((ref) {
   if (repo == null) return Stream.value(const []);
   return repo.watchForDay(ref.watch(selectedDayProvider));
 });
+
+// --- The daily checklist ---------------------------------------------------
+
+final checksRepositoryProvider = Provider<ChecksRepository?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final baby = ref.watch(currentBabyProvider);
+  if (user == null || baby == null) return null;
+  return ChecksRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+});
+
+/// Every tick from the midnight [start] on, earliest first.
+///
+/// Home asks from today's midnight, so it reads only today's handful; the
+/// streaks sheet asks from a year back, and lets go when it closes.
+final checksSinceProvider = StreamProvider.autoDispose
+    .family<List<DailyCheck>, DateTime>((ref, start) {
+      final repo = ref.watch(checksRepositoryProvider);
+      if (repo == null) return Stream.value(const []);
+      return repo.watchSince(start);
+    });
 
 // --- The fridge -------------------------------------------------------------
 

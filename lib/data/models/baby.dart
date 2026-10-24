@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'daily_check.dart';
+
 /// Biological sex, used for WHO growth percentiles (KAN-163).
 enum BabySex { male, female }
 
@@ -50,6 +52,7 @@ class Baby {
     required this.members,
     this.sex,
     this.avatar = BabyAvatar.baby,
+    this.checklist = const [],
   });
 
   final String id;
@@ -59,6 +62,13 @@ class Baby {
   final BabyAvatar avatar;
   final String ownerUid;
   final Map<String, CaregiverRole> members;
+
+  /// The daily checklist, in the order Home shows it. Empty — the default,
+  /// and every profile saved before it existed — hides the checklist.
+  ///
+  /// Not part of [toProfileMap]: it is saved on its own, so an edit to the
+  /// name cannot put back a list someone else has just changed.
+  final List<ChecklistItem> checklist;
 
   List<String> get memberUids => members.keys.toList();
 
@@ -81,6 +91,10 @@ class Baby {
               CaregiverRole.values.asNameMap()[entry.value as String] ??
               CaregiverRole.editor,
       },
+      checklist: [
+        for (final raw in (data['checklist'] as List<dynamic>?) ?? const [])
+          if (raw is Map<String, dynamic>) ChecklistItem.fromMap(raw),
+      ],
     );
   }
 
@@ -106,5 +120,6 @@ class Baby {
     avatar: avatar ?? this.avatar,
     ownerUid: ownerUid,
     members: members,
+    checklist: checklist,
   );
 }

@@ -9,6 +9,7 @@ import '../../core/theme/theme_mode_provider.dart';
 import '../../data/models/notification_prefs.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../caregivers/caregivers_screen.dart';
+import '../checklist/checklist_settings_screen.dart';
 import '../export/export_screen.dart';
 import 'delete_account_screen.dart';
 import 'delete_baby_screen.dart';
@@ -68,6 +69,7 @@ class SettingsScreen extends ConsumerWidget {
           const _PumpIntervalTile(),
           const _FridgeToggle(),
           const _MedicationToggle(),
+          const ChecklistSettingsTile(),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.group_outlined),

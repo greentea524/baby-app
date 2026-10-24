@@ -126,15 +126,24 @@ service cloud.firestore {
       // show themselves out. An unconstrained member update would let an
       // invited caregiver evict the owner or rewrite ownerUid to themselves —
       // and the owner-only delete below would then be theirs too.
-      allow update: if isAcceptingInvite(babyId)
-        || (isMemberOf(resource.data)
-            && ownerUnchanged()
-            && (rosterUnchanged() || isLeaving()))
-        || (isOwnerOf(resource.data) && ownerUnchanged());
+      allow update: if checklistShape()
+        && (isAcceptingInvite(babyId)
+          || (isMemberOf(resource.data)
+              && ownerUnchanged()
+              && (rosterUnchanged() || isLeaving()))
+          || (isOwnerOf(resource.data) && ownerUnchanged()));
 
       // Only the owner may delete the profile.
       allow delete: if signedIn()
         && resource.data.ownerUid == request.auth.uid;
+
+      // The daily checklist: a short list, if there is one. Rules cannot
+      // look inside each entry, so the cap is what stops a bug writing a
+      // profile that grows without end. The app allows twelve.
+      function checklistShape() {
+        let list = request.resource.data.get('checklist', []);
+        return list is list && list.size() <= 12;
+      }
 
       function isOwnerOf(data) {
         return signedIn() && data.ownerUid == request.auth.uid;
@@ -348,6 +357,21 @@ service cloud.firestore {
             && text(d.get('provider', null))
             && text(d.get('location', null))
             && text(d.get('notes', null));
+        }
+      }
+
+      // Ticks on the daily checklist: which item, when, and who.
+      match /checks/{docId} {
+        allow read, delete: if isMember(babyId);
+        allow create: if isMember(babyId) && authored() && checkShape();
+        allow update: if isMember(babyId) && reauthored() && checkShape();
+
+        function checkShape() {
+          let d = request.resource.data;
+          return d.itemId is string
+            && d.itemId.size() > 0 && d.itemId.size() <= 40
+            && d.time is timestamp
+            && text(d.get('byName', null));
         }
       }
 
