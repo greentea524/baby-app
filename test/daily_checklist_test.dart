@@ -6,11 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:baby_app/core/auth/auth_providers.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
+import 'package:baby_app/data/models/activity_entry.dart';
 import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/daily_check.dart';
 import 'package:baby_app/data/repositories/babies_repository.dart';
 import 'package:baby_app/data/repositories/checks_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
+import 'package:baby_app/features/activity/activity_tile.dart';
 import 'package:baby_app/features/checklist/checklist_logic.dart';
 import 'package:baby_app/features/checklist/checklist_settings_screen.dart';
 import 'package:baby_app/features/checklist/daily_checklist.dart';
@@ -235,6 +237,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repo.added.single.itemId, 'bath');
+      // Its name goes with it, for the activity log.
+      expect(repo.added.single.label, 'Bath');
       expect(find.text('Bath done'), findsOneWidget);
 
       await tester.tap(find.text('Undo'));
@@ -300,6 +304,80 @@ void main() {
         textScale: 2,
       );
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('in the activity log', () {
+    Future<_RecordingChecks> pumpTile(
+      WidgetTester tester,
+      DailyCheck check,
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      final stored = await SharedPreferences.getInstance();
+      final repo = _RecordingChecks();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(stored),
+            authStateProvider.overrideWith((ref) => Stream.value(null)),
+            currentBabyProvider.overrideWithValue(baby(const [vitamin])),
+            checksRepositoryProvider.overrideWithValue(repo),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ActivityTile(entry: CheckEntry(check), now: now),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    testWidgets('reads as the item, who ticked it, and when', (tester) async {
+      await pumpTile(
+        tester,
+        tick(
+          'vitamin-d',
+          DateTime(2026, 10, 24, 9, 12),
+          id: 'c1',
+          byName: 'Sam',
+        ),
+      );
+      expect(find.text('Vitamin D'), findsOneWidget);
+      expect(find.text('Daily checklist · by Sam'), findsOneWidget);
+      expect(find.text('9:12 AM'), findsOneWidget);
+    });
+
+    testWidgets('keeps its name after the item leaves the list', (
+      tester,
+    ) async {
+      await pumpTile(
+        tester,
+        DailyCheck(
+          id: 'c1',
+          itemId: 'bath',
+          label: 'Bath',
+          time: DateTime(2026, 10, 24, 9),
+        ),
+      );
+      expect(find.text('Bath'), findsOneWidget);
+    });
+
+    testWidgets('tapping it offers the untick, which takes that tick', (
+      tester,
+    ) async {
+      final repo = await pumpTile(
+        tester,
+        tick('vitamin-d', DateTime(2026, 10, 24, 9, 12), id: 'c1'),
+      );
+      await tester.tap(find.text('Vitamin D'));
+      await tester.pumpAndSettle();
+      expect(find.text('Done 9:12 AM'), findsOneWidget);
+
+      await tester.tap(find.text('Not done — untick it'));
+      await tester.pumpAndSettle();
+      expect(repo.deleted, ['c1']);
     });
   });
 

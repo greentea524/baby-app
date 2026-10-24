@@ -1,10 +1,11 @@
+import 'daily_check.dart';
 import 'diaper_event.dart';
 import 'feeding_event.dart';
 import 'medication_event.dart';
 import 'pumping_event.dart';
 
 /// A single item in a unified activity stream (feed / diaper / pump /
-/// medicine). Lets the home recent list and the daily timeline (KAN-132)
+/// medicine / checklist tick). Lets the home recent list and the daily timeline (KAN-132)
 /// render every event type through one sorted list.
 sealed class ActivityEntry {
   const ActivityEntry();
@@ -48,13 +49,24 @@ class MedicationEntry extends ActivityEntry {
   DateTime get time => event.time;
 }
 
-/// Merges feedings, diapers, pump sessions and doses of medicine into one
-/// time-sorted list.
+/// An item ticked off the daily checklist.
+class CheckEntry extends ActivityEntry {
+  const CheckEntry(this.event);
+
+  final DailyCheck event;
+
+  @override
+  DateTime get time => event.time;
+}
+
+/// Merges feedings, diapers, pump sessions, doses of medicine and checklist
+/// ticks into one time-sorted list.
 List<ActivityEntry> mergeActivities(
   List<FeedingEvent> feedings,
   List<DiaperEvent> diapers, {
   List<PumpingEvent> pumps = const [],
   List<MedicationEvent> meds = const [],
+  List<DailyCheck> checks = const [],
   bool descending = true,
 }) {
   final entries = <ActivityEntry>[
@@ -62,6 +74,7 @@ List<ActivityEntry> mergeActivities(
     ...diapers.map(DiaperEntry.new),
     ...pumps.map(PumpingEntry.new),
     ...meds.map(MedicationEntry.new),
+    ...checks.map(CheckEntry.new),
   ];
   entries.sort(
     (a, b) => descending ? b.time.compareTo(a.time) : a.time.compareTo(b.time),

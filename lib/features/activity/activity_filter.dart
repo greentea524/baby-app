@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/activity_entry.dart';
+import '../../data/repositories/repository_providers.dart';
 
 /// Which kinds of activity the merged lists are showing.
 ///
@@ -17,7 +18,8 @@ enum ActivityFilter {
   feeds('Feeds', Icons.local_drink),
   diapers('Diapers', Icons.baby_changing_station),
   pumps('Pumping', Icons.opacity),
-  meds('Medicine', Icons.medication_outlined);
+  meds('Medicine', Icons.medication_outlined),
+  checklist('Checklist', Icons.checklist);
 
   const ActivityFilter(this.label, this.icon);
 
@@ -30,6 +32,7 @@ enum ActivityFilter {
     ActivityFilter.diapers => entry is DiaperEntry,
     ActivityFilter.pumps => entry is PumpingEntry,
     ActivityFilter.meds => entry is MedicationEntry,
+    ActivityFilter.checklist => entry is CheckEntry,
   };
 }
 
@@ -71,6 +74,10 @@ class ActivityFilterBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(activityFilterProvider);
+    // The checklist chip only for a household that keeps one: for everyone
+    // else it would be a filter that always comes up empty.
+    final hasChecklist =
+        ref.watch(currentBabyProvider)?.checklist.isNotEmpty ?? false;
 
     // Grows with the reader's text size. It was a flat 44, which clipped the
     // chips once the labels scaled up — and it is now also the height a
@@ -83,20 +90,23 @@ class ActivityFilterBar extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           for (final filter in ActivityFilter.values)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                selected: selected == filter,
-                label: Text(filter.label),
-                avatar: Icon(filter.icon, size: 18),
-                showCheckmark: false,
-                // Re-tapping the active chip clears back to All, so there's
-                // always a way out without hunting for the All chip.
-                onSelected: (isOn) => ref
-                    .read(activityFilterProvider.notifier)
-                    .select(isOn ? filter : ActivityFilter.all),
+            if (filter != ActivityFilter.checklist ||
+                hasChecklist ||
+                selected == filter)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  selected: selected == filter,
+                  label: Text(filter.label),
+                  avatar: Icon(filter.icon, size: 18),
+                  showCheckmark: false,
+                  // Re-tapping the active chip clears back to All, so there's
+                  // always a way out without hunting for the All chip.
+                  onSelected: (isOn) => ref
+                      .read(activityFilterProvider.notifier)
+                      .select(isOn ? filter : ActivityFilter.all),
+                ),
               ),
-            ),
         ],
       ),
     );

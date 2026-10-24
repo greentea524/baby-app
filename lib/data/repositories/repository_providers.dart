@@ -269,6 +269,20 @@ final checksSinceProvider = StreamProvider.autoDispose
       return repo.watchSince(start);
     });
 
+/// The latest ticks, most recent first, for Home's activity list.
+final recentChecksProvider = StreamProvider<List<DailyCheck>>((ref) {
+  final repo = ref.watch(checksRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchRecent();
+});
+
+/// The timeline's day of ticks.
+final checksForDayProvider = StreamProvider<List<DailyCheck>>((ref) {
+  final repo = ref.watch(checksRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchForDay(ref.watch(selectedDayProvider));
+});
+
 // --- The fridge -------------------------------------------------------------
 
 final fridgeRepositoryProvider = Provider<FridgeRepository?>((ref) {

@@ -134,6 +134,7 @@ const appointment = (over = {}) => ({
 const check = (over = {}) => ({
   itemId: "vitamin-d",
   time: AT,
+  label: "Vitamin D",
   byName: "Alice",
   ...stamped(),
   ...over,
@@ -1266,6 +1267,11 @@ describe("the daily checklist", () => {
     await assertFails(
       setDoc(checkRef(asAlice(), "forged"), check({ ...stamped("bob") })),
     );
+  });
+
+  it("accepts a tick saved before it carried the item's name", async () => {
+    const { label, ...old } = check();
+    await assertSucceeds(setDoc(checkRef(asAlice(), "old"), old));
   });
 
   it("keeps a non-member out", async () => {

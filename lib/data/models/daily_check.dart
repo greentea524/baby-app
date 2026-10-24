@@ -97,6 +97,7 @@ class DailyCheck implements BabyEvent {
     required this.id,
     required this.itemId,
     required this.time,
+    this.label,
     this.createdBy,
     this.byName,
   });
@@ -107,6 +108,11 @@ class DailyCheck implements BabyEvent {
   /// The [ChecklistItem.id] it ticks.
   final String itemId;
   final DateTime time;
+
+  /// The item's name when it was ticked, so the activity log still reads
+  /// right after the item is renamed or taken off the list. Null on ticks
+  /// saved before it was kept.
+  final String? label;
 
   /// Who ticked it, by account. Written by the repository on create.
   final String? createdBy;
@@ -120,6 +126,7 @@ class DailyCheck implements BabyEvent {
       id: doc.id,
       itemId: data['itemId'] as String,
       time: (data['time'] as Timestamp).toDate(),
+      label: data['label'] as String?,
       createdBy: data['createdBy'] as String?,
       byName: data['byName'] as String?,
     );
@@ -129,6 +136,7 @@ class DailyCheck implements BabyEvent {
   Map<String, dynamic> toMap() => {
     'itemId': itemId,
     'time': Timestamp.fromDate(time),
+    'label': label,
     'byName': byName,
   };
 }

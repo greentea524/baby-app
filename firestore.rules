@@ -371,6 +371,7 @@ service cloud.firestore {
           return d.itemId is string
             && d.itemId.size() > 0 && d.itemId.size() <= 40
             && d.time is timestamp
+            && text(d.get('label', null))
             && text(d.get('byName', null));
         }
       }

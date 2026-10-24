@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:baby_app/data/models/activity_entry.dart';
+import 'package:baby_app/data/models/baby.dart';
+import 'package:baby_app/data/models/daily_check.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/medication_event.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
+import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/activity/activity_filter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -43,7 +46,22 @@ void main() {
     ),
   );
 
-  final entries = <ActivityEntry>[feed(1), diaper(2), pump(3), feed(4), med(5)];
+  CheckEntry tick(int hour) => CheckEntry(
+    DailyCheck(
+      id: 'c$hour',
+      itemId: 'vitamin-d',
+      time: base.add(Duration(hours: hour)),
+    ),
+  );
+
+  final entries = <ActivityEntry>[
+    feed(1),
+    diaper(2),
+    pump(3),
+    feed(4),
+    med(5),
+    tick(6),
+  ];
 
   group('applyActivityFilter', () {
     test('all keeps everything', () {
@@ -53,6 +71,11 @@ void main() {
     test('medicine keeps only doses (#37)', () {
       final got = applyActivityFilter(entries, ActivityFilter.meds);
       expect(got.single, isA<MedicationEntry>());
+    });
+
+    test('checklist keeps only ticks', () {
+      final got = applyActivityFilter(entries, ActivityFilter.checklist);
+      expect(got.single, isA<CheckEntry>());
     });
 
     test('feeds keeps only feedings', () {
@@ -106,10 +129,25 @@ void main() {
   });
 
   group('ActivityFilterBar', () {
-    Future<ProviderContainer> pumpBar(WidgetTester tester) async {
+    Future<ProviderContainer> pumpBar(
+      WidgetTester tester, {
+      List<ChecklistItem> checklist = const [],
+    }) async {
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(home: Scaffold(body: ActivityFilterBar())),
+        ProviderScope(
+          overrides: [
+            currentBabyProvider.overrideWithValue(
+              Baby(
+                id: 'b',
+                name: 'Ada',
+                birthDate: DateTime(2026, 7, 1),
+                ownerUid: 'a',
+                members: const {'a': CaregiverRole.owner},
+                checklist: checklist,
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: Scaffold(body: ActivityFilterBar())),
         ),
       );
       return ProviderScope.containerOf(
@@ -120,9 +158,25 @@ void main() {
     testWidgets('shows a chip per filter and starts on All', (tester) async {
       final container = await pumpBar(tester);
       for (final f in ActivityFilter.values) {
+        if (f == ActivityFilter.checklist) continue;
         expect(find.text(f.label), findsOneWidget);
       }
       expect(container.read(activityFilterProvider), ActivityFilter.all);
+    });
+
+    testWidgets('offers the checklist only to a household that keeps one', (
+      tester,
+    ) async {
+      await pumpBar(tester);
+      expect(find.text('Checklist'), findsNothing);
+
+      await pumpBar(tester, checklist: [checklistPresets.first]);
+      await tester.scrollUntilVisible(
+        find.text('Checklist'),
+        100,
+        scrollable: find.byType(Scrollable),
+      );
+      expect(find.text('Checklist'), findsOneWidget);
     });
 
     testWidgets('tapping a chip selects that filter', (tester) async {

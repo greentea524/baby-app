@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/format/unit_system.dart';
 import '../../data/models/activity_entry.dart';
+import '../../data/models/daily_check.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../checklist/daily_checklist.dart';
 import '../common/event_tile.dart';
 import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
@@ -128,6 +130,54 @@ class ActivityTile extends ConsumerWidget {
         onDelete: () async =>
             ref.read(medicationRepositoryProvider)?.delete(event.id),
       ),
+      CheckEntry(:final event) => _checkTile(
+        context,
+        ref,
+        event,
+        trailing,
+        trailingDetail,
+      ),
     };
+  }
+
+  /// A tick off the daily checklist. Tapping says when and by whom, as on
+  /// Home, with the way to untick it; deleting it is the same untick.
+  Widget _checkTile(
+    BuildContext context,
+    WidgetRef ref,
+    DailyCheck event,
+    String trailing,
+    String? trailingDetail,
+  ) {
+    final items = ref.watch(currentBabyProvider)?.checklist ?? const [];
+    final label = checkLabel(event, items);
+    final me = ref.watch(authStateProvider).value?.uid;
+    final by = event.createdBy != null && event.createdBy == me
+        ? 'you'
+        : event.byName?.trim();
+    Future<void> untick() async =>
+        ref.read(checksRepositoryProvider)?.delete(event.id);
+
+    return EventTile(
+      key: ValueKey('check_${event.id}'),
+      icon: checkIcon(event, items),
+      title: label,
+      subtitle: [
+        'Daily checklist',
+        if (by != null && by.isNotEmpty) 'by $by',
+      ].join(' · '),
+      trailing: trailing,
+      trailingDetail: trailingDetail,
+      confirmTitle: 'Untick $label?',
+      deletedMessage: '$label unticked',
+      onTap: () => showTickDetails(
+        context,
+        label: label,
+        tick: event,
+        now: now,
+        onUntick: () => untick().catchError((_) {}),
+      ),
+      onDelete: untick,
+    );
   }
 }

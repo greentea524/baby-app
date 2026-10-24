@@ -25,13 +25,15 @@ class TimelineScreen extends ConsumerWidget {
     final diapersAsync = ref.watch(diapersForDayProvider);
     final pumpsAsync = ref.watch(pumpingForDayProvider);
     final medsAsync = ref.watch(medsForDayProvider);
+    final checksAsync = ref.watch(checksForDayProvider);
     final baby = ref.watch(currentBabyProvider);
 
     final loading =
         (!feedsAsync.hasValue && feedsAsync.isLoading) ||
         (!diapersAsync.hasValue && diapersAsync.isLoading) ||
         (!pumpsAsync.hasValue && pumpsAsync.isLoading) ||
-        (!medsAsync.hasValue && medsAsync.isLoading);
+        (!medsAsync.hasValue && medsAsync.isLoading) ||
+        (!checksAsync.hasValue && checksAsync.isLoading);
 
     final feeds = feedsAsync.value ?? const [];
     final diapers = diapersAsync.value ?? const [];
@@ -41,6 +43,7 @@ class TimelineScreen extends ConsumerWidget {
       diapers,
       pumps: pumps,
       meds: medsAsync.value ?? const [],
+      checks: checksAsync.value ?? const [],
       descending: false,
     );
     final filter = ref.watch(activityFilterProvider);

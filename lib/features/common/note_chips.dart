@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// The note that goes with most bottles, offered as a pill under the notes.
-const bottleNoteSuggestions = ['Vitamin D'];
-
 /// The note that goes with most diaper changes worth a note.
 const diaperNoteSuggestions = ['Blowout'];
 

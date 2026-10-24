@@ -108,20 +108,55 @@ class DailyChecklistCard extends ConsumerWidget {
     ChecklistItem item,
     DailyCheck tick,
   ) {
-    showAppSheet<void>(
+    showTickDetails(
       context,
-      builder: (sheet) => _TickDetails(
-        item: item,
-        tick: tick,
-        now: now,
-        onUntick: () {
-          Navigator.pop(sheet);
-          untickItem(ref, item, now);
-        },
-      ),
+      label: item.label,
+      tick: tick,
+      now: now,
+      onUntick: () => untickItem(ref, item, now),
     );
   }
 }
+
+/// What a tick is called in the activity log: the item's name on the list
+/// now, so a rename shows everywhere, or else the name it was ticked under.
+String checkLabel(DailyCheck tick, List<ChecklistItem> items) {
+  for (final item in items) {
+    if (item.id == tick.itemId) return item.label;
+  }
+  final saved = tick.label?.trim();
+  return saved == null || saved.isEmpty ? 'Checklist item' : saved;
+}
+
+/// The picture for a tick in the activity log: its item's, while the item
+/// is still on the list.
+IconData checkIcon(DailyCheck tick, List<ChecklistItem> items) {
+  for (final item in items) {
+    if (item.id == tick.itemId) return checklistIcon(item.icon);
+  }
+  return checklistIcon(ChecklistIcon.other);
+}
+
+/// Opens the sheet saying when [tick] was done and by whom, with a way to
+/// take it back. [onUntick] runs once the sheet has closed.
+Future<void> showTickDetails(
+  BuildContext context, {
+  required String label,
+  required DailyCheck tick,
+  required VoidCallback onUntick,
+  DateTime? now,
+}) => showAppSheet<void>(
+  context,
+  builder: (sheet) => _TickDetails(
+    label: label,
+    tick: tick,
+    now: now ?? DateTime.now(),
+    onUntick: () {
+      Navigator.pop(sheet);
+      onUntick();
+    },
+  ),
+);
 
 /// What to call the caregiver signed in here, as a dose of medicine does.
 String? _myName(WidgetRef ref) {
@@ -152,6 +187,7 @@ void tickItem(BuildContext context, WidgetRef ref, ChecklistItem item) {
         id: '',
         itemId: item.id,
         time: DateTime.now(),
+        label: item.label,
         byName: _myName(ref),
       ),
     );
@@ -186,13 +222,13 @@ void untickItem(WidgetRef ref, ChecklistItem item, DateTime day) {
 
 class _TickDetails extends ConsumerWidget {
   const _TickDetails({
-    required this.item,
+    required this.label,
     required this.tick,
     required this.now,
     required this.onUntick,
   });
 
-  final ChecklistItem item;
+  final String label;
   final DailyCheck tick;
   final DateTime now;
   final VoidCallback onUntick;
@@ -213,9 +249,7 @@ class _TickDetails extends ConsumerWidget {
           children: [
             Icon(Icons.check_circle, color: theme.colorScheme.primary),
             const SizedBox(width: 12),
-            Expanded(
-              child: Text(item.label, style: theme.textTheme.titleLarge),
-            ),
+            Expanded(child: Text(label, style: theme.textTheme.titleLarge)),
           ],
         ),
         const SizedBox(height: 8),
