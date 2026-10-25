@@ -116,7 +116,8 @@ const checklistPresets = <ChecklistItem>[
 /// One item ticked off. Stored at `babies/{babyId}/checks/{id}`.
 ///
 /// A tick is a record that it was done, when and by whom — or for an item
-/// done several times a day, one of those times; unticking deletes it. Which day it counts for is the day of [time] on the phone reading it.
+/// done several times a day, one of those times; unticking deletes it.
+/// Which day it counts for is the day of [time] on the phone reading it.
 class DailyCheck implements BabyEvent {
   const DailyCheck({
     required this.id,
