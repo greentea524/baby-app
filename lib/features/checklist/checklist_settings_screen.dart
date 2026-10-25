@@ -7,6 +7,7 @@ import '../../data/models/baby.dart';
 import '../../data/models/daily_check.dart';
 import '../../data/repositories/repository_providers.dart';
 import 'checklist_logic.dart';
+import 'timed_item_sheet.dart';
 
 /// Settings' line for the daily checklist: what is on it, and the way in.
 class ChecklistSettingsTile extends ConsumerWidget {
@@ -25,7 +26,11 @@ class ChecklistSettingsTile extends ConsumerWidget {
             ? 'Off — add something like vitamin D to tick off on Home'
             : items
                   .map(
-                    (i) => i.perDay == 1 ? i.label : '${i.label} ×${i.perDay}',
+                    (i) => i.timed
+                        ? '${i.label} ${i.minutes} min'
+                        : i.perDay == 1
+                        ? i.label
+                        : '${i.label} ×${i.perDay}',
                   )
                   .join(', '),
         maxLines: 2,
@@ -107,8 +112,9 @@ class _ChecklistSettingsScreenState
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Text(
             'Things to do each day. They show on Home to tick off, and '
-            'start fresh each morning. Tap one to rename it or to have it '
-            'done more than once a day, like five short tummy times. '
+            'start fresh each morning. Tap one to rename it, have it done '
+            'more than once a day, or give it minutes to reach — thirty '
+            'minutes of tummy time, timed or added a session at a time. '
             'Everyone caring for ${baby.name} sees the same list.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -158,7 +164,8 @@ class _ChecklistSettingsScreenState
                           ChecklistItem(
                             id: 'own-${DateTime.now().millisecondsSinceEpoch}',
                             label: got.label,
-                            perDay: got.perDay,
+                            perDay: got.minutes == null ? got.perDay : 1,
+                            minutes: got.minutes,
                           ),
                         ]);
                       },
@@ -174,7 +181,9 @@ class _ChecklistSettingsScreenState
               key: ValueKey(item.id),
               leading: Icon(checklistIcon(item.icon)),
               title: Text(item.label),
-              subtitle: item.perDay == 1
+              subtitle: item.timed
+                  ? Text('${minutesLabel(item.minutes!)} a day')
+                  : item.perDay == 1
                   ? null
                   : Text('${item.perDay} times a day'),
               onTap: () async {
@@ -184,7 +193,11 @@ class _ChecklistSettingsScreenState
                 _save(baby, [
                   for (final it in items)
                     it.id == item.id
-                        ? it.copyWith(label: got.label, perDay: got.perDay)
+                        ? it.withGoal(
+                            label: got.label,
+                            perDay: got.perDay,
+                            minutes: got.minutes,
+                          )
                         : it,
                 ]);
               },
@@ -215,13 +228,16 @@ class _ChecklistSettingsScreenState
   }
 }
 
-/// Asks for an item's name and how many times a day it is done. Cancelled,
-/// blank, or unchanged gives null.
-Future<({String label, int perDay})?> _askItem(
+/// What the item dialog hands back.
+typedef _ItemAnswer = ({String label, int perDay, int? minutes});
+
+/// Asks for an item's name and its daily goal: a number of times, or of
+/// minutes. Cancelled, blank, or unchanged gives null.
+Future<_ItemAnswer?> _askItem(
   BuildContext context, {
   ChecklistItem? initial,
 }) async {
-  final got = await showDialog<({String label, int perDay})>(
+  final got = await showDialog<_ItemAnswer>(
     context: context,
     builder: (_) => _ItemDialog(initial: initial),
   );
@@ -230,11 +246,15 @@ Future<({String label, int perDay})?> _askItem(
   if (label.isEmpty) return null;
   if (initial != null &&
       label == initial.label &&
-      got.perDay == initial.perDay) {
+      got.minutes == initial.minutes &&
+      (got.minutes != null || got.perDay == initial.perDay)) {
     return null;
   }
-  return (label: label, perDay: got.perDay);
+  return (label: label, perDay: got.perDay, minutes: got.minutes);
 }
+
+/// The steps a minutes goal moves in.
+const _minuteStep = 5;
 
 class _ItemDialog extends StatefulWidget {
   const _ItemDialog({this.initial});
@@ -248,6 +268,8 @@ class _ItemDialog extends StatefulWidget {
 class _ItemDialogState extends State<_ItemDialog> {
   late final _label = TextEditingController(text: widget.initial?.label);
   late int _perDay = widget.initial?.perDay ?? 1;
+  late int _minutes = widget.initial?.minutes ?? 30;
+  late bool _timed = widget.initial?.timed ?? false;
 
   @override
   void dispose() {
@@ -255,11 +277,21 @@ class _ItemDialogState extends State<_ItemDialog> {
     super.dispose();
   }
 
-  void _done() => Navigator.pop(context, (label: _label.text, perDay: _perDay));
+  void _done() => Navigator.pop(context, (
+    label: _label.text,
+    perDay: _perDay,
+    minutes: _timed ? _minutes : null,
+  ));
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final value = _timed ? _minutes : _perDay;
+    final canLower = _timed ? _minutes > _minuteStep : _perDay > 1;
+    final canRaise = _timed
+        ? _minutes + _minuteStep <= ChecklistItem.maxMinutes
+        : _perDay < ChecklistItem.maxPerDay;
+
     return AlertDialog(
       title: Text(widget.initial == null ? 'Add to the checklist' : 'Edit'),
       content: Column(
@@ -275,22 +307,46 @@ class _ItemDialogState extends State<_ItemDialog> {
             onSubmitted: (_) => _done(),
           ),
           const SizedBox(height: 8),
-          // Several times a day is ticked a session at a time on Home,
-          // "2/5", and done when they are all in.
+          // Counted is ticked a tap at a time on Home, "2/5"; timed fills
+          // up by the minute, "12/30 min", from a timer or minutes added.
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(
+                value: false,
+                label: Text('Times'),
+                icon: Icon(Icons.check),
+              ),
+              ButtonSegment(
+                value: true,
+                label: Text('Minutes'),
+                icon: Icon(Icons.timer_outlined),
+              ),
+            ],
+            selected: {_timed},
+            onSelectionChanged: (v) => setState(() => _timed = v.first),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
-                child: Text('Times a day', style: theme.textTheme.bodyLarge),
+                child: Text(
+                  _timed ? 'Minutes a day' : 'Times a day',
+                  style: theme.textTheme.bodyLarge,
+                ),
               ),
               IconButton(
                 tooltip: 'Fewer',
                 icon: const Icon(Icons.remove),
-                onPressed: _perDay > 1 ? () => setState(() => _perDay--) : null,
+                onPressed: canLower
+                    ? () => setState(
+                        () => _timed ? _minutes -= _minuteStep : _perDay--,
+                      )
+                    : null,
               ),
               SizedBox(
-                width: 28,
+                width: 36,
                 child: Text(
-                  '$_perDay',
+                  '$value',
                   key: const ValueKey('per-day'),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleMedium,
@@ -299,8 +355,10 @@ class _ItemDialogState extends State<_ItemDialog> {
               IconButton(
                 tooltip: 'More',
                 icon: const Icon(Icons.add),
-                onPressed: _perDay < ChecklistItem.maxPerDay
-                    ? () => setState(() => _perDay++)
+                onPressed: canRaise
+                    ? () => setState(
+                        () => _timed ? _minutes += _minuteStep : _perDay++,
+                      )
                     : null,
               ),
             ],

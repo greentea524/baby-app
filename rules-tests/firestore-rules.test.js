@@ -135,6 +135,7 @@ const check = (over = {}) => ({
   itemId: "vitamin-d",
   time: AT,
   label: "Vitamin D",
+  minutes: null,
   byName: "Alice",
   ...stamped(),
   ...over,
@@ -1272,6 +1273,18 @@ describe("the daily checklist", () => {
   it("accepts a tick saved before it carried the item's name", async () => {
     const { label, ...old } = check();
     await assertSucceeds(setDoc(checkRef(asAlice(), "old"), old));
+  });
+
+  it("accepts a timed session, in whole minutes", async () => {
+    await assertSucceeds(
+      setDoc(checkRef(asAlice(), "t1"), check({ itemId: "tummy-time", minutes: 12 })),
+    );
+  });
+
+  it("refuses a session of nothing, a fraction, or past four hours", async () => {
+    await assertFails(setDoc(checkRef(asAlice(), "t0"), check({ minutes: 0 })));
+    await assertFails(setDoc(checkRef(asAlice(), "tf"), check({ minutes: 2.5 })));
+    await assertFails(setDoc(checkRef(asAlice(), "tl"), check({ minutes: 241 })));
   });
 
   it("keeps a non-member out", async () => {

@@ -7,6 +7,7 @@ import '../../data/models/activity_entry.dart';
 import '../../data/models/daily_check.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../checklist/daily_checklist.dart';
+import '../checklist/timed_item_sheet.dart';
 import '../common/event_tile.dart';
 import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
@@ -164,6 +165,7 @@ class ActivityTile extends ConsumerWidget {
       title: label,
       subtitle: [
         'Daily checklist',
+        if (event.minutes case final m?) minutesLabel(m),
         if (by != null && by.isNotEmpty) 'by $by',
       ].join(' · '),
       trailing: trailing,

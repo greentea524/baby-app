@@ -29,6 +29,7 @@ class ChecklistItem {
     required this.label,
     this.icon = ChecklistIcon.other,
     this.perDay = 1,
+    this.minutes,
   });
 
   /// What its checks point at. Stable across renames, so renaming an item
@@ -41,8 +42,22 @@ class ChecklistItem {
   /// time, ticked a session at a time and shown as "2/5" until it is.
   final int perDay;
 
+  /// A daily goal in minutes, for an item done for a length of time rather
+  /// than a number of times: thirty minutes of tummy time, built up through
+  /// the day from a timer or minutes added by hand. Null for an item that is
+  /// counted; when set, [perDay] is not used.
+  final int? minutes;
+
+  bool get timed => minutes != null;
+
+  /// What a day has to reach: minutes for a timed item, times otherwise.
+  int get goal => minutes ?? perDay;
+
   /// The most times a day an item can ask for.
   static const maxPerDay = 12;
+
+  /// The longest daily goal in minutes, and the longest one session can be.
+  static const maxMinutes = 240;
 
   /// The longest label the rules accept.
   static const maxLabel = 40;
@@ -56,6 +71,10 @@ class ChecklistItem {
     icon: ChecklistIcon.fromName(map['icon'] as String?),
     // One for an item saved before there was a choice.
     perDay: ((map['perDay'] as num?)?.toInt() ?? 1).clamp(1, maxPerDay),
+    minutes: switch ((map['minutes'] as num?)?.toInt()) {
+      null => null,
+      final m => m.clamp(1, maxMinutes),
+    },
   );
 
   Map<String, dynamic> toMap() => {
@@ -63,13 +82,21 @@ class ChecklistItem {
     'label': label,
     'icon': icon.name,
     'perDay': perDay,
+    'minutes': minutes,
   };
 
-  ChecklistItem copyWith({String? label, int? perDay}) => ChecklistItem(
+  /// This item renamed, or with a new goal: [minutes] for a timed one, or
+  /// [perDay] times with no minutes for a counted one.
+  ChecklistItem withGoal({
+    required String label,
+    int perDay = 1,
+    int? minutes,
+  }) => ChecklistItem(
     id: id,
-    label: label ?? this.label,
+    label: label,
     icon: icon,
-    perDay: perDay ?? this.perDay,
+    perDay: minutes == null ? perDay : 1,
+    minutes: minutes,
   );
 
   @override
@@ -78,10 +105,11 @@ class ChecklistItem {
       other.id == id &&
       other.label == label &&
       other.icon == icon &&
-      other.perDay == perDay;
+      other.perDay == perDay &&
+      other.minutes == minutes;
 
   @override
-  int get hashCode => Object.hash(id, label, icon, perDay);
+  int get hashCode => Object.hash(id, label, icon, perDay, minutes);
 }
 
 /// The ready-made items offered in Settings. Ids are fixed, so adding the
@@ -92,12 +120,12 @@ const checklistPresets = <ChecklistItem>[
     label: 'Vitamin D',
     icon: ChecklistIcon.vitamin,
   ),
-  // A few short sessions through the day, rather than one long one.
+  // Built up through the day from short sessions, timed or added by hand.
   ChecklistItem(
     id: 'tummy-time',
     label: 'Tummy time',
     icon: ChecklistIcon.tummyTime,
-    perDay: 5,
+    minutes: 30,
   ),
   ChecklistItem(id: 'bath', label: 'Bath', icon: ChecklistIcon.bath),
   ChecklistItem(
@@ -124,6 +152,7 @@ class DailyCheck implements BabyEvent {
     required this.itemId,
     required this.time,
     this.label,
+    this.minutes,
     this.createdBy,
     this.byName,
   });
@@ -140,6 +169,10 @@ class DailyCheck implements BabyEvent {
   /// saved before it was kept.
   final String? label;
 
+  /// How long it went on, for a timed item: what counts towards the day's
+  /// goal. Null for an item that is counted.
+  final int? minutes;
+
   /// Who ticked it, by account. Written by the repository on create.
   final String? createdBy;
 
@@ -153,6 +186,7 @@ class DailyCheck implements BabyEvent {
       itemId: data['itemId'] as String,
       time: (data['time'] as Timestamp).toDate(),
       label: data['label'] as String?,
+      minutes: (data['minutes'] as num?)?.toInt(),
       createdBy: data['createdBy'] as String?,
       byName: data['byName'] as String?,
     );
@@ -163,6 +197,7 @@ class DailyCheck implements BabyEvent {
     'itemId': itemId,
     'time': Timestamp.fromDate(time),
     'label': label,
+    'minutes': minutes,
     'byName': byName,
   };
 }

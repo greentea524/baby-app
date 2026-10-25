@@ -372,6 +372,9 @@ service cloud.firestore {
             && d.itemId.size() > 0 && d.itemId.size() <= 40
             && d.time is timestamp
             && text(d.get('label', null))
+            // A timed session's length, in whole minutes, at most four hours.
+            && (d.get('minutes', null) == null
+                || (d.minutes is int && d.minutes > 0 && d.minutes <= 240))
             && text(d.get('byName', null));
         }
       }

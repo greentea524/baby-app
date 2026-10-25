@@ -11,6 +11,7 @@ import '../common/app_sheet.dart';
 import '../feeding/feeding_format.dart';
 import 'checklist_logic.dart';
 import 'checklist_settings_screen.dart';
+import 'timed_item_sheet.dart';
 
 /// Today's checklist on Home: each item as a chip, ticked once it is done.
 ///
@@ -22,6 +23,9 @@ import 'checklist_settings_screen.dart';
 /// An item done several times a day fills up a tap at a time: "2/5", with a
 /// ring that fills as it goes, and the tick once it is all done. A long
 /// press shows the day's sessions so far, with the way to take one back.
+///
+/// A timed item fills up by the minute — "12/30 min" — and a tap opens its
+/// timer, which shows on the chip while it runs.
 ///
 /// Not there at all until someone adds an item in Settings.
 class DailyChecklistCard extends ConsumerWidget {
@@ -38,8 +42,8 @@ class DailyChecklistCard extends ConsumerWidget {
     final scheme = theme.colorScheme;
     final today = dayOf(now);
     final checks = ref.watch(checksSinceProvider(today)).value ?? const [];
-    final counts = countsOn(checks, today);
-    bool isDone(ChecklistItem i) => (counts[i.id] ?? 0) >= i.perDay;
+    final counts = progressOn(checks, items, today);
+    bool isDone(ChecklistItem i) => (counts[i.id] ?? 0) >= i.goal;
     final count = items.where(isDone).length;
     final allDone = count == items.length;
 
@@ -88,7 +92,10 @@ class DailyChecklistCard extends ConsumerWidget {
                     _ItemChip(
                       item: item,
                       times: counts[item.id] ?? 0,
-                      onTap: () => isDone(item)
+                      timing: item.timed && watchTimerStart(ref, item) != null,
+                      onTap: () => item.timed
+                          ? showTimedItemSheet(context, item: item)
+                          : isDone(item)
                           ? _showToday(context, ref, item, checks)
                           : tickItem(
                               context,
@@ -96,7 +103,7 @@ class DailyChecklistCard extends ConsumerWidget {
                               item,
                               times: (counts[item.id] ?? 0) + 1,
                             ),
-                      onLongPress: (counts[item.id] ?? 0) == 0
+                      onLongPress: item.timed || (counts[item.id] ?? 0) == 0
                           ? null
                           : () => _showToday(context, ref, item, checks),
                     ),
@@ -159,41 +166,54 @@ class _ItemChip extends StatelessWidget {
     required this.item,
     required this.times,
     required this.onTap,
+    this.timing = false,
     this.onLongPress,
   });
 
   final ChecklistItem item;
+
+  /// How far today has got: times, or minutes for a timed item.
   final int times;
+
+  /// Whether its timer is running on this phone.
+  final bool timing;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final done = times >= item.perDay;
+    final goal = item.goal;
+    final done = times >= goal;
     final part = !done && times > 0;
-    final shown = times > item.perDay ? item.perDay : times;
+    final shown = times > goal && !item.timed ? goal : times;
 
     return GestureDetector(
       onLongPress: onLongPress,
       child: FilterChip(
         key: ValueKey('check-${item.id}'),
         selected: done,
-        avatar: done
+        avatar: timing
+            ? Icon(Icons.timer, key: ValueKey('timing-${item.id}'))
+            : done
             ? null
             : part
             ? SizedBox.square(
                 dimension: 18,
                 child: CircularProgressIndicator(
                   key: ValueKey('progress-${item.id}'),
-                  value: times / item.perDay,
+                  value: times / goal,
                   strokeWidth: 3,
                   backgroundColor: scheme.outlineVariant,
                 ),
               )
             : Icon(checklistIcon(item.icon)),
         label: Text(
-          item.perDay == 1 ? item.label : '${item.label} $shown/${item.perDay}',
+          item.timed
+              ? '${item.label} $shown/$goal min${timing ? ' · timing' : ''}'
+              : item.perDay == 1
+              ? item.label
+              : '${item.label} $shown/$goal',
         ),
         onSelected: (_) => onTap(),
       ),
@@ -504,8 +524,8 @@ class ChecklistStreaks extends ConsumerWidget {
         for (final item in items)
           _StreakRow(
             item: item,
-            streak: streak(checks, item.id, clock, perDay: item.perDay),
-            week: recentDays(checks, item.id, clock, perDay: item.perDay),
+            streak: streak(checks, item, clock),
+            week: recentDays(checks, item, clock),
           ),
         if (onEdit case final edit?) ...[
           const SizedBox(height: 8),
