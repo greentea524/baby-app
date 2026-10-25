@@ -23,7 +23,10 @@ import 'package:baby_app/features/home/home_status_card.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  final now = DateTime.now();
+  // Mid-afternoon, fixed. On the live clock this failed between midnight
+  // and two: the feed two hours back was then yesterday's, and its time
+  // reads "2h ago · Oct 24, 11:56 PM" on one line, as it should.
+  final now = DateTime(2026, 10, 24, 15);
   final baby = Baby(
     id: 'baby1',
     name: 'Ada',
@@ -87,7 +90,7 @@ void main() {
               data: MediaQuery.of(
                 context,
               ).copyWith(textScaler: TextScaler.linear(textScale)),
-              child: const HomeScreen(),
+              child: HomeScreen(now: now),
             ),
           ),
         ),

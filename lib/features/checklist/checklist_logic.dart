@@ -37,6 +37,18 @@ Map<String, DailyCheck> ticksOn(List<DailyCheck> checks, DateTime day) {
   return ticks;
 }
 
+/// How many times each item was ticked on [day], by item id.
+Map<String, int> countsOn(List<DailyCheck> checks, DateTime day) {
+  final start = dayOf(day);
+  final end = daysBefore(start, -1);
+  final counts = <String, int>{};
+  for (final c in checks) {
+    if (c.time.isBefore(start) || !c.time.isBefore(end)) continue;
+    counts[c.itemId] = (counts[c.itemId] ?? 0) + 1;
+  }
+  return counts;
+}
+
 /// Every tick of [itemId] on [day] — what unticking it removes.
 List<DailyCheck> ticksOf(List<DailyCheck> checks, String itemId, DateTime day) {
   final start = dayOf(day);
@@ -48,40 +60,54 @@ List<DailyCheck> ticksOf(List<DailyCheck> checks, String itemId, DateTime day) {
   ];
 }
 
-/// The days [itemId] was ticked, as midnights.
-Set<DateTime> _daysTicked(List<DailyCheck> checks, String itemId) => {
-  for (final c in checks)
-    if (c.itemId == itemId) dayOf(c.time),
-};
+/// How many times [itemId] was ticked each day, keyed by midnight.
+Map<DateTime, int> _dailyCounts(List<DailyCheck> checks, String itemId) {
+  final counts = <DateTime, int>{};
+  for (final c in checks) {
+    if (c.itemId != itemId) continue;
+    final day = dayOf(c.time);
+    counts[day] = (counts[day] ?? 0) + 1;
+  }
+  return counts;
+}
 
-/// How many days in a row [itemId] has been done, up to [now].
+/// How many days in a row [itemId] has been done — ticked [perDay] times —
+/// up to [now].
 ///
 /// Today not done yet does not break it: the day is not over. So a streak
-/// counts back from today when today is ticked, and from yesterday when it
-/// is not — and is nought only once a whole day has gone by unticked.
-int streak(List<DailyCheck> checks, String itemId, DateTime now) {
-  final days = _daysTicked(checks, itemId);
+/// counts back from today when today is done, and from yesterday when it
+/// is not — and is nought only once a whole day has gone by short.
+int streak(
+  List<DailyCheck> checks,
+  String itemId,
+  DateTime now, {
+  int perDay = 1,
+}) {
+  final counts = _dailyCounts(checks, itemId);
+  bool done(DateTime day) => (counts[day] ?? 0) >= perDay;
   final today = dayOf(now);
-  var day = days.contains(today) ? today : daysBefore(today, 1);
+  var day = done(today) ? today : daysBefore(today, 1);
   var n = 0;
-  while (days.contains(day)) {
+  while (done(day)) {
     n++;
     day = daysBefore(day, 1);
   }
   return n;
 }
 
-/// Whether [itemId] was done on each of the last [count] days, oldest first,
-/// ending today.
-List<bool> recentDays(
+/// How much of [itemId] was done on each of the last [count] days, oldest
+/// first, ending today: 1 for done, a fraction for part of [perDay].
+List<double> recentDays(
   List<DailyCheck> checks,
   String itemId,
   DateTime now, {
+  int perDay = 1,
   int count = 7,
 }) {
-  final days = _daysTicked(checks, itemId);
+  final counts = _dailyCounts(checks, itemId);
   final today = dayOf(now);
   return [
-    for (var i = count - 1; i >= 0; i--) days.contains(daysBefore(today, i)),
+    for (var i = count - 1; i >= 0; i--)
+      ((counts[daysBefore(today, i)] ?? 0) / perDay).clamp(0.0, 1.0),
   ];
 }

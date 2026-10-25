@@ -28,6 +28,7 @@ class ChecklistItem {
     required this.id,
     required this.label,
     this.icon = ChecklistIcon.other,
+    this.perDay = 1,
   });
 
   /// What its checks point at. Stable across renames, so renaming an item
@@ -35,6 +36,13 @@ class ChecklistItem {
   final String id;
   final String label;
   final ChecklistIcon icon;
+
+  /// How many times a day makes it done: one for vitamin D, a few for tummy
+  /// time, ticked a session at a time and shown as "2/5" until it is.
+  final int perDay;
+
+  /// The most times a day an item can ask for.
+  static const maxPerDay = 12;
 
   /// The longest label the rules accept.
   static const maxLabel = 40;
@@ -46,19 +54,34 @@ class ChecklistItem {
     id: map['id'] as String? ?? '',
     label: map['label'] as String? ?? '',
     icon: ChecklistIcon.fromName(map['icon'] as String?),
+    // One for an item saved before there was a choice.
+    perDay: ((map['perDay'] as num?)?.toInt() ?? 1).clamp(1, maxPerDay),
   );
 
-  Map<String, dynamic> toMap() => {'id': id, 'label': label, 'icon': icon.name};
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'label': label,
+    'icon': icon.name,
+    'perDay': perDay,
+  };
+
+  ChecklistItem copyWith({String? label, int? perDay}) => ChecklistItem(
+    id: id,
+    label: label ?? this.label,
+    icon: icon,
+    perDay: perDay ?? this.perDay,
+  );
 
   @override
   bool operator ==(Object other) =>
       other is ChecklistItem &&
       other.id == id &&
       other.label == label &&
-      other.icon == icon;
+      other.icon == icon &&
+      other.perDay == perDay;
 
   @override
-  int get hashCode => Object.hash(id, label, icon);
+  int get hashCode => Object.hash(id, label, icon, perDay);
 }
 
 /// The ready-made items offered in Settings. Ids are fixed, so adding the
@@ -69,10 +92,12 @@ const checklistPresets = <ChecklistItem>[
     label: 'Vitamin D',
     icon: ChecklistIcon.vitamin,
   ),
+  // A few short sessions through the day, rather than one long one.
   ChecklistItem(
     id: 'tummy-time',
     label: 'Tummy time',
     icon: ChecklistIcon.tummyTime,
+    perDay: 5,
   ),
   ChecklistItem(id: 'bath', label: 'Bath', icon: ChecklistIcon.bath),
   ChecklistItem(
@@ -90,8 +115,8 @@ const checklistPresets = <ChecklistItem>[
 
 /// One item ticked off. Stored at `babies/{babyId}/checks/{id}`.
 ///
-/// A tick is a record that it was done, when and by whom; unticking deletes
-/// it. Which day it counts for is the day of [time] on the phone reading it.
+/// A tick is a record that it was done, when and by whom — or for an item
+/// done several times a day, one of those times; unticking deletes it. Which day it counts for is the day of [time] on the phone reading it.
 class DailyCheck implements BabyEvent {
   const DailyCheck({
     required this.id,

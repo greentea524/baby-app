@@ -126,7 +126,41 @@ void main() {
         'bath',
         now,
       );
-      expect(week, [true, false, false, false, false, false, true]);
+      expect(week, [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]);
+    });
+
+    test('done several times a day, counts only the days all were done', () {
+      final checks = [
+        // Today, two of three so far: not done yet, but not a break either.
+        daysAgo('tummy-time', 0),
+        daysAgo('tummy-time', 0),
+        for (var i = 0; i < 3; i++) daysAgo('tummy-time', 1),
+        for (var i = 0; i < 3; i++) daysAgo('tummy-time', 2),
+        // Short: ends the run.
+        daysAgo('tummy-time', 3),
+      ];
+      expect(streak(checks, 'tummy-time', now, perDay: 3), 2);
+      expect(recentDays(checks, 'tummy-time', now, perDay: 3, count: 4), [
+        closeTo(1 / 3, 1e-9),
+        1.0,
+        1.0,
+        closeTo(2 / 3, 1e-9),
+      ]);
+    });
+
+    test('a day done more than asked is still just done', () {
+      final checks = [for (var i = 0; i < 4; i++) daysAgo('bath', 0)];
+      expect(recentDays(checks, 'bath', now, count: 1), [1.0]);
+    });
+
+    test('counts every tick of the day', () {
+      final counts = countsOn([
+        daysAgo('tummy-time', 0),
+        daysAgo('tummy-time', 0),
+        daysAgo('tummy-time', 1),
+        daysAgo('bath', 0),
+      ], now);
+      expect(counts, {'tummy-time': 2, 'bath': 1});
     });
 
     test('reads out plainly', () {
@@ -143,6 +177,16 @@ void main() {
         ChecklistItem.fromMap({'id': 'x', 'label': 'X', 'icon': 'rocket'}).icon,
         ChecklistIcon.other,
       );
+    });
+
+    test('is once a day unless it says otherwise', () {
+      expect(ChecklistItem.fromMap({'id': 'x', 'label': 'X'}).perDay, 1);
+      expect(
+        ChecklistItem.fromMap({'id': 'x', 'label': 'X', 'perDay': 99}).perDay,
+        ChecklistItem.maxPerDay,
+      );
+      const tummy = ChecklistItem(id: 't', label: 'Tummy time', perDay: 5);
+      expect(ChecklistItem.fromMap(tummy.toMap()), tummy);
     });
   });
 
@@ -273,6 +317,93 @@ void main() {
       expect(repo.deleted, unorderedEquals(['c1', 'c2']));
     });
 
+    group('done several times a day', () {
+      const tummy = ChecklistItem(
+        id: 'tummy-time',
+        label: 'Tummy time',
+        icon: ChecklistIcon.tummyTime,
+        perDay: 5,
+      );
+      List<DailyCheck> sessions(int n) => [
+        for (var i = 0; i < n; i++)
+          tick('tummy-time', DateTime(2026, 10, 24, 8 + i), id: 's$i'),
+      ];
+
+      testWidgets('shows how far along it is', (tester) async {
+        await pumpCard(tester, items: const [tummy], checks: sessions(2));
+        expect(find.text('Tummy time 2/5'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('progress-tummy-time')),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<FilterChip>(
+                find.byKey(const ValueKey('check-tummy-time')),
+              )
+              .selected,
+          isFalse,
+        );
+        // Part done is not done.
+        expect(find.text('DAILY · 0 OF 1'), findsOneWidget);
+      });
+
+      testWidgets('each tap adds one, and says which', (tester) async {
+        final repo = await pumpCard(
+          tester,
+          items: const [tummy],
+          checks: sessions(2),
+        );
+        await tester.tap(find.text('Tummy time 2/5'));
+        await tester.pumpAndSettle();
+        expect(repo.added.single.itemId, 'tummy-time');
+        expect(find.text('Tummy time 3 of 5'), findsOneWidget);
+      });
+
+      testWidgets('is ticked once they are all in', (tester) async {
+        final repo = await pumpCard(
+          tester,
+          items: const [tummy],
+          checks: sessions(5),
+        );
+        expect(find.text('DAILY · ALL DONE TODAY'), findsOneWidget);
+        expect(
+          tester
+              .widget<FilterChip>(
+                find.byKey(const ValueKey('check-tummy-time')),
+              )
+              .selected,
+          isTrue,
+        );
+
+        // Done, a tap reads rather than adding a sixth.
+        await tester.tap(find.text('Tummy time 5/5'));
+        await tester.pumpAndSettle();
+        expect(repo.added, isEmpty);
+        expect(find.text('All 5 done today'), findsOneWidget);
+      });
+
+      testWidgets('a long press lists them, and takes the last one back', (
+        tester,
+      ) async {
+        final repo = await pumpCard(
+          tester,
+          items: const [tummy],
+          checks: sessions(2),
+        );
+        await tester.longPress(find.text('Tummy time 2/5'));
+        await tester.pumpAndSettle();
+        expect(find.text('2 of 5 today'), findsOneWidget);
+        expect(find.textContaining('1. 8:00 AM'), findsOneWidget);
+        expect(find.textContaining('2. 9:00 AM'), findsOneWidget);
+
+        await tester.tap(find.text('Take the last one back'));
+        await tester.pumpAndSettle();
+        expect(repo.deleted, ['s1']);
+        expect(repo.added, isEmpty);
+      });
+    });
+
     testWidgets('opens the streaks', (tester) async {
       await pumpCard(
         tester,
@@ -304,6 +435,57 @@ void main() {
         textScale: 2,
       );
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('in Settings, how many times a day', () {
+    Future<_RecordingBabies> pump(
+      WidgetTester tester,
+      List<ChecklistItem> items,
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      final stored = await SharedPreferences.getInstance();
+      final repo = _RecordingBabies();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(stored),
+            authStateProvider.overrideWith((ref) => Stream.value(null)),
+            currentBabyProvider.overrideWithValue(baby(items)),
+            babiesRepositoryProvider.overrideWithValue(repo),
+          ],
+          child: const MaterialApp(home: ChecklistSettingsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    testWidgets('is set on an item, keeping its id', (tester) async {
+      final repo = await pump(tester, const [
+        ChecklistItem(id: 'tummy-time', label: 'Tummy time'),
+      ]);
+      await tester.tap(find.text('Tummy time'));
+      await tester.pumpAndSettle();
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(find.byTooltip('More'));
+        await tester.pump();
+      }
+      expect(find.text('5'), findsOneWidget);
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      final saved = repo.saved.single.single;
+      expect(saved.id, 'tummy-time');
+      expect(saved.perDay, 5);
+      expect(find.text('5 times a day'), findsOneWidget);
+    });
+
+    testWidgets('the ready-made tummy time asks for five', (tester) async {
+      final repo = await pump(tester, const []);
+      await tester.tap(find.byKey(const ValueKey('add-tummy-time')));
+      await tester.pumpAndSettle();
+      expect(repo.saved.single.single.perDay, 5);
     });
   });
 

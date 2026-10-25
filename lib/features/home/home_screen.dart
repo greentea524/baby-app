@@ -30,7 +30,11 @@ import 'today_summary.dart';
 /// Home dashboard: last-fed / last-changed indicators, quick-log entry
 /// points for feeds (KAN-130) and diapers (KAN-131), and recent activity.
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.now});
+
+  /// A fixed clock, for tests. When given, the screen does not tick, and
+  /// what it shows does not depend on the time of day the test runs at.
+  final DateTime? now;
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -39,7 +43,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Ticks so relative "time ago" labels stay fresh without a stream write.
   Timer? _ticker;
-  DateTime _now = DateTime.now();
+  late DateTime _now = widget.now ?? DateTime.now();
   bool _launchHandled = false;
 
   /// Opens the quick-log sheet requested by a PWA shortcut (KAN-166), once
@@ -63,6 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.now != null) return;
     _ticker = Timer.periodic(
       const Duration(seconds: 30),
       (_) => setState(() => _now = DateTime.now()),
