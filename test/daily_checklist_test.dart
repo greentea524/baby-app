@@ -648,6 +648,19 @@ void main() {
       expect(saved.time, now);
     });
 
+    testWidgets('a minute at a time, five, or ten', (tester) async {
+      final (:repo, container: _) = await pumpSheet(tester, clock: () => now);
+      expect(find.text('1 min'), findsOneWidget);
+      expect(find.text('5 min'), findsOneWidget);
+      expect(find.text('10 min'), findsOneWidget);
+      expect(find.text('15 min'), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('add-1')));
+      await tester.pump();
+      expect(repo.added.single.minutes, 1);
+      expect(find.text('1 min of Tummy time added'), findsOneWidget);
+    });
+
     testWidgets('times a session, saved from when it started', (tester) async {
       var clock = now;
       final (:repo, :container) = await pumpSheet(tester, clock: () => clock);

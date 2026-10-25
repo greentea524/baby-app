@@ -102,7 +102,7 @@ String minutesLabel(int minutes) {
 }
 
 /// The minutes a session can be added as, after the fact.
-const quickMinutes = [5, 10, 15];
+const quickMinutes = [1, 5, 10];
 
 /// Opens the sheet for a timed item: how far today has got, the timer, and
 /// minutes to add by hand.
