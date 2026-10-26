@@ -46,6 +46,37 @@ void main() {
       expect(escapeCsv('say "hi"'), '"say ""hi"""');
       expect(escapeCsv('line1\nline2'), '"line1\nline2"');
     });
+
+    test('defuses a cell a spreadsheet would evaluate', () {
+      // Excel, Numbers and Sheets all read these four as the start of an
+      // expression, so without this a note arrives at the pediatrician as a
+      // live formula rather than as the text someone typed.
+      expect(escapeCsv('=1+1'), "'=1+1");
+      expect(escapeCsv('+1'), "'+1");
+      expect(escapeCsv('-1+1'), "'-1+1");
+      expect(escapeCsv('@SUM(A1)'), "'@SUM(A1)");
+    });
+
+    test('defuses one hidden behind leading whitespace', () {
+      // Excel trims the whitespace before it decides, so the tab is no
+      // defence on its own.
+      expect(escapeCsv('\t=1+1'), "'\t=1+1");
+      expect(escapeCsv('\r=1+1'), '"\'\r=1+1"');
+    });
+
+    test('leaves an operator that is not leading alone', () {
+      // Only the first character decides, so ordinary prose keeps its shape.
+      expect(escapeCsv('7am-9am'), '7am-9am');
+      expect(escapeCsv('weight = fine'), 'weight = fine');
+      expect(escapeCsv('2026-07-01'), '2026-07-01');
+    });
+
+    test('still quotes a defused value that needs it', () {
+      // The two jobs compose: the apostrophe goes inside the quotes, or the
+      // row shears apart on the very comma the quoting was there to protect.
+      expect(escapeCsv('=a,b'), '"\'=a,b"');
+      expect(escapeCsv('=say "hi"'), '"\'=say ""hi"""');
+    });
   });
 
   group('buildCsv', () {
@@ -105,6 +136,40 @@ void main() {
         ),
       );
       expect(csv, contains('"green, seedy"'));
+    });
+
+    test('a note written as a formula reaches the sheet as text', () {
+      // Notes are free text that any caregiver on the baby can write, and
+      // this file exists to be opened in a spreadsheet by someone else.
+      final csv = buildCsv(
+        _data(
+          diapers: [
+            DiaperEvent(
+              id: 'd',
+              type: DiaperType.dirty,
+              time: DateTime(2026, 7, 1, 8),
+              notes: '=HYPERLINK("http://example.invalid","Results")',
+            ),
+          ],
+        ),
+      );
+      expect(csv, contains("'=HYPERLINK"));
+      // Nothing left anywhere a parser would hand the cell over as a formula.
+      expect(csv, isNot(contains(',=HYPERLINK')));
+      expect(csv, isNot(contains('"=HYPERLINK')));
+      // The whole note is still one quoted cell, with the apostrophe inside
+      // the quotes and the inner quotes doubled. Splitting this row on commas
+      // would show four cells, which is the reason the quoting has to survive
+      // the defusing rather than being applied instead of it.
+      //
+      // Matched as a whole cell rather than at the end of the row: Notes has
+      // not been the last column since Dose arrived, and the property here is
+      // about the cell, not where it sits.
+      final rows = csv.trim().split('\n');
+      expect(
+        rows[1],
+        contains(',"\'=HYPERLINK(""http://example.invalid"",""Results"")"'),
+      );
     });
   });
 
