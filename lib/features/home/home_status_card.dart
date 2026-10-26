@@ -135,7 +135,7 @@ class HomeStatusCard extends ConsumerWidget {
       logLabel: ref.watch(bottleShortcutProvider) ? 'Log bottle' : 'Log feed',
       label: last == null
           ? 'Feed'
-          : _numbered(
+          : numberedLabel(
               'Feed',
               // Every milk feed today, bottle or breast; solids count on
               // their own row.
@@ -175,7 +175,7 @@ class HomeStatusCard extends ConsumerWidget {
       icon: FeedingFormat.typeIcon(FeedingType.solids),
       onLog: () => showFeedingQuickLog(context, type: FeedingType.solids),
       logLabel: 'Log solids',
-      label: _numbered(
+      label: numberedLabel(
         'Solids',
         numberToday(
           ref.watch(recentFeedingsProvider).value ?? const [],
@@ -216,7 +216,7 @@ class HomeStatusCard extends ConsumerWidget {
       logLabel: 'Log diaper',
       label: last == null
           ? 'Diaper'
-          : _numbered(
+          : numberedLabel(
               'Diaper',
               numberToday(
                 ref.watch(recentDiapersProvider).value ?? const [],
@@ -296,7 +296,7 @@ class HomeStatusCard extends ConsumerWidget {
       logLabel: 'Log pump',
       label: last == null
           ? 'Pump'
-          : _numbered(
+          : numberedLabel(
               'Pump',
               numberToday(
                 ref.watch(recentPumpingProvider).value ?? const [],
@@ -1089,7 +1089,8 @@ int? numberToday<T>(
 
 /// "Feed #3", or just [label] without a number. Held together, so the
 /// number never wraps away from what it counts.
-String _numbered(String label, int? n) => n == null ? label : '$label\u00a0#$n';
+String numberedLabel(String label, int? n) =>
+    n == null ? label : '$label\u00a0#$n';
 
 /// Opens the feed sheet the way this household has asked for it: straight
 /// to a bottle when that shortcut is on, otherwise asking what kind.

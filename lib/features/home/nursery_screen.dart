@@ -143,7 +143,20 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                       final fed = _Readout(
                         compact: compact,
                         icon: Icons.local_drink_outlined,
-                        label: 'Last fed',
+                        // Which of today's feeds it was, as on Home.
+                        label: lastFed == null
+                            ? 'Last fed'
+                            : numberedLabel(
+                                'Last fed',
+                                numberToday(
+                                  ref.watch(recentFeedingsProvider).value ??
+                                      const [],
+                                  lastFed,
+                                  (e) => e.startTime,
+                                  clock,
+                                  same: (e) => e.type != FeedingType.solids,
+                                ),
+                              ),
                         event: lastFed,
                         timeOf: (e) => e.startTime,
                         now: clock,
@@ -197,7 +210,18 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                       final changed = _Readout(
                         compact: compact,
                         icon: Icons.baby_changing_station,
-                        label: 'Last changed',
+                        label: lastChanged == null
+                            ? 'Last changed'
+                            : numberedLabel(
+                                'Last changed',
+                                numberToday(
+                                  ref.watch(recentDiapersProvider).value ??
+                                      const [],
+                                  lastChanged,
+                                  (e) => e.time,
+                                  clock,
+                                ),
+                              ),
                         event: lastChanged,
                         timeOf: (e) => e.time,
                         now: clock,
@@ -335,7 +359,15 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
     return _Readout(
       compact: compact,
       icon: PumpingFormat.icon,
-      label: 'Last pumped',
+      label: numberedLabel(
+        'Last pumped',
+        numberToday(
+          ref.watch(recentPumpingProvider).value ?? const [],
+          last,
+          (e) => e.time,
+          clock,
+        ),
+      ),
       // Same way in as Home's pump row. On a propped-up tablet the fridge is
       // often the next question, and leaving nursery mode to find it would be
       // the long way round.

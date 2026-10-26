@@ -22,6 +22,11 @@ import 'package:baby_app/features/home/nursery_screen.dart';
 /// Not Home scaled up: a couple of readouts, three buttons, and nothing else
 /// — read from across a room and tapped while holding a baby. A third
 /// readout appears only for households that pump.
+/// A nursery card's label — "Last fed" — with or without today's number
+/// after it ("Last fed #3").
+Finder cardLabel(String name) =>
+    find.textContaining(RegExp('^$name(\u00a0#\\d+)?\$'));
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -118,9 +123,9 @@ void main() {
   testWidgets('shows how long since each, large', (tester) async {
     await pumpNursery(tester);
 
-    expect(find.text('Last fed'), findsOneWidget);
+    expect(cardLabel('Last fed'), findsOneWidget);
     expect(find.text('2 hr ago'), findsOneWidget);
-    expect(find.text('Last changed'), findsOneWidget);
+    expect(cardLabel('Last changed'), findsOneWidget);
     expect(find.text('40 min ago'), findsOneWidget);
   });
 
@@ -281,7 +286,7 @@ void main() {
     final chip = find.byType(DueChip);
     expect(chip, findsOneWidget);
 
-    final fed = tester.getRect(find.text('Last fed'));
+    final fed = tester.getRect(cardLabel('Last fed'));
     final rect = tester.getRect(chip);
     expect(rect.top, greaterThan(fed.bottom));
 
@@ -290,7 +295,7 @@ void main() {
     // be, so it holds however the two are arranged.
     final card = tester.getRect(
       find
-          .ancestor(of: find.text('Last fed'), matching: find.byType(Container))
+          .ancestor(of: cardLabel('Last fed'), matching: find.byType(Container))
           .first,
     );
     expect(card.contains(rect.topLeft), isTrue);
@@ -342,7 +347,7 @@ void main() {
       expect(tester.takeException(), isNull);
 
       final scaler = MediaQuery.textScalerOf(
-        tester.element(find.text('Last fed')),
+        tester.element(cardLabel('Last fed')),
       );
       expect(scaler.scale(1), lessThanOrEqualTo(NurseryScreen.maxTextScale));
       // And a reader who asked for large text keeps it.
@@ -363,8 +368,8 @@ void main() {
       // height it could have and the screen is mostly empty beside them.
       await pumpNursery(tester, size: const Size(900, 600));
 
-      final fed = tester.getRect(find.text('Last fed'));
-      final changed = tester.getRect(find.text('Last changed'));
+      final fed = tester.getRect(cardLabel('Last fed'));
+      final changed = tester.getRect(cardLabel('Last changed'));
       expect(changed.left, greaterThan(fed.right));
     });
 
@@ -373,7 +378,7 @@ void main() {
       // full width to themselves.
       await pumpNursery(tester, size: const Size(900, 600));
 
-      final card = tester.getRect(find.text('Last fed'));
+      final card = tester.getRect(cardLabel('Last fed'));
       final button = tester.getRect(find.text('Bottle'));
       expect(button.top, greaterThan(card.bottom));
     });
@@ -387,8 +392,8 @@ void main() {
       // screen with room either side.
       await pumpNursery(tester, size: const Size(834, 1194));
 
-      final fed = tester.getRect(find.text('Last fed'));
-      final changed = tester.getRect(find.text('Last changed'));
+      final fed = tester.getRect(cardLabel('Last fed'));
+      final changed = tester.getRect(cardLabel('Last changed'));
       expect(changed.left, greaterThan(fed.right));
     });
 
@@ -397,8 +402,8 @@ void main() {
       // of slivers, so width is what decides, not orientation.
       await pumpNursery(tester, size: const Size(390, 844));
 
-      final fed = tester.getRect(find.text('Last fed'));
-      final changed = tester.getRect(find.text('Last changed'));
+      final fed = tester.getRect(cardLabel('Last fed'));
+      final changed = tester.getRect(cardLabel('Last changed'));
       expect(changed.top, greaterThan(fed.bottom));
     });
 
@@ -410,13 +415,74 @@ void main() {
 
       expect(find.text('Bottle'), findsOneWidget);
       expect(find.text('Diaper'), findsOneWidget);
-      expect(find.text('Last fed'), findsOneWidget);
+      expect(cardLabel('Last fed'), findsOneWidget);
     });
 
     testWidgets('and survives it at the largest text size', (tester) async {
       await pumpNursery(tester, size: const Size(844, 390), textScale: 2.0);
       expect(tester.takeException(), isNull);
     });
+  });
+
+  testWidgets('says which of today\'s each card is showing, as Home does', (
+    tester,
+  ) async {
+    DateTime at(int hour, {int day = 24}) => DateTime(2026, 8, day, hour);
+    await pumpNursery(
+      tester,
+      feeds: [
+        // Newest first, as the repository hands them back.
+        FeedingEvent(
+          id: 'f3',
+          type: FeedingType.bottle,
+          startTime: at(12),
+          amountMl: 120,
+        ),
+        // Solids count on their own; this is a count of milk feeds.
+        FeedingEvent(id: 's', type: FeedingType.solids, startTime: at(10)),
+        FeedingEvent(id: 'f2', type: FeedingType.breast, startTime: at(9)),
+        FeedingEvent(
+          id: 'f1',
+          type: FeedingType.bottle,
+          startTime: at(6),
+          amountMl: 90,
+        ),
+        // Yesterday's: a day that is over.
+        FeedingEvent(
+          id: 'y',
+          type: FeedingType.bottle,
+          startTime: at(22, day: 23),
+          amountMl: 90,
+        ),
+      ],
+      diapers: [
+        for (final (i, h) in [13, 11, 8].indexed)
+          DiaperEvent(id: 'd$i', type: DiaperType.wet, time: at(h)),
+      ],
+      pumps: [
+        for (final (i, h) in [13, 9].indexed)
+          PumpingEvent(id: 'p$i', time: at(h), amountMl: 90),
+      ],
+    );
+
+    expect(find.text('Last fed\u00a0#3'), findsOneWidget);
+    expect(find.text('Last changed\u00a0#3'), findsOneWidget);
+    expect(find.text('Last pumped\u00a0#2'), findsOneWidget);
+  });
+
+  testWidgets('and no number for last night\'s', (tester) async {
+    await pumpNursery(
+      tester,
+      feeds: [
+        FeedingEvent(
+          id: 'y',
+          type: FeedingType.bottle,
+          startTime: DateTime(2026, 8, 23, 22),
+          amountMl: 90,
+        ),
+      ],
+    );
+    expect(find.text('Last fed'), findsOneWidget);
   });
 
   group('the pump card', () {
@@ -432,7 +498,7 @@ void main() {
     testWidgets('is there for a household that pumps', (tester) async {
       await pumpNursery(tester, pumps: pumped);
 
-      expect(find.text('Last pumped'), findsOneWidget);
+      expect(cardLabel('Last pumped'), findsOneWidget);
       expect(find.text('30 min ago'), findsOneWidget);
     });
 
@@ -453,9 +519,9 @@ void main() {
       // conditional: an empty third of this screen says nothing.
       await pumpNursery(tester);
 
-      expect(find.text('Last pumped'), findsNothing);
-      expect(find.text('Last fed'), findsOneWidget);
-      expect(find.text('Last changed'), findsOneWidget);
+      expect(cardLabel('Last pumped'), findsNothing);
+      expect(cardLabel('Last fed'), findsOneWidget);
+      expect(cardLabel('Last changed'), findsOneWidget);
     });
 
     testWidgets('or when pumping is switched off', (tester) async {
@@ -465,7 +531,7 @@ void main() {
         prefs: {'show_pumping_action': false},
       );
 
-      expect(find.text('Last pumped'), findsNothing);
+      expect(cardLabel('Last pumped'), findsNothing);
     });
 
     testWidgets('carries the cadence countdown when one is set', (
@@ -487,7 +553,7 @@ void main() {
       await pumpNursery(tester, pumps: pumped);
 
       expect(find.byType(FridgeButton), findsOneWidget);
-      final card = tester.getRect(find.text('Last pumped'));
+      final card = tester.getRect(cardLabel('Last pumped'));
       final button = tester.getRect(find.byType(FridgeButton));
       // Level with the label, at the card's top-right. The label fills the
       // line up to the button, so the two meet rather than leave a gap.
@@ -497,7 +563,7 @@ void main() {
 
     testWidgets('but not once the fridge is switched off', (tester) async {
       await pumpNursery(tester, pumps: pumped, prefs: {'show_fridge': false});
-      expect(find.text('Last pumped'), findsOneWidget);
+      expect(cardLabel('Last pumped'), findsOneWidget);
       expect(find.byType(FridgeButton), findsNothing);
     });
 
@@ -530,9 +596,9 @@ void main() {
     ) async {
       await pumpNursery(tester, pumps: pumped, size: const Size(1200, 800));
 
-      final fed = tester.getRect(find.text('Last fed'));
-      final changed = tester.getRect(find.text('Last changed'));
-      final pump = tester.getRect(find.text('Last pumped'));
+      final fed = tester.getRect(cardLabel('Last fed'));
+      final changed = tester.getRect(cardLabel('Last changed'));
+      final pump = tester.getRect(cardLabel('Last pumped'));
 
       expect(changed.left, greaterThan(fed.right));
       expect(pump.left, greaterThan(changed.right));
@@ -555,9 +621,9 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         await pumpNursery(tester, pumps: pumped, size: size);
 
-        final fed = tester.getRect(find.text('Last fed'));
-        final changed = tester.getRect(find.text('Last changed'));
-        final pump = tester.getRect(find.text('Last pumped'));
+        final fed = tester.getRect(cardLabel('Last fed'));
+        final changed = tester.getRect(cardLabel('Last changed'));
+        final pump = tester.getRect(cardLabel('Last pumped'));
 
         expect(changed.left, greaterThan(fed.right), reason: '$size');
         expect(pump.left, greaterThan(changed.right), reason: '$size');
@@ -571,9 +637,9 @@ void main() {
       // shaving every card thinner. Two and one beats three slivers.
       await pumpNursery(tester, pumps: pumped, size: const Size(700, 500));
 
-      final fed = tester.getRect(find.text('Last fed'));
-      final changed = tester.getRect(find.text('Last changed'));
-      final pump = tester.getRect(find.text('Last pumped'));
+      final fed = tester.getRect(cardLabel('Last fed'));
+      final changed = tester.getRect(cardLabel('Last changed'));
+      final pump = tester.getRect(cardLabel('Last pumped'));
 
       expect(changed.left, greaterThan(fed.right));
       expect(pump.top, greaterThan(changed.bottom));
@@ -582,8 +648,8 @@ void main() {
     testWidgets('and stack on a phone held upright', (tester) async {
       await pumpNursery(tester, pumps: pumped, size: const Size(390, 844));
 
-      final changed = tester.getRect(find.text('Last changed'));
-      final pump = tester.getRect(find.text('Last pumped'));
+      final changed = tester.getRect(cardLabel('Last changed'));
+      final pump = tester.getRect(cardLabel('Last pumped'));
       expect(pump.top, greaterThan(changed.bottom));
     });
 
@@ -593,7 +659,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('Bottle'), findsOneWidget);
-      expect(find.text('Last pumped'), findsOneWidget);
+      expect(cardLabel('Last pumped'), findsOneWidget);
     });
 
     testWidgets('and survives it at the largest text size', (tester) async {
@@ -713,7 +779,7 @@ void main() {
     Color cardColour(WidgetTester tester, String label) {
       final box = tester.widget<Container>(
         find
-            .ancestor(of: find.text(label), matching: find.byType(Container))
+            .ancestor(of: cardLabel(label), matching: find.byType(Container))
             .first,
       );
       return (box.decoration! as BoxDecoration).color!;
@@ -763,7 +829,7 @@ void main() {
     Color cardColour(WidgetTester tester, String label) {
       final box = tester.widget<Container>(
         find
-            .ancestor(of: find.text(label), matching: find.byType(Container))
+            .ancestor(of: cardLabel(label), matching: find.byType(Container))
             .first,
       );
       return (box.decoration! as BoxDecoration).color!;
@@ -879,8 +945,8 @@ void main() {
       expect(phone, greaterThan(40), reason: 'still a clock');
       expect(phone, lessThan(100), reason: 'and still leaves room');
       // The cards it sits above are still on screen.
-      expect(find.text('Last fed'), findsOneWidget);
-      expect(find.text('Last changed'), findsOneWidget);
+      expect(cardLabel('Last fed'), findsOneWidget);
+      expect(cardLabel('Last changed'), findsOneWidget);
 
       await pumpNursery(tester, size: const Size(1194, 834));
       expect(
