@@ -16,7 +16,7 @@ import '../models/baby_event.dart';
 /// writing, stamped on for attribution (KAN-159) and checked by the security
 /// rules (#22).
 abstract class EventRepository<T extends BabyEvent> {
-  EventRepository(this.firestore, this.babyId, this.uid);
+  EventRepository(this.firestore, this.babyId, this.uid, {this.byName});
 
   @protected
   final FirebaseFirestore firestore;
@@ -24,6 +24,18 @@ abstract class EventRepository<T extends BabyEvent> {
   final String babyId;
   @protected
   final String uid;
+
+  /// The name written on each new entry: this device's, or the account's
+  /// (see `loggedByProvider`). Null for the kinds that do not say who.
+  @protected
+  final String? byName;
+
+  /// Who made it, stamped on every new entry.
+  Map<String, dynamic> get _stamp => {
+    'createdBy': uid,
+    'createdAt': FieldValue.serverTimestamp(),
+    'byName': ?byName,
+  };
 
   /// The subcollection under the baby: `feedings`, `diapers`, and so on.
   @protected
@@ -52,11 +64,7 @@ abstract class EventRepository<T extends BabyEvent> {
   /// failed can wait on it. Nothing waits on it to *close a sheet* — offline
   /// it would not complete until the device reconnects (#21).
   Future<String> add(T event) async {
-    final doc = await col.add({
-      ...event.toMap(),
-      'createdBy': uid,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    final doc = await col.add({...event.toMap(), ..._stamp});
     return doc.id;
   }
 
@@ -68,14 +76,7 @@ abstract class EventRepository<T extends BabyEvent> {
   /// reconnects.
   ({String id, Future<void> written}) addNow(T event) {
     final doc = col.doc();
-    return (
-      id: doc.id,
-      written: doc.set({
-        ...event.toMap(),
-        'createdBy': uid,
-        'createdAt': FieldValue.serverTimestamp(),
-      }),
-    );
+    return (id: doc.id, written: doc.set({...event.toMap(), ..._stamp}));
   }
 
   /// Overwrites the stored fields of [event], leaving `createdBy` and
@@ -100,7 +101,7 @@ abstract class EventRepository<T extends BabyEvent> {
 /// answer the wrong question.
 abstract class TimelineRepository<T extends BabyEvent>
     extends EventRepository<T> {
-  TimelineRepository(super.firestore, super.babyId, super.uid);
+  TimelineRepository(super.firestore, super.babyId, super.uid, {super.byName});
 
   /// Most recent first. [limit] keeps the home and history views cheap.
   Stream<List<T>> watchRecent({int limit = 50}) => col

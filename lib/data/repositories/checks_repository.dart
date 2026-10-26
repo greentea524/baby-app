@@ -5,7 +5,7 @@ import 'event_repository.dart';
 
 /// The daily checklist's ticks for one baby: `babies/{babyId}/checks/{id}`.
 class ChecksRepository extends TimelineRepository<DailyCheck> {
-  ChecksRepository(super.firestore, super.babyId, super.uid);
+  ChecksRepository(super.firestore, super.babyId, super.uid, {super.byName});
 
   @override
   String get collection => 'checks';

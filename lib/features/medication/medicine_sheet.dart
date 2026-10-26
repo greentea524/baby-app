@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/auth/auth_providers.dart';
+import '../../core/device/logged_by.dart';
 import '../../data/models/medication_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
@@ -55,7 +55,7 @@ class MedicineSheet extends ConsumerWidget {
     final theme = Theme.of(context);
     final clock = now ?? DateTime.now();
     final doses = ref.watch(recentMedsProvider).value ?? const [];
-    final me = ref.watch(authStateProvider).value?.uid;
+    final who = watchWhoLogged(ref);
     final medicines = latestPerMedicine(doses);
     final waits = {
       for (final w in activeWaits(doses, clock)) medicineKey(w.last.name): w,
@@ -82,7 +82,7 @@ class MedicineSheet extends ConsumerWidget {
           _MedicineEntry(
             last: last,
             now: clock,
-            by: MedicationFormat.givenBy(last, me),
+            by: MedicationFormat.givenBy(last, who),
             inLastDay: dosesInLast24h(doses, last.name, clock),
             wait: waits[medicineKey(last.name)],
           ),

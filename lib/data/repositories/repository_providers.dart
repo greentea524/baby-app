@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../core/device/logged_by.dart';
 // sharedPreferencesProvider lives with the theme provider (both are prefs-backed).
 import '../../core/theme/theme_mode_provider.dart';
 import '../../features/fridge/fridge_order.dart';
@@ -86,7 +87,12 @@ final feedingRepositoryProvider = Provider<FeedingRepository?>((ref) {
   final user = ref.watch(authStateProvider).value;
   final baby = ref.watch(currentBabyProvider);
   if (user == null || baby == null) return null;
-  return FeedingRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+  return FeedingRepository(
+    ref.watch(firestoreProvider),
+    baby.id,
+    user.uid,
+    byName: ref.watch(loggedByProvider),
+  );
 });
 
 final recentFeedingsProvider = StreamProvider<List<FeedingEvent>>((ref) {
@@ -144,7 +150,12 @@ final diaperRepositoryProvider = Provider<DiaperRepository?>((ref) {
   final user = ref.watch(authStateProvider).value;
   final baby = ref.watch(currentBabyProvider);
   if (user == null || baby == null) return null;
-  return DiaperRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+  return DiaperRepository(
+    ref.watch(firestoreProvider),
+    baby.id,
+    user.uid,
+    byName: ref.watch(loggedByProvider),
+  );
 });
 
 final recentDiapersProvider = StreamProvider<List<DiaperEvent>>((ref) {
@@ -197,7 +208,12 @@ final pumpingRepositoryProvider = Provider<PumpingRepository?>((ref) {
   final user = ref.watch(authStateProvider).value;
   final baby = ref.watch(currentBabyProvider);
   if (user == null || baby == null) return null;
-  return PumpingRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+  return PumpingRepository(
+    ref.watch(firestoreProvider),
+    baby.id,
+    user.uid,
+    byName: ref.watch(loggedByProvider),
+  );
 });
 
 final recentPumpingProvider = StreamProvider<List<PumpingEvent>>((ref) {
@@ -228,7 +244,12 @@ final medicationRepositoryProvider = Provider<MedicationRepository?>((ref) {
   final user = ref.watch(authStateProvider).value;
   final baby = ref.watch(currentBabyProvider);
   if (user == null || baby == null) return null;
-  return MedicationRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+  return MedicationRepository(
+    ref.watch(firestoreProvider),
+    baby.id,
+    user.uid,
+    byName: ref.watch(loggedByProvider),
+  );
 });
 
 final recentMedsProvider = StreamProvider<List<MedicationEvent>>((ref) {
@@ -255,7 +276,12 @@ final checksRepositoryProvider = Provider<ChecksRepository?>((ref) {
   final user = ref.watch(authStateProvider).value;
   final baby = ref.watch(currentBabyProvider);
   if (user == null || baby == null) return null;
-  return ChecksRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+  return ChecksRepository(
+    ref.watch(firestoreProvider),
+    baby.id,
+    user.uid,
+    byName: ref.watch(loggedByProvider),
+  );
 });
 
 /// Every tick from the midnight [start] on, earliest first.

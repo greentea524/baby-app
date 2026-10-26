@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:baby_app/core/device/logged_by.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:baby_app/core/auth/auth_providers.dart';
@@ -54,8 +56,10 @@ void main() {
         createdBy: 'them',
         by: 'Alex',
       );
-      expect(MedicationFormat.givenBy(mine, 'me'), 'you');
-      expect(MedicationFormat.givenBy(theirs, 'me'), 'Alex');
+      // This device logs as Sam.
+      String? who(String? byName) => whoLogged(byName: byName, myName: 'Sam');
+      expect(MedicationFormat.givenBy(mine, who), 'you');
+      expect(MedicationFormat.givenBy(theirs, who), 'Alex');
       expect(
         MedicationFormat.details(
           dose(
@@ -65,7 +69,7 @@ void main() {
             unit: DoseUnit.ml,
             by: 'Alex',
           ),
-          'me',
+          who,
         ),
         '2.5 ml · by Alex',
       );

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/auth/auth_providers.dart';
+import '../../core/device/logged_by.dart';
 import '../../core/format/unit_system.dart';
 import '../../data/models/activity_entry.dart';
 import '../../data/models/daily_check.dart';
@@ -75,12 +75,17 @@ class ActivityTile extends ConsumerWidget {
         ? FeedingFormat.clockStamp(context, entry.time, now: now)
         : null;
 
+    final who = watchWhoLogged(ref);
+
     return switch (entry) {
       FeedingEntry(:final event) => EventTile(
         key: ValueKey('feed_${event.id}'),
         icon: FeedingFormat.typeIcon(event.type),
         title: FeedingFormat.eventLabel(event),
-        subtitle: FeedingFormat.details(event, units),
+        subtitle: _withBy(
+          FeedingFormat.details(event, units),
+          who(event.byName),
+        ),
         trailing: trailing,
         trailingDetail: trailingDetail,
         confirmTitle: 'Delete feed?',
@@ -93,7 +98,7 @@ class ActivityTile extends ConsumerWidget {
         key: ValueKey('diaper_${event.id}'),
         icon: DiaperFormat.typeIcon(event.type),
         title: DiaperFormat.typeLabel(event.type),
-        subtitle: DiaperFormat.details(event),
+        subtitle: _withBy(DiaperFormat.details(event), who(event.byName)),
         trailing: trailing,
         trailingDetail: trailingDetail,
         confirmTitle: 'Delete diaper change?',
@@ -106,7 +111,10 @@ class ActivityTile extends ConsumerWidget {
         key: ValueKey('pump_${event.id}'),
         icon: PumpingFormat.icon,
         title: PumpingFormat.label,
-        subtitle: PumpingFormat.details(event, units),
+        subtitle: _withBy(
+          PumpingFormat.details(event, units),
+          who(event.byName),
+        ),
         trailing: trailing,
         trailingDetail: trailingDetail,
         confirmTitle: 'Delete pumping?',
@@ -119,10 +127,7 @@ class ActivityTile extends ConsumerWidget {
         key: ValueKey('med_${event.id}'),
         icon: MedicationFormat.icon,
         title: event.name,
-        subtitle: MedicationFormat.details(
-          event,
-          ref.watch(authStateProvider).value?.uid,
-        ),
+        subtitle: MedicationFormat.details(event, who),
         trailing: trailing,
         trailingDetail: trailingDetail,
         confirmTitle: 'Delete medicine?',
@@ -152,10 +157,7 @@ class ActivityTile extends ConsumerWidget {
   ) {
     final items = ref.watch(currentBabyProvider)?.checklist ?? const [];
     final label = checkLabel(event, items);
-    final me = ref.watch(authStateProvider).value?.uid;
-    final by = event.createdBy != null && event.createdBy == me
-        ? 'you'
-        : event.byName?.trim();
+    final by = watchWhoLogged(ref)(event.byName);
     Future<void> untick() async =>
         ref.read(checksRepositoryProvider)?.delete(event.id);
 
@@ -166,7 +168,7 @@ class ActivityTile extends ConsumerWidget {
       subtitle: [
         'Daily checklist',
         if (event.minutes case final m?) minutesLabel(m),
-        if (by != null && by.isNotEmpty) 'by $by',
+        if (by != null) 'by $by',
       ].join(' · '),
       trailing: trailing,
       trailingDetail: trailingDetail,
@@ -182,4 +184,14 @@ class ActivityTile extends ConsumerWidget {
       onDelete: untick,
     );
   }
+}
+
+/// [details] with who logged it on the end: "120 ml · by iPad". Either can
+/// be missing.
+String? _withBy(String? details, String? by) {
+  final parts = [
+    if (details != null && details.trim().isNotEmpty) details,
+    if (by != null) 'by $by',
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
 }

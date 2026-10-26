@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/build/build_info.dart';
+import '../../core/device/logged_by.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/format/unit_system.dart';
 import '../../core/theme/app_accent.dart';
@@ -71,6 +72,7 @@ class SettingsScreen extends ConsumerWidget {
           const _MedicationToggle(),
           const ChecklistSettingsTile(),
           const Divider(),
+          const _DeviceNameTile(),
           ListTile(
             leading: const Icon(Icons.group_outlined),
             title: const Text('Caregivers'),
@@ -120,6 +122,99 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// What this device is called on everything logged from it: "iPad", "Mom".
+///
+/// For a household sharing one account across devices, where every entry
+/// otherwise said "by you" wherever it came from. Kept on this device only.
+class _DeviceNameTile extends ConsumerWidget {
+  const _DeviceNameTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final name = ref.watch(deviceNameProvider);
+    return ListTile(
+      leading: const Icon(Icons.badge_outlined),
+      title: const Text('Name on this device'),
+      subtitle: Text(
+        name == null
+            ? 'Not set — logs say who by the account. Name it "iPad" or '
+                  '"Mom" to tell devices apart.'
+            : 'Logs from here say "by $name"',
+      ),
+      trailing: const Icon(Icons.edit_outlined),
+      onTap: () async {
+        final next = await showDialog<String>(
+          context: context,
+          builder: (_) => _DeviceNameDialog(initial: name),
+        );
+        if (next == null) return;
+        await ref.read(deviceNameProvider.notifier).set(next);
+      },
+    );
+  }
+}
+
+class _DeviceNameDialog extends StatefulWidget {
+  const _DeviceNameDialog({this.initial});
+
+  final String? initial;
+
+  @override
+  State<_DeviceNameDialog> createState() => _DeviceNameDialogState();
+}
+
+class _DeviceNameDialogState extends State<_DeviceNameDialog> {
+  late final _name = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Name on this device'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Everything logged from this phone or tablet will say this, so '
+            'you can tell who did it. Each device keeps its own.',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _name,
+            autofocus: true,
+            maxLength: deviceNameMax,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(hintText: 'e.g. iPad, Mom, Dad'),
+            onSubmitted: (v) => Navigator.pop(context, v),
+          ),
+        ],
+      ),
+      actions: [
+        if (widget.initial != null)
+          TextButton(
+            // Blank clears it: back to the account's name.
+            onPressed: () => Navigator.pop(context, ''),
+            child: const Text('Clear'),
+          ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _name.text),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

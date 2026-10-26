@@ -5,7 +5,7 @@ import 'event_repository.dart';
 
 /// Diaper changes for one baby: `babies/{babyId}/diapers/{eventId}`.
 class DiaperRepository extends TimelineRepository<DiaperEvent> {
-  DiaperRepository(super.firestore, super.babyId, super.uid);
+  DiaperRepository(super.firestore, super.babyId, super.uid, {super.byName});
 
   @override
   String get collection => 'diapers';

@@ -21,6 +21,7 @@ class FeedingEvent implements BabyEvent {
     this.notes,
     this.isSnack = false,
     this.milk,
+    this.byName,
   });
 
   @override
@@ -50,6 +51,11 @@ class FeedingEvent implements BabyEvent {
   /// is.
   final MilkKind? milk;
 
+  /// The name of the device that logged it ("iPad", "Mom"), or of its
+  /// account: written by the repository when it is first saved, and not
+  /// part of [toMap], so an edit leaves it as it was.
+  final String? byName;
+
   /// Whether this event marks a boundary in the feeding rhythm.
   ///
   /// A snack is a top-up rather than a feed's worth of fuel, and solids
@@ -75,6 +81,7 @@ class FeedingEvent implements BabyEvent {
       // full feeds as far as the clock was concerned, so default to false.
       isSnack: data['isSnack'] as bool? ?? false,
       milk: MilkKind.values.asNameMap()[data['milk']],
+      byName: data['byName'] as String?,
     );
   }
 
