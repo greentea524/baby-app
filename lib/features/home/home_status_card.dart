@@ -133,25 +133,24 @@ class HomeStatusCard extends ConsumerWidget {
       icon: last == null ? Icons.child_care : FeedingFormat.typeIcon(last.type),
       onLog: () => logFeed(context, ref),
       logLabel: ref.watch(bottleShortcutProvider) ? 'Log bottle' : 'Log feed',
-      label: 'Feed',
+      label: last == null
+          ? 'Feed'
+          : _numbered(
+              'Feed',
+              // Every milk feed today, bottle or breast; solids count on
+              // their own row.
+              numberToday(
+                ref.watch(recentFeedingsProvider).value ?? const [],
+                last,
+                (e) => e.startTime,
+                now,
+                same: (e) => e.type != FeedingType.solids,
+              ),
+            ),
       headline: last == null
           ? 'No feeds yet'
           : _join(
-              [
-                _numbered(
-                  FeedingFormat.typeLabel(last.type),
-                  // Counted by kind: the third bottle, not the third feed.
-                  numberToday(
-                    ref.watch(recentFeedingsProvider).value ?? const [],
-                    last,
-                    (e) => e.startTime,
-                    now,
-                    same: (e) => e.type == last.type,
-                  ),
-                ),
-                // After the number, so it reads "Bottle #3 · Snack".
-                if (last.isSnack) 'Snack',
-              ].join(' · '),
+              FeedingFormat.eventLabel(last),
               _keep(FeedingFormat.measure(last, units) ?? ''),
             ),
       when: last?.startTime,
@@ -1065,7 +1064,7 @@ class DiaperTally extends StatelessWidget {
 }
 
 /// Which of today's [events] [last] is, counting from one: 3 for the third
-/// bottle of the day. Only those [same] keeps are counted, when it is given.
+/// feed of the day. Only those [same] keeps are counted, when it is given.
 ///
 /// Null when [last] is not from today: a number on last night's feed would
 /// be counting a day that is over.
@@ -1088,7 +1087,7 @@ int? numberToday<T>(
       .length;
 }
 
-/// "Bottle #3", or just [label] without a number. Held together, so the
+/// "Feed #3", or just [label] without a number. Held together, so the
 /// number never wraps away from what it counts.
 String _numbered(String label, int? n) => n == null ? label : '$label\u00a0#$n';
 

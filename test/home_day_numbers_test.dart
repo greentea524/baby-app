@@ -11,8 +11,8 @@ import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 
-/// Each Home row says which of the day's it is showing: "Bottle #3", the
-/// third bottle today; "DIAPER #5", the fifth change.
+/// Each Home row says which of the day's it is showing: "FEED #3", the
+/// third feed today; "DIAPER #5", the fifth change.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -66,7 +66,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('counts the bottles today, not every feed', (tester) async {
+  testWidgets('counts every milk feed today on the label', (tester) async {
     await pumpCard(
       tester,
       feeds: [
@@ -74,39 +74,15 @@ void main() {
         feed('y', FeedingType.bottle, at(22, day: 25)),
         feed('a', FeedingType.bottle, at(7)),
         feed('b', FeedingType.breast, at(9)),
+        // Solids have a row, and a count, of their own.
+        feed('s', FeedingType.solids, at(11)),
         feed('c', FeedingType.bottle, at(12)),
       ],
     );
-    expect(find.text('Bottle #2 · 120 ml'), findsOneWidget);
-  });
-
-  testWidgets('and the breast feeds by themselves', (tester) async {
-    await pumpCard(
-      tester,
-      feeds: [
-        feed('a', FeedingType.breast, at(7)),
-        feed('b', FeedingType.bottle, at(9)),
-        feed('c', FeedingType.breast, at(12)),
-      ],
-    );
-    expect(find.textContaining('Breastfeeding\u00a0#2'), findsOneWidget);
-  });
-
-  testWidgets('puts a snack after the number', (tester) async {
-    await pumpCard(
-      tester,
-      feeds: [
-        feed('a', FeedingType.bottle, at(7)),
-        FeedingEvent(
-          id: 'b',
-          type: FeedingType.bottle,
-          startTime: at(12),
-          amountMl: 60,
-          isSnack: true,
-        ),
-      ],
-    );
-    expect(find.text('Bottle #2 · Snack · 60 ml'), findsOneWidget);
+    expect(find.text('FEED\u00a0#3'), findsOneWidget);
+    expect(find.text('SOLIDS\u00a0#1'), findsOneWidget);
+    // The headline is what it was.
+    expect(find.text('Bottle · 120\u00a0ml'), findsOneWidget);
   });
 
   testWidgets('has no number for last night\'s feed', (tester) async {
@@ -114,7 +90,7 @@ void main() {
       tester,
       feeds: [feed('y', FeedingType.bottle, at(23, day: 25))],
     );
-    expect(find.text('Bottle · 120 ml'), findsOneWidget);
+    expect(find.text('FEED'), findsOneWidget);
     expect(find.textContaining('#'), findsNothing);
   });
 
