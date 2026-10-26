@@ -24,6 +24,11 @@ import 'package:baby_app/features/home/home_status_card.dart';
 /// The countdown is opt-in again on top of that, and the two are separate
 /// switches: the row shows history with no cadence set, and only starts
 /// counting — and colouring — once one is.
+/// A row's label on Home — "PUMP" — with or without today's number after
+/// it ("PUMP #2").
+Finder rowLabel(String name) =>
+    find.textContaining(RegExp('^$name(\u00a0#\\d+)?\$'));
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -94,7 +99,7 @@ void main() {
   testWidgets('shows the most recent session', (tester) async {
     await pumpCard(tester, pumping: pumps);
 
-    expect(find.text('PUMP'), findsOneWidget);
+    expect(rowLabel('PUMP'), findsOneWidget);
     expect(find.text('25m ago'), findsOneWidget);
     // The newer session, not the 60 ml one five hours back: the amount in
     // the headline, the time it took underneath.
@@ -109,7 +114,7 @@ void main() {
     // buttons gone, its icon is the way to log that first session.
     await pumpCard(tester);
 
-    expect(find.text('PUMP'), findsOneWidget);
+    expect(rowLabel('PUMP'), findsOneWidget);
     expect(find.text('No sessions yet'), findsOneWidget);
     expect(find.byTooltip('Log pump'), findsOneWidget);
   });
@@ -123,7 +128,7 @@ void main() {
       prefs: {'show_pumping_action': false},
     );
 
-    expect(find.text('PUMP'), findsNothing);
+    expect(rowLabel('PUMP'), findsNothing);
   });
 
   testWidgets('leaves the way into the fridge to a row of its own', (
@@ -134,7 +139,7 @@ void main() {
     await pumpCard(tester, pumping: pumps);
 
     final button = tester.getRect(find.byType(FridgeButton));
-    final pumped = tester.getRect(find.text('PUMP'));
+    final pumped = tester.getRect(rowLabel('PUMP'));
     final fridge = tester.getRect(find.text('FRIDGE'));
     expect(button.top, greaterThan(pumped.bottom));
     expect(button.top, lessThan(fridge.bottom + 40));
@@ -158,7 +163,7 @@ void main() {
 
     // Feeding, diapers, pumping and the fridge.
     expect(find.byType(Card), findsNWidgets(4));
-    expect(find.text('PUMP'), findsOneWidget);
+    expect(rowLabel('PUMP'), findsOneWidget);
   });
 
   group('the countdown', () {
@@ -176,7 +181,7 @@ void main() {
     Color? dot(WidgetTester tester, String label) {
       final found = find.descendant(
         of: find
-            .ancestor(of: find.text(label), matching: find.byType(Row))
+            .ancestor(of: rowLabel(label), matching: find.byType(Row))
             .first,
         matching: find.byKey(const ValueKey('alert-dot')),
       );
@@ -213,7 +218,7 @@ void main() {
       // default must not invent a schedule nobody asked for.
       await pumpCard(tester, pumping: pumpedAt(30));
 
-      expect(find.text('PUMP'), findsOneWidget);
+      expect(rowLabel('PUMP'), findsOneWidget);
       expect(find.textContaining('pump in'), findsNothing);
       expect(find.textContaining('Pump'), findsNothing);
       // The feeding row's own chip is still there — this is about the pump
@@ -238,7 +243,7 @@ void main() {
         prefs: {'pump_interval_minutes': 120},
       );
 
-      final context = tester.element(find.text('PUMP'));
+      final context = tester.element(rowLabel('PUMP'));
       expect(dot(tester, 'PUMP'), warningInks(context).overdue);
     });
 

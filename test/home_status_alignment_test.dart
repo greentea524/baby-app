@@ -135,7 +135,7 @@ void main() {
     await pumpHome(tester);
 
     // The amount held to its unit, so it never breaks between the two.
-    final what = tester.getRect(card.text('Bottle · 150\u00a0ml'));
+    final what = tester.getRect(card.text('Bottle\u00a0#1 · 150\u00a0ml'));
     final when = tester.getRect(card.text('2h ago'));
     expect(when.top, moreOrLessEquals(what.top, epsilon: 0.5));
     expect(when.left, greaterThan(what.right));
@@ -152,7 +152,7 @@ void main() {
     await pumpHome(tester);
 
     final label = tester.getRect(card.text('FEED'));
-    final what = tester.getRect(card.text('Bottle · 150\u00a0ml'));
+    final what = tester.getRect(card.text('Bottle\u00a0#1 · 150\u00a0ml'));
     expect(label.bottom, lessThanOrEqualTo(what.top));
     expect(label.left, moreOrLessEquals(what.left, epsilon: 0.5));
 
@@ -182,7 +182,7 @@ void main() {
     expect(
       chip.left,
       moreOrLessEquals(
-        tester.getRect(card.text('Bottle · 150\u00a0ml')).left,
+        tester.getRect(card.text('Bottle\u00a0#1 · 150\u00a0ml')).left,
         epsilon: 0.5,
       ),
     );
@@ -195,7 +195,7 @@ void main() {
   testWidgets('and keeps the columns on a wide screen', (tester) async {
     await pumpHome(tester, size: const Size(1200, 900));
 
-    final what = tester.getRect(card.text('Bottle · 150\u00a0ml'));
+    final what = tester.getRect(card.text('Bottle\u00a0#1 · 150\u00a0ml'));
     final when = tester.getRect(card.text('2h ago'));
     expect(when.top, moreOrLessEquals(what.top, epsilon: 0.5));
     expect(
@@ -213,7 +213,7 @@ void main() {
     await pumpHome(tester, textScale: 2.0);
     expect(tester.takeException(), isNull);
 
-    final what = tester.getRect(card.text('Bottle · 150\u00a0ml'));
+    final what = tester.getRect(card.text('Bottle\u00a0#1 · 150\u00a0ml'));
     final fed = tester.getRect(card.textContaining('2h ago · '));
     final changed = tester.getRect(card.textContaining('40m ago · '));
     expect(fed.top, greaterThanOrEqualTo(what.bottom));

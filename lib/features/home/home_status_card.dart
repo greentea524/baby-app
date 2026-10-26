@@ -137,7 +137,21 @@ class HomeStatusCard extends ConsumerWidget {
       headline: last == null
           ? 'No feeds yet'
           : _join(
-              FeedingFormat.eventLabel(last),
+              [
+                _numbered(
+                  FeedingFormat.typeLabel(last.type),
+                  // Counted by kind: the third bottle, not the third feed.
+                  numberToday(
+                    ref.watch(recentFeedingsProvider).value ?? const [],
+                    last,
+                    (e) => e.startTime,
+                    now,
+                    same: (e) => e.type == last.type,
+                  ),
+                ),
+                // After the number, so it reads "Bottle #3 · Snack".
+                if (last.isSnack) 'Snack',
+              ].join(' · '),
               _keep(FeedingFormat.measure(last, units) ?? ''),
             ),
       when: last?.startTime,
@@ -162,7 +176,16 @@ class HomeStatusCard extends ConsumerWidget {
       icon: FeedingFormat.typeIcon(FeedingType.solids),
       onLog: () => showFeedingQuickLog(context, type: FeedingType.solids),
       logLabel: 'Log solids',
-      label: 'Solids',
+      label: _numbered(
+        'Solids',
+        numberToday(
+          ref.watch(recentFeedingsProvider).value ?? const [],
+          last,
+          (e) => e.startTime,
+          now,
+          same: (e) => e.type == FeedingType.solids,
+        ),
+      ),
       headline: _join(
         FeedingFormat.eventLabel(last),
         _keep(FeedingFormat.measure(last, units) ?? ''),
@@ -192,7 +215,17 @@ class HomeStatusCard extends ConsumerWidget {
           : DiaperFormat.typeIcon(last.type),
       onLog: () => showDiaperQuickLog(context),
       logLabel: 'Log diaper',
-      label: 'Diaper',
+      label: last == null
+          ? 'Diaper'
+          : _numbered(
+              'Diaper',
+              numberToday(
+                ref.watch(recentDiapersProvider).value ?? const [],
+                last,
+                (e) => e.time,
+                now,
+              ),
+            ),
       headline: last == null ? 'No changes yet' : DiaperFormat.summary(last),
       when: last?.time,
       now: now,
@@ -262,7 +295,17 @@ class HomeStatusCard extends ConsumerWidget {
       icon: PumpingFormat.icon,
       onLog: () => showPumpingQuickLog(context),
       logLabel: 'Log pump',
-      label: 'Pump',
+      label: last == null
+          ? 'Pump'
+          : _numbered(
+              'Pump',
+              numberToday(
+                ref.watch(recentPumpingProvider).value ?? const [],
+                last,
+                (e) => e.time,
+                now,
+              ),
+            ),
       headline: last == null
           ? 'No sessions yet'
           : switch ([
@@ -1020,6 +1063,34 @@ class DiaperTally extends StatelessWidget {
     );
   }
 }
+
+/// Which of today's [events] [last] is, counting from one: 3 for the third
+/// bottle of the day. Only those [same] keeps are counted, when it is given.
+///
+/// Null when [last] is not from today: a number on last night's feed would
+/// be counting a day that is over.
+int? numberToday<T>(
+  List<T> events,
+  T last,
+  DateTime Function(T) timeOf,
+  DateTime now, {
+  bool Function(T)? same,
+}) {
+  final at = timeOf(last);
+  if (!TimelineFormat.isSameDay(at, now)) return null;
+  return events
+      .where(
+        (e) =>
+            (same == null || same(e)) &&
+            TimelineFormat.isSameDay(timeOf(e), now) &&
+            !timeOf(e).isAfter(at),
+      )
+      .length;
+}
+
+/// "Bottle #3", or just [label] without a number. Held together, so the
+/// number never wraps away from what it counts.
+String _numbered(String label, int? n) => n == null ? label : '$label\u00a0#$n';
 
 /// Opens the feed sheet the way this household has asked for it: straight
 /// to a bottle when that shortcut is on, otherwise asking what kind.

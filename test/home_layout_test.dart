@@ -32,13 +32,18 @@ import 'package:baby_app/features/reminders/feed_prediction.dart';
 /// is none.
 Color? alertDot(WidgetTester tester, String label) {
   final found = find.descendant(
-    of: find.ancestor(of: find.text(label), matching: find.byType(Row)).first,
+    of: find.ancestor(of: rowLabel(label), matching: find.byType(Row)).first,
     matching: find.byKey(const ValueKey('alert-dot')),
   );
   if (found.evaluate().isEmpty) return null;
   final box = tester.widget<Container>(found).decoration! as BoxDecoration;
   return box.color;
 }
+
+/// A row's label on Home — "PUMP" — with or without today's number after
+/// it ("PUMP #2").
+Finder rowLabel(String name) =>
+    find.textContaining(RegExp('^$name(\u00a0#\\d+)?\$'));
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -171,10 +176,10 @@ void main() {
     // deliver, and without it every test below would be quietly measuring an
     // empty Home — which is the short one, and not the one that overflows.
     await pumpHome(tester);
-    expect(find.text('FEED'), findsOneWidget);
-    expect(find.text('SOLIDS'), findsOneWidget);
-    expect(find.text('DIAPER'), findsOneWidget);
-    expect(find.text('PUMP'), findsOneWidget);
+    expect(rowLabel('FEED'), findsOneWidget);
+    expect(rowLabel('SOLIDS'), findsOneWidget);
+    expect(rowLabel('DIAPER'), findsOneWidget);
+    expect(rowLabel('PUMP'), findsOneWidget);
     expect(find.textContaining('Next feed'), findsOneWidget);
   });
 
@@ -197,7 +202,7 @@ void main() {
     // be able to move out of the way, rather than pinning the list into
     // whatever is left over.
     await pumpHome(tester, size: const Size(390, 600));
-    final card = find.text('FEED');
+    final card = rowLabel('FEED');
     expect(card, findsOneWidget);
     final before = tester.getTopLeft(card).dy;
 
@@ -233,7 +238,7 @@ void main() {
     ) async {
       await pumpHome(tester);
       final icon = tester.getRect(find.byTooltip('Log bottle'));
-      final fed = tester.getRect(find.text('FEED'));
+      final fed = tester.getRect(rowLabel('FEED'));
       expect((icon.center.dy - fed.center.dy).abs(), lessThan(48));
       expect(icon.bottom, lessThan(tester.view.physicalSize.height));
     });
@@ -267,7 +272,7 @@ void main() {
       await pumpHome(tester, feedings: [feedAt(400)]);
       expect(
         alertDot(tester, 'FEED'),
-        warningInks(tester.element(find.text('FEED'))).overdue,
+        warningInks(tester.element(rowLabel('FEED'))).overdue,
       );
     });
 
@@ -296,12 +301,12 @@ void main() {
       final tints = tester
           .widgetList<ColoredBox>(
             find.ancestor(
-              of: find.text('FEED'),
+              of: rowLabel('FEED'),
               matching: find.byType(ColoredBox),
             ),
           )
           .map((b) => b.color);
-      final context = tester.element(find.text('FEED'));
+      final context = tester.element(rowLabel('FEED'));
       expect(
         tints,
         isNot(contains(dueColors(context, DueState.overdue).background)),
@@ -369,11 +374,11 @@ void main() {
     ) async {
       expect(await at(tester, const Duration(minutes: 30)), isNull);
       final amber = await at(tester, const Duration(hours: 2, minutes: 30));
-      expect(amber, warningInks(tester.element(find.text('DIAPER'))).soon);
+      expect(amber, warningInks(tester.element(rowLabel('DIAPER'))).soon);
       // Nothing else on the row says so, so the dot says it out loud.
       expect(find.bySemanticsLabel(RegExp('Change due soon')), findsOneWidget);
       final red = await at(tester, const Duration(hours: 3, minutes: 30));
-      expect(red, warningInks(tester.element(find.text('DIAPER'))).overdue);
+      expect(red, warningInks(tester.element(rowLabel('DIAPER'))).overdue);
       expect(find.bySemanticsLabel(RegExp('Change overdue')), findsOneWidget);
     });
   });
@@ -460,7 +465,7 @@ void main() {
       // With the log buttons gone, the row has to be there to log the first
       // session from, not wait for one.
       await pumpHome(tester);
-      expect(find.text('PUMP'), findsOneWidget);
+      expect(rowLabel('PUMP'), findsOneWidget);
       await tester.tap(find.byTooltip('Log pump'));
       await tester.pumpAndSettle();
       expect(find.text('Log pumping'), findsOneWidget);
@@ -468,7 +473,7 @@ void main() {
 
     testWidgets('and is gone with pumping switched off', (tester) async {
       await pumpHome(tester, prefs: {'show_pumping_action': false});
-      expect(find.text('PUMP'), findsNothing);
+      expect(rowLabel('PUMP'), findsNothing);
       expect(find.byTooltip('Log pump'), findsNothing);
     });
   });
