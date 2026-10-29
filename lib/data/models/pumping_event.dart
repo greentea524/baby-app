@@ -15,7 +15,6 @@ class PumpingEvent implements BabyEvent {
     this.amountMl,
     this.side,
     this.notes,
-    this.byName,
   });
 
   @override
@@ -25,11 +24,6 @@ class PumpingEvent implements BabyEvent {
   final double? amountMl;
   final BreastSide? side;
   final String? notes;
-
-  /// The name of the device that logged it ("iPad", "Mom"), or of its
-  /// account: written by the repository when it is first saved, and not
-  /// part of [toMap], so an edit leaves it as it was.
-  final String? byName;
 
   factory PumpingEvent.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
@@ -42,7 +36,6 @@ class PumpingEvent implements BabyEvent {
           ? null
           : BreastSide.values.byName(data['side'] as String),
       notes: data['notes'] as String?,
-      byName: data['byName'] as String?,
     );
   }
 

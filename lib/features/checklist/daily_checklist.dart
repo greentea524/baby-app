@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/device/logged_by.dart';
+import '../../core/auth/auth_providers.dart';
 import '../../data/models/daily_check.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/action_snack_bar.dart';
@@ -261,6 +261,14 @@ Future<void> showTickDetails(
   ),
 );
 
+/// What to call the caregiver signed in here, as a dose of medicine does.
+String? _myName(WidgetRef ref) {
+  final user = ref.read(authStateProvider).value;
+  final name = user?.displayName?.trim();
+  if (name != null && name.isNotEmpty) return name;
+  return user?.email?.split('@').first;
+}
+
 /// Ticks [item] off as done now, with an undo. [times] is which time today
 /// this is, for an item done several times a day.
 ///
@@ -289,7 +297,7 @@ void tickItem(
         itemId: item.id,
         time: DateTime.now(),
         label: item.label,
-        byName: ref.read(loggedByProvider),
+        byName: _myName(ref),
       ),
     );
   } catch (e) {
@@ -345,7 +353,7 @@ class _SessionsToday extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final who = watchWhoLogged(ref);
+    final me = ref.watch(authStateProvider).value?.uid;
     final done = ticks.length >= item.perDay;
 
     return Column(
@@ -379,7 +387,7 @@ class _SessionsToday extends ConsumerWidget {
               [
                 '${i + 1}.',
                 FeedingFormat.clockStamp(context, t.time, now: now),
-                if (who(t.byName) case final by?) 'by $by',
+                if (_by(t, me) case final by?) 'by $by',
               ].join(' '),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -398,6 +406,11 @@ class _SessionsToday extends ConsumerWidget {
 }
 
 /// Who did [tick], as the sheets say it: "you", a name, or nothing known.
+String? _by(DailyCheck tick, String? me) {
+  if (tick.createdBy != null && tick.createdBy == me) return 'you';
+  final name = tick.byName?.trim();
+  return name == null || name.isEmpty ? null : name;
+}
 
 class _TickDetails extends ConsumerWidget {
   const _TickDetails({
@@ -415,8 +428,8 @@ class _TickDetails extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final who = watchWhoLogged(ref);
-    final by = who(tick.byName);
+    final me = ref.watch(authStateProvider).value?.uid;
+    final by = _by(tick, me);
 
     return Column(
       mainAxisSize: MainAxisSize.min,

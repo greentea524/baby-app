@@ -63,7 +63,6 @@ const feeding = (over = {}) => ({
   side: null,
   notes: null,
   isSnack: false,
-  byName: "iPad",
   ...stamped(),
   ...over,
 });
@@ -73,7 +72,6 @@ const diaper = (over = {}) => ({
   time: AT,
   notes: null,
   poopSize: "small",
-  byName: "iPad",
   ...stamped(),
   ...over,
 });
@@ -93,7 +91,6 @@ const pump = (over = {}) => ({
   amountMl: 90,
   side: "both",
   notes: null,
-  byName: "iPad",
   ...stamped(),
   ...over,
 });
@@ -1294,28 +1291,4 @@ describe("the daily checklist", () => {
     await assertFails(setDoc(checkRef(asMallory(), "m1"), check()));
     await assertFails(getDoc(checkRef(asMallory(), "m1")));
   });
-});
-
-describe("who logged it", () => {
-  for (const [sub, build] of [
-    ["feedings", feeding],
-    ["diapers", diaper],
-    ["pumps", pump],
-  ]) {
-    it(`accepts a ${sub} entry with the device's name, or without one`, async () => {
-      await assertSucceeds(
-        setDoc(doc(asAlice(), "babies", BABY, sub, "named"), build()),
-      );
-      const { byName, ...unnamed } = build();
-      await assertSucceeds(
-        setDoc(doc(asAlice(), "babies", BABY, sub, "unnamed"), unnamed),
-      );
-    });
-
-    it(`refuses a ${sub} entry whose name is not text`, async () => {
-      await assertFails(
-        setDoc(doc(asAlice(), "babies", BABY, sub, "bad"), build({ byName: 7 })),
-      );
-    });
-  }
 });

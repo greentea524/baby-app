@@ -1,4 +1,3 @@
-import '../../core/device/logged_by.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/models/medication_event.dart';
@@ -19,13 +18,17 @@ abstract final class MedicationFormat {
   /// "Tylenol 2.5 ml".
   static String nameAndDose(MedicationEvent e) => [e.name, ?dose(e)].join(' ');
 
-  /// Who logged it, as [who] says it: "you", or the name it was logged
-  /// under. Null when nothing says.
-  static String? givenBy(MedicationEvent e, WhoLogged who) => who(e.byName);
+  /// Who logged it: "you" for this account's own doses, otherwise the name
+  /// they had when they logged it. Null when there is neither.
+  static String? givenBy(MedicationEvent e, String? myUid) {
+    if (e.createdBy != null && e.createdBy == myUid) return 'you';
+    final name = e.byName?.trim();
+    return name == null || name.isEmpty ? null : name;
+  }
 
   /// "2.5 ml · by you · fussy": everything but the name.
-  static String details(MedicationEvent e, WhoLogged who) {
-    final by = givenBy(e, who);
+  static String details(MedicationEvent e, String? myUid) {
+    final by = givenBy(e, myUid);
     return [
       ?dose(e),
       if (by != null) 'by $by',

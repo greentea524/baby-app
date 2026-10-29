@@ -236,9 +236,7 @@ service cloud.firestore {
             // What was in the bottle. Optional: absent on every feed logged
             // before it was asked, and on feeds that are not bottles. The
             // same names as a fridge bottle's `kind`.
-            && optional(d.get('milk', null), ['expressed', 'formula', 'wholeMilk'])
-            // What the device that logged it is called (see diaperShape).
-            && text(d.get('byName', null));
+            && optional(d.get('milk', null), ['expressed', 'formula', 'wholeMilk']);
         }
       }
 
@@ -252,10 +250,7 @@ service cloud.firestore {
           return d.type in ['wet', 'dirty', 'both']
             && d.time is timestamp
             && optional(d.get('poopSize', null), ['small', 'medium', 'large'])
-            && text(d.get('notes', null))
-            // Who logged it: the name of the device it came from, or the
-            // account's. Free text, written by the app on create.
-            && text(d.get('byName', null));
+            && text(d.get('notes', null));
         }
       }
 
@@ -311,8 +306,7 @@ service cloud.firestore {
             && count(d.get('durationMinutes', null))
             && amount(d.get('amountMl', null))
             && side(d.get('side', null))
-            && text(d.get('notes', null))
-            && text(d.get('byName', null));
+            && text(d.get('notes', null));
         }
       }
 

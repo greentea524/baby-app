@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/device/logged_by.dart';
+import '../../core/auth/auth_providers.dart';
 import '../../core/theme/theme_mode_provider.dart';
 import '../../data/models/daily_check.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -155,6 +155,13 @@ class _TimedItemSheetState extends ConsumerState<TimedItemSheet> {
     }
   }
 
+  String? _myName() {
+    final user = ref.read(authStateProvider).value;
+    final name = user?.displayName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return user?.email?.split('@').first;
+  }
+
   /// Saves a session of [minutes] at [at], without waiting on the write.
   void _save(int minutes, DateTime at) {
     final repo = ref.read(checksRepositoryProvider);
@@ -170,7 +177,7 @@ class _TimedItemSheetState extends ConsumerState<TimedItemSheet> {
                 time: at,
                 label: item.label,
                 minutes: minutes,
-                byName: ref.read(loggedByProvider),
+                byName: _myName(),
               ),
             )
             .written
@@ -215,7 +222,7 @@ class _TimedItemSheetState extends ConsumerState<TimedItemSheet> {
       ..sort((a, b) => a.time.compareTo(b.time));
     final done = sessions.fold<int>(0, (sum, c) => sum + amountOf(item, c));
     final goal = item.goal;
-    final who = watchWhoLogged(ref);
+    final me = ref.watch(authStateProvider).value?.uid;
 
     final key = baby == null
         ? null
@@ -329,7 +336,7 @@ class _TimedItemSheetState extends ConsumerState<TimedItemSheet> {
                 [
                   FeedingFormat.clockStamp(context, c.time, now: now),
                   minutesLabel(c.minutes ?? 0),
-                  if (who(c.byName) case final by?) 'by $by',
+                  if (_by(c, me) case final by?) 'by $by',
                 ].join(' · '),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
@@ -354,4 +361,10 @@ class _TimedItemSheetState extends ConsumerState<TimedItemSheet> {
       ],
     );
   }
+}
+
+String? _by(DailyCheck tick, String? me) {
+  if (tick.createdBy != null && tick.createdBy == me) return 'you';
+  final name = tick.byName?.trim();
+  return name == null || name.isEmpty ? null : name;
 }

@@ -9,7 +9,7 @@ import 'event_repository.dart';
 /// to feeds is the collection, the field the time is under, and how to read
 /// one back.
 class FeedingRepository extends TimelineRepository<FeedingEvent> {
-  FeedingRepository(super.firestore, super.babyId, super.uid, {super.byName});
+  FeedingRepository(super.firestore, super.babyId, super.uid);
 
   @override
   String get collection => 'feedings';

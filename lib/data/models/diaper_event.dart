@@ -37,7 +37,6 @@ class DiaperEvent implements BabyEvent {
     required this.time,
     this.notes,
     PoopSize? poopSize,
-    this.byName,
   }) : poopSize = type == DiaperType.wet ? null : poopSize;
 
   @override
@@ -48,11 +47,6 @@ class DiaperEvent implements BabyEvent {
 
   /// How big it was, or null when nobody said.
   final PoopSize? poopSize;
-
-  /// The name of the device that logged it ("iPad", "Mom"), or of its
-  /// account: written by the repository when it is first saved, and not
-  /// part of [toMap], so an edit leaves it as it was.
-  final String? byName;
 
   /// Whether this change has a poop component, and so can carry a
   /// [poopSize].
@@ -67,7 +61,6 @@ class DiaperEvent implements BabyEvent {
       notes: data['notes'] as String?,
       // Absent on every change logged before sizes existed.
       poopSize: PoopSize.fromName(data['poopSize'] as String?),
-      byName: data['byName'] as String?,
     );
   }
 

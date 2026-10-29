@@ -7,7 +7,7 @@ import 'event_repository.dart';
 ///
 /// `pumps`, not `pumping` — the collection is named for what is stored.
 class PumpingRepository extends TimelineRepository<PumpingEvent> {
-  PumpingRepository(super.firestore, super.babyId, super.uid, {super.byName});
+  PumpingRepository(super.firestore, super.babyId, super.uid);
 
   @override
   String get collection => 'pumps';
