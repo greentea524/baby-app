@@ -18,20 +18,10 @@ abstract final class MedicationFormat {
   /// "Tylenol 2.5 ml".
   static String nameAndDose(MedicationEvent e) => [e.name, ?dose(e)].join(' ');
 
-  /// Who logged it: "you" for this account's own doses, otherwise the name
-  /// they had when they logged it. Null when there is neither.
-  static String? givenBy(MedicationEvent e, String? myUid) {
-    if (e.createdBy != null && e.createdBy == myUid) return 'you';
-    final name = e.byName?.trim();
-    return name == null || name.isEmpty ? null : name;
-  }
-
-  /// "2.5 ml · by you · fussy": everything but the name.
-  static String details(MedicationEvent e, String? myUid) {
-    final by = givenBy(e, myUid);
+  /// "2.5 ml · fussy": everything but the name.
+  static String details(MedicationEvent e) {
     return [
       ?dose(e),
-      if (by != null) 'by $by',
       if (e.notes != null && e.notes!.trim().isNotEmpty) e.notes!.trim(),
     ].join(' · ');
   }

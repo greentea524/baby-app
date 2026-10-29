@@ -690,7 +690,7 @@ class _StatusRow extends StatelessWidget {
   final DateTime? when;
   final DateTime now;
 
-  /// Anything else worth knowing — the milk, the notes, who gave it — on a
+  /// Anything else worth knowing — the milk, the notes — on a
   /// muted line of its own. Empty or null for none.
   final String? detail;
 

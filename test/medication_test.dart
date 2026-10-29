@@ -23,8 +23,6 @@ void main() {
     required int hoursAgo,
     double? dose,
     DoseUnit? unit,
-    String? by,
-    String? createdBy,
     String id = '',
     int? wait,
   }) => MedicationEvent(
@@ -33,8 +31,6 @@ void main() {
     name: name,
     dose: dose,
     unit: unit,
-    byName: by,
-    createdBy: createdBy,
     waitHours: wait,
   );
 
@@ -46,28 +42,12 @@ void main() {
       expect(DoseUnit.drops.amount(3), '3 drops');
     });
 
-    test('with who gave it: you, or their name', () {
-      final mine = dose('Tylenol', hoursAgo: 1, createdBy: 'me', by: 'Sam');
-      final theirs = dose(
-        'Tylenol',
-        hoursAgo: 1,
-        createdBy: 'them',
-        by: 'Alex',
-      );
-      expect(MedicationFormat.givenBy(mine, 'me'), 'you');
-      expect(MedicationFormat.givenBy(theirs, 'me'), 'Alex');
+    test('with its dose and notes, and no one\'s name', () {
       expect(
         MedicationFormat.details(
-          dose(
-            'Tylenol',
-            hoursAgo: 1,
-            dose: 2.5,
-            unit: DoseUnit.ml,
-            by: 'Alex',
-          ),
-          'me',
+          dose('Tylenol', hoursAgo: 1, dose: 2.5, unit: DoseUnit.ml),
         ),
-        '2.5 ml · by Alex',
+        '2.5 ml',
       );
     });
 
@@ -231,7 +211,7 @@ void main() {
       expect(saved.unit, DoseUnit.mg);
     });
 
-    testWidgets('editing keeps who gave it', (tester) async {
+    testWidgets('editing changes the dose', (tester) async {
       await openSheet(
         tester,
         existing: dose(
@@ -239,7 +219,6 @@ void main() {
           hoursAgo: 1,
           dose: 2.5,
           unit: DoseUnit.ml,
-          by: 'Alex',
           id: 'm1',
         ),
       );
@@ -250,7 +229,6 @@ void main() {
       );
       await tapIn(tester, find.widgetWithText(FilledButton, 'Save changes'));
       expect(meds.updated.single.dose, 3);
-      expect(meds.updated.single.byName, 'Alex');
     });
 
     testWidgets('records the wait chosen before the next dose', (tester) async {

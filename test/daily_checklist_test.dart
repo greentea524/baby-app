@@ -34,16 +34,10 @@ void main() {
     icon: ChecklistIcon.bath,
   );
 
-  DailyCheck tick(
-    String itemId,
-    DateTime time, {
-    String id = '',
-    String? byName,
-  }) => DailyCheck(
+  DailyCheck tick(String itemId, DateTime time, {String id = ''}) => DailyCheck(
     id: id.isEmpty ? '$itemId-${time.toIso8601String()}' : id,
     itemId: itemId,
     time: time,
-    byName: byName,
   );
 
   /// The tick for [itemId] [n] days back, at nine in the morning.
@@ -332,12 +326,7 @@ void main() {
       final repo = await pumpCard(
         tester,
         checks: [
-          tick(
-            'vitamin-d',
-            DateTime(2026, 10, 24, 9, 12),
-            id: 'c1',
-            byName: 'Sam',
-          ),
+          tick('vitamin-d', DateTime(2026, 10, 24, 9, 12), id: 'c1'),
           // Both caregivers ticked it: unticking takes both.
           tick('vitamin-d', DateTime(2026, 10, 24, 9, 13), id: 'c2'),
         ],
@@ -345,7 +334,7 @@ void main() {
       await tester.tap(find.text('Vitamin D'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Done 9:12 AM by Sam'), findsOneWidget);
+      expect(find.text('Done 9:12 AM'), findsOneWidget);
       expect(repo.added, isEmpty, reason: 'tapping a ticked item reads it');
 
       await tester.tap(find.text('Not done — untick it'));
@@ -763,18 +752,14 @@ void main() {
       return repo;
     }
 
-    testWidgets('reads as the item, who ticked it, and when', (tester) async {
+    testWidgets('reads as the item and when', (tester) async {
       await pumpTile(
         tester,
-        tick(
-          'vitamin-d',
-          DateTime(2026, 10, 24, 9, 12),
-          id: 'c1',
-          byName: 'Sam',
-        ),
+        tick('vitamin-d', DateTime(2026, 10, 24, 9, 12), id: 'c1'),
       );
       expect(find.text('Vitamin D'), findsOneWidget);
-      expect(find.text('Daily checklist · by Sam'), findsOneWidget);
+      expect(find.text('Daily checklist'), findsOneWidget);
+      expect(find.textContaining('by '), findsNothing);
       expect(find.text('9:12 AM'), findsOneWidget);
     });
 

@@ -30,7 +30,6 @@ void main() {
     Duration ago, {
     double? amount,
     int? wait,
-    String? by,
   }) => MedicationEvent(
     id: id,
     time: now.subtract(ago),
@@ -38,7 +37,6 @@ void main() {
     dose: amount,
     unit: amount == null ? null : DoseUnit.ml,
     waitHours: wait,
-    byName: by,
   );
 
   Future<void> pumpNursery(
@@ -106,14 +104,7 @@ void main() {
     await pumpNursery(
       tester,
       meds: [
-        dose(
-          't2',
-          'Tylenol',
-          const Duration(hours: 2),
-          amount: 2.5,
-          wait: 6,
-          by: 'Alex',
-        ),
+        dose('t2', 'Tylenol', const Duration(hours: 2), amount: 2.5, wait: 6),
         dose('i1', 'Ibuprofen', const Duration(hours: 30), amount: 5),
         dose('t1', 'tylenol ', const Duration(hours: 9), amount: 2.5),
       ],
@@ -135,10 +126,7 @@ void main() {
 
     expect(find.text('2h ago'), findsOneWidget);
     // Both Tylenol doses count, whatever case they were typed in.
-    expect(
-      find.textContaining('by Alex · 2 in the last 24 hr'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('2 in the last 24 hr'), findsOneWidget);
     expect(find.textContaining('0 in the last 24 hr'), findsOneWidget);
 
     // The countdown for the one still inside its wait, and only that one.

@@ -34,7 +34,6 @@ void main() {
     dose: 2.5,
     unit: DoseUnit.ml,
     waitHours: wait,
-    byName: 'Alex',
   );
 
   Future<void> pumpHome(
@@ -106,10 +105,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Tylenol · 2.5 ml'), findsOneWidget);
-    expect(
-      find.textContaining('by Alex · 1 in the last 24 hr'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('1 in the last 24 hr'), findsOneWidget);
     expect(find.textContaining('Next Tylenol in '), findsOneWidget);
 
     await tester.tap(find.text('Log medicine'));

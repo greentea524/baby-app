@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/auth/auth_providers.dart';
 import '../../core/format/unit_system.dart';
 import '../../data/models/activity_entry.dart';
 import '../../data/models/daily_check.dart';
@@ -119,10 +118,7 @@ class ActivityTile extends ConsumerWidget {
         key: ValueKey('med_${event.id}'),
         icon: MedicationFormat.icon,
         title: event.name,
-        subtitle: MedicationFormat.details(
-          event,
-          ref.watch(authStateProvider).value?.uid,
-        ),
+        subtitle: MedicationFormat.details(event),
         trailing: trailing,
         trailingDetail: trailingDetail,
         confirmTitle: 'Delete medicine?',
@@ -141,7 +137,7 @@ class ActivityTile extends ConsumerWidget {
     };
   }
 
-  /// A tick off the daily checklist. Tapping says when and by whom, as on
+  /// A tick off the daily checklist. Tapping says when it was done, as on
   /// Home, with the way to untick it; deleting it is the same untick.
   Widget _checkTile(
     BuildContext context,
@@ -152,10 +148,6 @@ class ActivityTile extends ConsumerWidget {
   ) {
     final items = ref.watch(currentBabyProvider)?.checklist ?? const [];
     final label = checkLabel(event, items);
-    final me = ref.watch(authStateProvider).value?.uid;
-    final by = event.createdBy != null && event.createdBy == me
-        ? 'you'
-        : event.byName?.trim();
     Future<void> untick() async =>
         ref.read(checksRepositoryProvider)?.delete(event.id);
 
@@ -166,7 +158,6 @@ class ActivityTile extends ConsumerWidget {
       subtitle: [
         'Daily checklist',
         if (event.minutes case final m?) minutesLabel(m),
-        if (by != null && by.isNotEmpty) 'by $by',
       ].join(' · '),
       trailing: trailing,
       trailingDetail: trailingDetail,

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/auth/auth_providers.dart';
 import '../../data/models/medication_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
@@ -186,7 +185,6 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
       return;
     }
     final existing = widget.existing;
-    final user = ref.read(authStateProvider).value;
     final dose = _doseValue;
     final event = MedicationEvent(
       id: existing?.id ?? '',
@@ -196,12 +194,6 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
       unit: dose == null ? null : _unit,
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
       waitHours: _waitHours,
-      // Who gave it is who logged it first; an edit keeps that.
-      byName: existing != null
-          ? existing.byName
-          : (user?.displayName?.trim().isNotEmpty ?? false)
-          ? user!.displayName!.trim()
-          : user?.email?.split('@').first,
     );
     _saving = true;
     saveAndClose(

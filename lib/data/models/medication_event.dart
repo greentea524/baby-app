@@ -40,8 +40,6 @@ class MedicationEvent implements BabyEvent {
     this.dose,
     this.unit,
     this.notes,
-    this.createdBy,
-    this.byName,
     this.waitHours,
   });
 
@@ -55,14 +53,6 @@ class MedicationEvent implements BabyEvent {
   final double? dose;
   final DoseUnit? unit;
   final String? notes;
-
-  /// Who logged it, by account. Written by the repository on create.
-  final String? createdBy;
-
-  /// What to call whoever logged it, taken from their account when they did.
-  /// The app keeps no directory of caregivers' names, and "who gave the last
-  /// dose" is the question two caregivers sharing a baby most need answered.
-  final String? byName;
 
   /// How long to wait after this dose before the next of the same medicine,
   /// as the caregiver set it from the label or their doctor — never filled
@@ -82,8 +72,6 @@ class MedicationEvent implements BabyEvent {
       dose: (data['dose'] as num?)?.toDouble(),
       unit: DoseUnit.fromName(data['unit'] as String?),
       notes: data['notes'] as String?,
-      createdBy: data['createdBy'] as String?,
-      byName: data['byName'] as String?,
       waitHours: (data['waitHours'] as num?)?.toInt(),
     );
   }
@@ -95,7 +83,6 @@ class MedicationEvent implements BabyEvent {
     'dose': dose,
     'unit': unit?.name,
     'notes': notes,
-    'byName': byName,
     'waitHours': waitHours,
   };
 }

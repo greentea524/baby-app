@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/auth/auth_providers.dart';
 import '../../data/models/medication_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
@@ -40,7 +39,7 @@ List<MedicationEvent> latestPerMedicine(List<MedicationEvent> doses) =>
 ///
 /// The question at the cot is "can I give this yet?", asked of one medicine
 /// at a time, so it is laid out by medicine rather than as a list of doses:
-/// what was given and when, who gave it, how many in the last day, and the
+/// what was given and when, how many in the last day, and the
 /// countdown while the wait set on it is still running.
 class MedicineSheet extends ConsumerWidget {
   const MedicineSheet({super.key, this.now, this.onLog});
@@ -55,7 +54,6 @@ class MedicineSheet extends ConsumerWidget {
     final theme = Theme.of(context);
     final clock = now ?? DateTime.now();
     final doses = ref.watch(recentMedsProvider).value ?? const [];
-    final me = ref.watch(authStateProvider).value?.uid;
     final medicines = latestPerMedicine(doses);
     final waits = {
       for (final w in activeWaits(doses, clock)) medicineKey(w.last.name): w,
@@ -82,7 +80,6 @@ class MedicineSheet extends ConsumerWidget {
           _MedicineEntry(
             last: last,
             now: clock,
-            by: MedicationFormat.givenBy(last, me),
             inLastDay: dosesInLast24h(doses, last.name, clock),
             wait: waits[medicineKey(last.name)],
           ),
@@ -120,14 +117,12 @@ class _MedicineEntry extends StatelessWidget {
   const _MedicineEntry({
     required this.last,
     required this.now,
-    required this.by,
     required this.inLastDay,
     required this.wait,
   });
 
   final MedicationEvent last;
   final DateTime now;
-  final String? by;
   final int inLastDay;
   final MedWait? wait;
 
@@ -168,7 +163,6 @@ class _MedicineEntry extends StatelessWidget {
           Text(
             [
               FeedingFormat.clockStamp(context, last.time, now: now),
-              if (by != null) 'by $by',
               '$inLastDay in the last 24 hr',
             ].join(' · '),
             style: muted,

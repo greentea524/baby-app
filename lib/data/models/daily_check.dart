@@ -143,8 +143,8 @@ const checklistPresets = <ChecklistItem>[
 
 /// One item ticked off. Stored at `babies/{babyId}/checks/{id}`.
 ///
-/// A tick is a record that it was done, when and by whom — or for an item
-/// done several times a day, one of those times; unticking deletes it.
+/// A tick is a record that it was done, and when — or for an item done
+/// several times a day, one of those times; unticking deletes it.
 /// Which day it counts for is the day of [time] on the phone reading it.
 class DailyCheck implements BabyEvent {
   const DailyCheck({
@@ -153,8 +153,6 @@ class DailyCheck implements BabyEvent {
     required this.time,
     this.label,
     this.minutes,
-    this.createdBy,
-    this.byName,
   });
 
   @override
@@ -173,12 +171,6 @@ class DailyCheck implements BabyEvent {
   /// goal. Null for an item that is counted.
   final int? minutes;
 
-  /// Who ticked it, by account. Written by the repository on create.
-  final String? createdBy;
-
-  /// What to call whoever ticked it, as on a dose of medicine.
-  final String? byName;
-
   factory DailyCheck.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
     return DailyCheck(
@@ -187,8 +179,6 @@ class DailyCheck implements BabyEvent {
       time: (data['time'] as Timestamp).toDate(),
       label: data['label'] as String?,
       minutes: (data['minutes'] as num?)?.toInt(),
-      createdBy: data['createdBy'] as String?,
-      byName: data['byName'] as String?,
     );
   }
 
@@ -198,6 +188,5 @@ class DailyCheck implements BabyEvent {
     'time': Timestamp.fromDate(time),
     'label': label,
     'minutes': minutes,
-    'byName': byName,
   };
 }
