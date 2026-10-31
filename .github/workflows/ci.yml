@@ -39,6 +39,33 @@ jobs:
       - name: Run tests
         run: flutter test
 
+  # The functions are dormant — never deployed, because enabling them is a
+  # billing decision. That is exactly why this job exists: nothing else here
+  # compiles that TypeScript, so it was free to rot until the day somebody
+  # turns Blaze on and finds out at the worst moment.
+  functions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Node 24 to match what the functions declare they run on, so a build
+      # that passes here is a build on the deployed runtime.
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: functions
+
+      - name: Build
+        run: npm run build
+        working-directory: functions
+
   firestore-rules:
     runs-on: ubuntu-latest
     steps:

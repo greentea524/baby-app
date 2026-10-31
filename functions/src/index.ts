@@ -12,10 +12,16 @@
 
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
-import * as admin from "firebase-admin";
+import { initializeApp } from "firebase-admin/app";
+import {
+  DocumentData,
+  Timestamp,
+  getFirestore,
+} from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 
 /**
  * How many recent feeds to scan when looking for the last one that resets the
@@ -58,7 +64,7 @@ const DEFAULT_PREFS: NotificationPrefs = {
   remindersOff: false,
 };
 
-function readPrefs(data: FirebaseFirestore.DocumentData | undefined): NotificationPrefs {
+function readPrefs(data: DocumentData | undefined): NotificationPrefs {
   if (!data) return DEFAULT_PREFS;
   return {
     enabled: data.enabled ?? DEFAULT_PREFS.enabled,
@@ -151,9 +157,7 @@ export const feedReminder = onSchedule("every 15 minutes", async () => {
         (d) => d.get("isSnack") !== true && d.get("type") !== "solids",
       );
       const anchorDoc = milkFeeds[0] ?? feedsSnap.docs[0];
-      const lastFedAt = (
-        anchorDoc.get("startTime") as admin.firestore.Timestamp
-      ).toMillis();
+      const lastFedAt = (anchorDoc.get("startTime") as Timestamp).toMillis();
 
       const memberUids: string[] = baby.memberUids ?? [];
       if (memberUids.length === 0) continue;
@@ -191,7 +195,7 @@ export const feedReminder = onSchedule("every 15 minutes", async () => {
       const tokens = tokensSnap.docs.map((d) => d.id);
       if (tokens.length === 0) continue;
 
-      const res = await admin.messaging().sendEachForMulticast({
+      const res = await getMessaging().sendEachForMulticast({
         tokens,
         notification: {
           title: `${baby.name ?? "Baby"} may be due for a feed`,
