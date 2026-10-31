@@ -656,11 +656,9 @@ void main() {
 
       await tester.tap(find.text('Start timer'));
       await tester.pump();
-      expect(
-        container.read(checklistTimersProvider),
-        {'baby1/tummy-time': now},
-        reason: 'kept on the phone, so it outlives the sheet',
-      );
+      expect(container.read(checklistTimersProvider), {
+        'baby1/tummy-time': now,
+      }, reason: 'kept on the phone, so it outlives the sheet');
 
       clock = now.add(const Duration(minutes: 12, seconds: 20));
       await tester.pump(const Duration(seconds: 1));
