@@ -508,38 +508,30 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.windows),
     );
 
-    testWidgets(
-      'and no arrows when everything fits',
-      (tester) async {
-        await pumpFridge(
-          tester,
-          bottles: many.take(2).toList(),
-          size: const Size(1400, 700),
-        );
-        expect(find.byTooltip('More bottles'), findsNothing);
-        expect(find.byTooltip('Earlier bottles'), findsNothing);
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
-    );
+    testWidgets('and no arrows when everything fits', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: many.take(2).toList(),
+        size: const Size(1400, 700),
+      );
+      expect(find.byTooltip('More bottles'), findsNothing);
+      expect(find.byTooltip('Earlier bottles'), findsNothing);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-    testWidgets(
-      'and scrolls by dragging with the mouse',
-      (tester) async {
-        await pumpFridge(tester, bottles: many, size: const Size(800, 700));
-        final gesture = await tester.startGesture(
-          tester.getCenter(find.text('57')),
-          kind: PointerDeviceKind.mouse,
-        );
-        for (var i = 0; i < 10; i++) {
-          await gesture.moveBy(const Offset(-30, 0));
-          await tester.pump();
-        }
-        await gesture.up();
-        await tester.pumpAndSettle();
-        expect(offset(tester), greaterThan(0));
-      },
-      variant: TargetPlatformVariant.only(TargetPlatform.windows),
-    );
+    testWidgets('and scrolls by dragging with the mouse', (tester) async {
+      await pumpFridge(tester, bottles: many, size: const Size(800, 700));
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('57')),
+        kind: PointerDeviceKind.mouse,
+      );
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(-30, 0));
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(offset(tester), greaterThan(0));
+    }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
     testWidgets('a phone keeps the plain swipe, with no arrows', (
       tester,
