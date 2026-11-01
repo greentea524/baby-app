@@ -14,6 +14,7 @@ import 'package:baby_app/data/repositories/checks_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/activity/activity_tile.dart';
 import 'package:baby_app/features/checklist/checklist_logic.dart';
+import 'package:baby_app/features/checklist/checklist_months.dart';
 import 'package:baby_app/features/checklist/checklist_settings_screen.dart';
 import 'package:baby_app/features/checklist/daily_checklist.dart';
 import 'package:baby_app/features/checklist/timed_item_sheet.dart';
@@ -656,9 +657,11 @@ void main() {
 
       await tester.tap(find.text('Start timer'));
       await tester.pump();
-      expect(container.read(checklistTimersProvider), {
-        'baby1/tummy-time': now,
-      }, reason: 'kept on the phone, so it outlives the sheet');
+      expect(
+        container.read(checklistTimersProvider),
+        {'baby1/tummy-time': now},
+        reason: 'kept on the phone, so it outlives the sheet',
+      );
 
       clock = now.add(const Duration(minutes: 12, seconds: 20));
       await tester.pump(const Duration(seconds: 1));
@@ -720,6 +723,152 @@ void main() {
         '1:02:03',
       );
       expect(minutesLabel(70), '1 hr 10 min');
+    });
+  });
+
+  group('the last two months', () {
+    const vitamin2 = ChecklistItem(id: 'vitamin-d', label: 'Vitamin D');
+    const tummy = ChecklistItem(
+      id: 'tummy-time',
+      label: 'Tummy time',
+      minutes: 30,
+    );
+    DailyCheck on(String item, int month, int day, {int? minutes}) =>
+        DailyCheck(
+          id: '$item-$month-$day-${minutes ?? 0}',
+          itemId: item,
+          time: DateTime(2026, month, day, 9),
+          minutes: minutes,
+        );
+
+    Future<void> pumpMonths(
+      WidgetTester tester,
+      List<DailyCheck> checks, {
+      Size size = const Size(400, 1400),
+    }) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ChecklistMonths(
+                items: const [vitamin2, tummy],
+                checks: checks,
+                now: now,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Finder square(int month, int day, String state) =>
+        find.byKey(ValueKey('day-2026-$month-$day-$state'));
+
+    testWidgets('shows last month and this one, day by day', (tester) async {
+      await pumpMonths(tester, [
+        on('vitamin-d', 9, 30),
+        on('vitamin-d', 10, 1),
+        on('vitamin-d', 10, 2),
+        // Before last month: not shown.
+        on('vitamin-d', 8, 31),
+      ]);
+      expect(find.text('September 2026'), findsOneWidget);
+      expect(find.text('October 2026'), findsOneWidget);
+      expect(find.text('August 2026'), findsNothing);
+
+      expect(square(9, 30, 'done'), findsOneWidget);
+      expect(square(10, 1, 'done'), findsOneWidget);
+      expect(square(10, 3, 'none'), findsOneWidget);
+      // Counted to today, the 24th, not the month's end.
+      expect(find.text('2 of 24 days'), findsOneWidget);
+      expect(find.text('1 of 30 days'), findsOneWidget);
+    });
+
+    testWidgets('on the 1st, says one day so far', (tester) async {
+      tester.view.physicalSize = const Size(400, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ChecklistMonths(
+                items: const [vitamin2],
+                checks: [on('vitamin-d', 11, 1)],
+                now: DateTime(2026, 11, 1, 9),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('1 of 1 day'), findsOneWidget);
+    });
+
+    testWidgets('puts each day under its weekday', (tester) async {
+      await pumpMonths(tester, const []);
+      // October 2026 starts on a Thursday; weeks start on Sunday here.
+      final sunday4 = tester.getRect(square(10, 4, 'none'));
+      final sunday11 = tester.getRect(square(10, 11, 'none'));
+      final thursday1 = tester.getRect(square(10, 1, 'none'));
+      expect(sunday11.left, moreOrLessEquals(sunday4.left));
+      expect(thursday1.top, lessThan(sunday4.top));
+      expect(thursday1.left, greaterThan(sunday4.left));
+    });
+
+    testWidgets('tints a day part done, and switches item', (tester) async {
+      await pumpMonths(tester, [
+        on('tummy-time', 10, 5, minutes: 30),
+        on('tummy-time', 10, 6, minutes: 10),
+        on('vitamin-d', 10, 7),
+      ]);
+      // The first item to start with.
+      expect(square(10, 7, 'done'), findsOneWidget);
+      expect(square(10, 5, 'none'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('months-tummy-time')));
+      await tester.pumpAndSettle();
+      expect(square(10, 5, 'done'), findsOneWidget);
+      expect(square(10, 6, 'part'), findsOneWidget);
+      expect(square(10, 7, 'none'), findsOneWidget);
+    });
+
+    testWidgets('and is in the streaks sheet', (tester) async {
+      await pumpCard(tester, checks: [daysAgo('vitamin-d', 0)]);
+      await tester.tap(find.byTooltip('Streaks'));
+      await tester.pumpAndSettle();
+      expect(find.text('Last two months'), findsOneWidget);
+    });
+
+    testWidgets('fits a small phone at a large text size', (tester) async {
+      tester.view.physicalSize = const Size(320, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ChecklistMonths(
+                items: const [vitamin2, tummy],
+                checks: [on('vitamin-d', 10, 1)],
+                now: now,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
     });
   });
 

@@ -118,3 +118,13 @@ List<double> recentDays(
       ((progress[daysBefore(today, i)] ?? 0) / item.goal).clamp(0.0, 1.0),
   ];
 }
+
+/// How much of [item] was done each day, keyed by midnight: 1 for done, a
+/// fraction for part of its goal. Days with nothing done are absent.
+Map<DateTime, double> dailyShares(
+  List<DailyCheck> checks,
+  ChecklistItem item,
+) => {
+  for (final MapEntry(:key, :value) in _dailyProgress(checks, item).entries)
+    key: (value / item.goal).clamp(0.0, 1.0),
+};

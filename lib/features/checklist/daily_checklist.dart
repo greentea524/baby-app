@@ -9,6 +9,7 @@ import '../common/action_snack_bar.dart';
 import '../common/app_sheet.dart';
 import '../feeding/feeding_format.dart';
 import 'checklist_logic.dart';
+import 'checklist_months.dart';
 import 'checklist_settings_screen.dart';
 import 'timed_item_sheet.dart';
 
@@ -502,6 +503,10 @@ class ChecklistStreaks extends ConsumerWidget {
             streak: streak(checks, item, clock),
             week: recentDays(checks, item, clock),
           ),
+        if (items.isNotEmpty) ...[
+          const Divider(height: 24),
+          ChecklistMonths(items: items, checks: checks, now: clock),
+        ],
         if (onEdit case final edit?) ...[
           const SizedBox(height: 8),
           Align(
