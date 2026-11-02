@@ -7,6 +7,7 @@ import '../../core/router/app_router.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../checklist/checklist_insights.dart';
 import '../home/home_prefs.dart';
 import '../timeline/timeline_format.dart';
 import 'chart_palette.dart';
@@ -174,6 +175,7 @@ class _Trends extends ConsumerWidget {
               ),
             ),
           ),
+          _ChecklistSection(days: range.days),
         ],
       );
     }
@@ -277,6 +279,7 @@ class _Trends extends ConsumerWidget {
             secondaryFormat: units.isMetric ? null : formatFlOz,
             days: [for (final d in stats.days) d.day],
           ),
+        _ChecklistSection(days: range.days),
       ],
     );
   }
@@ -338,6 +341,7 @@ class _Today extends ConsumerWidget {
               'Milk pumped today is often fed tomorrow — the Week view '
               'evens this out.',
         ),
+        const _ChecklistSection(days: 1),
         if (data.stats.totalFeeds == 0 && data.diapers.isEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
@@ -397,6 +401,27 @@ class _MilkSections extends ConsumerWidget {
             child: PumpedVsFed(pumpedMl: pumpedMl, mix: mix, units: units),
           ),
       ],
+    );
+  }
+}
+
+/// The daily checklist over the range: each item's days done and streaks.
+/// Nothing for a household with no checklist.
+class _ChecklistSection extends ConsumerWidget {
+  const _ChecklistSection({required this.days});
+
+  final int days;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(currentBabyProvider)?.checklist ?? const [];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return _DaySection(
+      title: 'Daily checklist',
+      subtitle: days == 1
+          ? 'Today, and the streaks so far'
+          : 'The last $days days, and the streaks',
+      child: ChecklistInsights(days: days, now: DateTime.now()),
     );
   }
 }

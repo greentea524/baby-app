@@ -128,3 +128,41 @@ Map<DateTime, double> dailyShares(
   for (final MapEntry(:key, :value) in _dailyProgress(checks, item).entries)
     key: (value / item.goal).clamp(0.0, 1.0),
 };
+
+/// The longest run of days in a row [item] was done, anywhere in [checks].
+int bestStreak(List<DailyCheck> checks, ChecklistItem item) {
+  final done = [
+    for (final MapEntry(:key, :value) in _dailyProgress(checks, item).entries)
+      if (value >= item.goal) key,
+  ]..sort();
+  var best = 0;
+  var run = 0;
+  DateTime? previous;
+  for (final day in done) {
+    run = previous != null && daysBefore(day, 1) == previous ? run + 1 : 1;
+    if (run > best) best = run;
+    previous = day;
+  }
+  return best;
+}
+
+/// [item] over the last [count] days ending today: on how many it was done,
+/// and how much was done on an average day — minutes for a timed item,
+/// times for a counted one.
+({int doneDays, double perDay}) rangeSummary(
+  List<DailyCheck> checks,
+  ChecklistItem item,
+  DateTime now, {
+  required int count,
+}) {
+  final progress = _dailyProgress(checks, item);
+  final today = dayOf(now);
+  var done = 0;
+  var total = 0;
+  for (var i = 0; i < count; i++) {
+    final amount = progress[daysBefore(today, i)] ?? 0;
+    total += amount;
+    if (amount >= item.goal) done++;
+  }
+  return (doneDays: done, perDay: total / count);
+}
