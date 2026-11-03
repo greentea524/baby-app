@@ -14,9 +14,13 @@ class ChecklistMonths extends StatefulWidget {
     required this.items,
     required this.checks,
     required this.now,
+    this.onDay,
   });
 
   final List<ChecklistItem> items;
+
+  /// Opens a day to be corrected. Null leaves the days as a picture only.
+  final void Function(DateTime day)? onDay;
 
   /// At least the two months shown.
   final List<DailyCheck> checks;
@@ -44,13 +48,20 @@ class _ChecklistMonthsState extends State<ChecklistMonths> {
     final lastMonth = DateTime(today.year, today.month - 1);
 
     Widget month(DateTime m) =>
-        _MonthGrid(month: m, today: today, shares: shares);
+        _MonthGrid(month: m, today: today, shares: shares, onDay: widget.onDay);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('Last two months', style: theme.textTheme.titleMedium),
+        if (widget.onDay != null)
+          Text(
+            'Tap a day to put it right.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         if (items.length > 1) ...[
           const SizedBox(height: 8),
           Wrap(
@@ -103,7 +114,10 @@ class _MonthGrid extends StatelessWidget {
     required this.month,
     required this.today,
     required this.shares,
+    this.onDay,
   });
+
+  final void Function(DateTime day)? onDay;
 
   /// The first of the month.
   final DateTime month;
@@ -181,6 +195,7 @@ class _MonthGrid extends StatelessWidget {
                 day: DateTime(month.year, month.month, d),
                 today: today,
                 share: shares[DateTime(month.year, month.month, d)] ?? 0,
+                onTap: onDay,
               ),
           ],
         ),
@@ -194,7 +209,12 @@ class _DaySquare extends StatelessWidget {
     required this.day,
     required this.today,
     required this.share,
+    this.onTap,
   });
+
+  /// Opens this day to be corrected: a bath that was given and not ticked.
+  /// Not for days still to come.
+  final void Function(DateTime day)? onTap;
 
   final DateTime day;
   final DateTime today;
@@ -212,7 +232,10 @@ class _DaySquare extends StatelessWidget {
     final isToday = day == today;
     final local = MaterialLocalizations.of(context);
 
+    final tap = future ? null : onTap;
+
     return Semantics(
+      button: tap != null,
       label:
           '${local.formatMediumDate(day)}: '
           '${future
@@ -223,40 +246,45 @@ class _DaySquare extends StatelessWidget {
               ? 'part done'
               : 'not done'}',
       excludeSemantics: true,
-      child: Container(
-        key: ValueKey(
-          'day-${day.year}-${day.month}-${day.day}'
-          '-${done
-              ? 'done'
-              : part
-              ? 'part'
-              : 'none'}',
-        ),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: done
-              ? scheme.primary
-              : part
-              ? scheme.primary.withValues(alpha: 0.28)
-              : future
-              ? null
-              : scheme.surfaceContainerHighest,
-          border: isToday ? Border.all(color: scheme.primary, width: 2) : null,
-        ),
-        // Shrinks rather than spilling out of its square at a large text
-        // size: seven to a row leaves a phone little more than 40pt each.
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            '${day.day}',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: done
-                  ? scheme.onPrimary
-                  : future
-                  ? scheme.onSurfaceVariant.withValues(alpha: 0.5)
-                  : scheme.onSurface,
-              fontWeight: done ? FontWeight.w600 : null,
+      child: GestureDetector(
+        onTap: tap == null ? null : () => tap(day),
+        child: Container(
+          key: ValueKey(
+            'day-${day.year}-${day.month}-${day.day}'
+            '-${done
+                ? 'done'
+                : part
+                ? 'part'
+                : 'none'}',
+          ),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: done
+                ? scheme.primary
+                : part
+                ? scheme.primary.withValues(alpha: 0.28)
+                : future
+                ? null
+                : scheme.surfaceContainerHighest,
+            border: isToday
+                ? Border.all(color: scheme.primary, width: 2)
+                : null,
+          ),
+          // Shrinks rather than spilling out of its square at a large text
+          // size: seven to a row leaves a phone little more than 40pt each.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '${day.day}',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: done
+                    ? scheme.onPrimary
+                    : future
+                    ? scheme.onSurfaceVariant.withValues(alpha: 0.5)
+                    : scheme.onSurface,
+                fontWeight: done ? FontWeight.w600 : null,
+              ),
             ),
           ),
         ),

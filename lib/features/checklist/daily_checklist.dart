@@ -8,6 +8,7 @@ import '../../data/repositories/repository_providers.dart';
 import '../common/action_snack_bar.dart';
 import '../common/app_sheet.dart';
 import '../feeding/feeding_format.dart';
+import 'checklist_day_sheet.dart';
 import 'checklist_logic.dart';
 import 'checklist_months.dart';
 import 'checklist_settings_screen.dart';
@@ -505,7 +506,14 @@ class ChecklistStreaks extends ConsumerWidget {
           ),
         if (items.isNotEmpty) ...[
           const Divider(height: 24),
-          ChecklistMonths(items: items, checks: checks, now: clock),
+          ChecklistMonths(
+            items: items,
+            checks: checks,
+            now: clock,
+            // Over this sheet rather than in place of it, so the calendar
+            // is there to see the day change when it closes.
+            onDay: (day) => showChecklistDaySheet(context, day: day, now: now),
+          ),
         ],
         if (onEdit case final edit?) ...[
           const SizedBox(height: 8),
