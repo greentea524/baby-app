@@ -110,6 +110,8 @@ void main() {
 
     final session = pumps.added.single;
     final bottle = fridge.added.single;
+    // Linked to the session it came from.
+    expect(bottle.pumpId, 'p1');
     expect(bottle.amountMl, 110);
     expect(bottle.kind, MilkKind.expressed);
     // As old as the pumping, and matched to its session by that time.
@@ -205,6 +207,12 @@ class _RecordingPumps extends PumpingRepository {
   Future<String> add(PumpingEvent event) async {
     added.add(event);
     return 'p1';
+  }
+
+  @override
+  ({String id, Future<void> written}) addNow(PumpingEvent event) {
+    added.add(event);
+    return (id: 'p1', written: Future.value());
   }
 
   @override

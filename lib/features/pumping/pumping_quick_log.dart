@@ -106,30 +106,38 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
     );
     // Only for a new session with milk to bottle. Editing a session is not
     // pumping it again, and a bottle of nothing is not a bottle.
-    final bottle = _toFridge && event.amountMl != null && event.amountMl! > 0
-        ? FridgeBottle(
-            id: '',
-            // The session's own time: the milk is as old as the pumping,
-            // and it is how the shelf knows which session this bottle is.
-            filledAt: event.time,
-            amountMl: event.amountMl!,
-          )
-        : null;
+    final bottling = _toFridge && event.amountMl != null && event.amountMl! > 0;
     final fridge = ref.read(fridgeRepositoryProvider);
     final messenger = ScaffoldMessenger.of(context);
 
     _saving = true;
     saveAndClose(context, () {
-      final write = widget.existing != null
-          ? repo.update(event)
-          : repo.add(event);
+      // The new session's id is known before its write finishes, so the
+      // bottle can say which session it is.
+      final Future<void> write;
+      FridgeBottle? bottle;
+      if (widget.existing != null) {
+        write = repo.update(event);
+      } else {
+        final added = repo.addNow(event);
+        write = added.written;
+        if (bottling) {
+          bottle = FridgeBottle(
+            id: '',
+            // The session's own time: the milk is as old as the pumping.
+            filledAt: event.time,
+            amountMl: event.amountMl!,
+            pumpId: added.id,
+          );
+        }
+      }
       // Alongside rather than after: offline, the session's write does not
       // finish until the device is back online, and the bottle should be on
       // the shelf now. Reports its own failure, since the session itself was
       // saved.
-      if (bottle != null && fridge != null) {
+      if (bottle case final b? when fridge != null) {
         unawaited(
-          Future<void>.sync(() => fridge.add(bottle)).catchError((Object e) {
+          Future<void>.sync(() => fridge.add(b)).catchError((Object e) {
             messenger.showSnackBar(
               SnackBar(
                 content: Text(

@@ -6,9 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format/unit_system.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_log_entry.dart';
+import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../feeding/feeding_format.dart';
+import '../home/home_prefs.dart';
+import '../pumping/pumping_format.dart';
 import '../timeline/timeline_format.dart';
+import 'bottle_sheet.dart';
+import 'fridge_order.dart';
 
 /// What happened in the fridge, newest first: bottles added, fed, removed,
 /// split, combined and put back.
@@ -25,12 +30,25 @@ class FridgeHistoryScreen extends ConsumerWidget {
   /// A fixed clock, for tests.
   final DateTime? now;
 
+  /// How far back pump sessions are shown: a week, a little more than the
+  /// longest anything keeps in a fridge.
+  static const pumpDays = 7;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final clock = now ?? DateTime.now();
     final log = ref.watch(fridgeLogProvider);
-    final shelf = {for (final b in ref.watch(fridgeShelfProvider)) b.id};
+    final shelfBottles = ref.watch(fridgeShelfProvider);
+    final shelf = {for (final b in shelfBottles) b.id};
+    // Only for a household that pumps, as on Home.
+    final recentPumps = ref.watch(showPumpingActionProvider)
+        ? ref.watch(recentPumpingProvider).value ?? const <PumpingEvent>[]
+        : const <PumpingEvent>[];
+    final pumps = [
+      for (final p in recentPumps)
+        if (clock.difference(p.time) < const Duration(days: pumpDays)) p,
+    ];
 
     return Scaffold(
       appBar: AppBar(title: const Text('Fridge history')),
@@ -38,7 +56,7 @@ class FridgeHistoryScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Could not load: $e')),
         data: (entries) {
-          if (entries.isEmpty) {
+          if (entries.isEmpty && pumps.isEmpty) {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -64,23 +82,67 @@ class FridgeHistoryScreen extends ConsumerWidget {
             }
           }
 
+          // A session is in a bottle once one says so, now or ever — or,
+          // for bottles from before they said, once one was filled in its
+          // window.
+          final linked = {
+            for (final b in shelfBottles) ?b.pumpId,
+            for (final e in entries) ?e.pumpId,
+          };
+          final byId = {for (final p in recentPumps) p.id: p};
+          bool bottled(PumpingEvent p, DateTime? next) =>
+              linked.contains(p.id) ||
+              isBottled(p.time, shelfBottles, nextPumpAt: next);
+
+          // The two lists, newest first, as one.
+          final items = <({DateTime at, Object item})>[
+            for (final e in entries) (at: e.at, item: e),
+            for (final p in pumps) (at: p.time, item: p),
+          ]..sort((a, b) => b.at.compareTo(a.at));
+
           final rows = <Widget>[];
           DateTime? day;
-          for (final e in entries) {
-            final d = DateTime(e.at.year, e.at.month, e.at.day);
+          for (final it in items) {
+            final d = DateTime(it.at.year, it.at.month, it.at.day);
             if (d != day) {
               day = d;
               rows.add(_DayHeader(day: d, now: clock));
             }
-            rows.add(
-              _EntryTile(
-                entry: e,
-                now: clock,
-                onPutBack: canPutBack.contains(e.id)
-                    ? () => _putBack(context, ref, e)
-                    : null,
-              ),
-            );
+            switch (it.item) {
+              case final FridgeLogEntry e:
+                rows.add(
+                  _EntryTile(
+                    entry: e,
+                    now: clock,
+                    from: byId[e.pumpId],
+                    onPutBack: canPutBack.contains(e.id)
+                        ? () => _putBack(context, ref, e)
+                        : null,
+                  ),
+                );
+              case final PumpingEvent p:
+                // The next session along, newest first being the order.
+                final i = recentPumps.indexOf(p);
+                final next = i > 0 ? recentPumps[i - 1].time : null;
+                final inBottle = bottled(p, next);
+                final canAdd =
+                    (p.amountMl ?? 0) > 0 &&
+                    clock.difference(p.time) < const Duration(days: 3) &&
+                    !inBottle;
+                rows.add(
+                  _PumpTile(
+                    session: p,
+                    inBottle: inBottle,
+                    onAdd: canAdd
+                        ? () => showBottleSheet(
+                            context,
+                            prefillFrom: p,
+                            pumps: linkablePumps(recentPumps, clock),
+                          )
+                        : null,
+                  ),
+                );
+            }
           }
           return ListView(
             padding: const EdgeInsets.only(bottom: 24),
@@ -138,10 +200,18 @@ class _DayHeader extends StatelessWidget {
 }
 
 class _EntryTile extends ConsumerWidget {
-  const _EntryTile({required this.entry, required this.now, this.onPutBack});
+  const _EntryTile({
+    required this.entry,
+    required this.now,
+    this.from,
+    this.onPutBack,
+  });
 
   final FridgeLogEntry entry;
   final DateTime now;
+
+  /// The pump session the bottle is from, when it says and it is recent.
+  final PumpingEvent? from;
 
   /// Puts a removed bottle back. Null where it cannot come back: it is on
   /// the shelf again, or something has happened to it since.
@@ -153,9 +223,21 @@ class _EntryTile extends ConsumerWidget {
     String vol(double ml) => formatVolume(ml, units);
     final e = entry;
     final milk = e.kind.label.toLowerCase();
-    final age =
+    // The session, when it is known, says when the milk is from. The
+    // bottle's own time too only where it says something else: a bottle
+    // put in the fridge just after pumping would say the same time twice.
+    final pump = from;
+    final sameTime =
+        pump != null &&
+        e.filledAt.difference(pump.time).abs() <= const Duration(minutes: 30);
+    final age = [
+      if (!sameTime)
         '${e.kind.filledLabel.toLowerCase()} '
-        '${FeedingFormat.clockStamp(context, e.filledAt, now: now)}';
+            '${FeedingFormat.clockStamp(context, e.filledAt, now: now)}',
+      if (pump != null)
+        'from the ${FeedingFormat.clockStamp(context, pump.time, now: now)} '
+            'pump',
+    ].join(' · ');
 
     final (icon, title, detail) = switch (e.action) {
       FridgeAction.added => (
@@ -203,6 +285,48 @@ class _EntryTile extends ConsumerWidget {
       subtitle: Text(onPutBack != null ? '$at · $detail' : detail),
       trailing: onPutBack != null
           ? TextButton(onPressed: onPutBack, child: const Text('Put back'))
+          : Text(at, style: Theme.of(context).textTheme.bodySmall),
+    );
+  }
+}
+
+/// A pump session, among the fridge's goings-on: how much, and whether its
+/// milk has gone in a bottle yet — with the way to put it in one if not.
+class _PumpTile extends ConsumerWidget {
+  const _PumpTile({required this.session, required this.inBottle, this.onAdd});
+
+  final PumpingEvent session;
+
+  /// Whether its milk has gone into a bottle.
+  final bool inBottle;
+
+  /// Opens a new bottle from this session. Null once its milk is in a
+  /// bottle, or with none to bottle.
+  final VoidCallback? onAdd;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final units = ref.watch(unitSystemProvider);
+    final p = session;
+    final at = TimeOfDay.fromDateTime(p.time).format(context);
+    return ListTile(
+      key: ValueKey('fridge-pump-${p.id}'),
+      leading: const Icon(PumpingFormat.icon),
+      title: Text(
+        p.amountMl == null
+            ? 'Pumped'
+            : 'Pumped ${formatVolume(p.amountMl!, units)}',
+      ),
+      subtitle: Text(
+        [
+          if (onAdd != null) at,
+          if (p.durationMinutes case final m?) '$m min',
+          if (p.side case final side?) FeedingFormat.sideLabel(side),
+          if (inBottle) 'In a bottle',
+        ].join(' · '),
+      ),
+      trailing: onAdd != null
+          ? TextButton(onPressed: onAdd, child: const Text('Add to fridge'))
           : Text(at, style: Theme.of(context).textTheme.bodySmall),
     );
   }

@@ -8,6 +8,7 @@ import 'package:baby_app/core/auth/auth_providers.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/models/fridge_log_entry.dart';
+import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/fridge_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/fridge/fridge_history_screen.dart';
@@ -27,6 +28,7 @@ void main() {
     double ml = 120,
     double? other,
     MilkKind kind = MilkKind.expressed,
+    String? pumpId,
   }) => FridgeLogEntry(
     id: id,
     action: action,
@@ -36,12 +38,14 @@ void main() {
     kind: kind,
     filledAt: DateTime(2026, 11, 3, 9, 30),
     otherMl: other,
+    pumpId: pumpId,
   );
 
   Future<_RecordingFridge> pump(
     WidgetTester tester, {
     required List<FridgeLogEntry> log,
     List<FridgeBottle> shelf = const [],
+    List<PumpingEvent> pumps = const [],
   }) async {
     SharedPreferences.setMockInitialValues({'unit_system': 'metric'});
     final stored = await SharedPreferences.getInstance();
@@ -57,6 +61,7 @@ void main() {
           fridgeRepositoryProvider.overrideWithValue(repo),
           fridgeLogProvider.overrideWith((ref) => Stream.value(log)),
           fridgeShelfProvider.overrideWithValue(shelf),
+          recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
         ],
         child: MaterialApp(home: FridgeHistoryScreen(now: now)),
       ),
@@ -167,6 +172,104 @@ void main() {
     expect(find.textContaining('Nothing yet.'), findsOneWidget);
   });
 
+  group('pump sessions', () {
+    final session = PumpingEvent(
+      id: 'p1',
+      time: DateTime(2026, 11, 4, 11),
+      amountMl: 135,
+      durationMinutes: 18,
+    );
+
+    testWidgets('stand among the bottles, with a way into the fridge', (
+      tester,
+    ) async {
+      final repo = await pump(
+        tester,
+        log: [entry('1', FridgeAction.fed, DateTime(2026, 11, 4, 12))],
+        pumps: [session],
+      );
+      expect(find.text('Pumped 135 ml'), findsOneWidget);
+      // The amount is the title; it is not said twice.
+      expect(find.textContaining('18 min'), findsOneWidget);
+      expect(find.textContaining('135 ml ·'), findsNothing);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Add to fridge'));
+      await tester.pumpAndSettle();
+      // The sheet opens on the session: its amount, and linked to it.
+      expect(find.text('135'), findsOneWidget);
+      final chip = tester.widget<ChoiceChip>(
+        find.byKey(const ValueKey('from-pump-p1')),
+      );
+      expect(chip.selected, isTrue);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Add to fridge'));
+      await tester.pumpAndSettle();
+      expect(repo.added.single.amountMl, 135);
+      expect(repo.added.single.pumpId, 'p1');
+    });
+
+    testWidgets('and say so once their milk is in a bottle', (tester) async {
+      await pump(
+        tester,
+        log: [
+          entry(
+            '1',
+            FridgeAction.added,
+            DateTime(2026, 11, 4, 11, 30),
+            pumpId: 'p1',
+          ),
+        ],
+        pumps: [session],
+      );
+      expect(find.text('Pumped 135 ml'), findsOneWidget);
+      expect(find.textContaining('In a bottle'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Add to fridge'), findsNothing);
+      // And the bottle says which session it is from.
+      expect(find.textContaining('from the 11:00 AM pump'), findsOneWidget);
+    });
+
+    testWidgets('saying its time once when it went in just after', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        log: [
+          FridgeLogEntry(
+            id: '1',
+            action: FridgeAction.added,
+            at: DateTime(2026, 11, 4, 11, 10),
+            bottleId: 'b1',
+            amountMl: 135,
+            kind: MilkKind.expressed,
+            filledAt: DateTime(2026, 11, 4, 11, 10),
+            pumpId: 'p1',
+          ),
+        ],
+        pumps: [session],
+      );
+      expect(find.text('from the 11:00 AM pump'), findsOneWidget);
+      expect(find.textContaining('pumped 11:10'), findsNothing);
+    });
+
+    testWidgets('but none older than three days can be bottled', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        log: const [],
+        pumps: [
+          PumpingEvent(
+            id: 'old',
+            time: DateTime(2026, 10, 31, 9),
+            amountMl: 80,
+          ),
+        ],
+      );
+      expect(find.text('Pumped 80 ml'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Add to fridge'), findsNothing);
+    });
+  });
+
   test('an entry keeps the bottle whole, to put it back', () {
     final bottle = FridgeBottle(
       id: 'b9',
@@ -174,6 +277,7 @@ void main() {
       amountMl: 95,
       kind: MilkKind.formula,
       notes: 'Split',
+      pumpId: 'p7',
     );
     final e = FridgeLogEntry.of(FridgeAction.removed, bottle, at: now);
     final back = e.bottle;
@@ -182,6 +286,8 @@ void main() {
     expect(back.kind, MilkKind.formula);
     expect(back.filledAt, bottle.filledAt);
     expect(back.notes, 'Split');
+    expect(back.pumpId, 'p7');
+    expect(e.toMap()['pumpId'], 'p7');
     expect(e.toMap()['action'], 'removed');
   });
 }
@@ -190,6 +296,13 @@ class _RecordingFridge extends FridgeRepository {
   _RecordingFridge() : super(_NoFirestore(), 'baby1', 'alice');
 
   final restored = <FridgeLogEntry>[];
+  final added = <FridgeBottle>[];
+
+  @override
+  Future<String> add(FridgeBottle bottle) async {
+    added.add(bottle);
+    return 'new';
+  }
 
   @override
   Future<void> restore(FridgeLogEntry removed) async => restored.add(removed);

@@ -41,6 +41,11 @@ class FridgeScreen extends ConsumerWidget {
     // anybody taps Add — see [_add].
     final lastPump = ref.watch(lastPumpingProvider);
     final feeds = ref.watch(recentFeedingsProvider).value ?? const [];
+    // The sessions a bottle can say it is from.
+    final pumps = linkablePumps(
+      ref.watch(recentPumpingProvider).value ?? const [],
+      now ?? DateTime.now(),
+    );
 
     // Watched above, not read inside the sheet: this keeps the last-pump
     // stream live for as long as the screen is open, so the prefill is
@@ -51,6 +56,7 @@ class FridgeScreen extends ConsumerWidget {
     void add() => showBottleSheet(
       context,
       prefillFrom: unbottledPump(lastPump, shelf: shelf, feeds: feeds),
+      pumps: pumps,
     );
 
     return Scaffold(
@@ -579,7 +585,18 @@ class _BottleCard extends StatelessWidget {
         null => null,
       },
       child: InkWell(
-        onTap: () => showBottleSheet(context, existing: bottle),
+        onTap: () => showBottleSheet(
+          context,
+          existing: bottle,
+          pumps: linkablePumps(
+            ProviderScope.containerOf(
+                  context,
+                  listen: false,
+                ).read(recentPumpingProvider).value ??
+                const [],
+            now,
+          ),
+        ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
           // Two shapes, chosen by the height the shelf gives. Tall — a phone

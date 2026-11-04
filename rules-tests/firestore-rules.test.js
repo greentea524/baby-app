@@ -1344,4 +1344,20 @@ describe("the fridge's history", () => {
       setDoc(doc(asAlice(), "babies", BABY, "bottles", "bottle1"), bottle()),
     );
   });
+  it("names the pump session a bottle is from, or none", async () => {
+    const bottleRef = (id) => doc(asAlice(), "babies", BABY, "bottles", id);
+    await assertSucceeds(setDoc(bottleRef("from1"), bottle({ pumpId: "pump1" })));
+    await assertSucceeds(setDoc(bottleRef("from2"), bottle({ pumpId: null })));
+    await assertSucceeds(
+      setDoc(logRef(asAlice(), "p1"), entry({ action: "added", pumpId: "pump1" })),
+    );
+  });
+
+  it("refuses a pump session that is not an id", async () => {
+    const bottleRef = (id) => doc(asAlice(), "babies", BABY, "bottles", id);
+    await assertFails(setDoc(bottleRef("bad1"), bottle({ pumpId: "" })));
+    await assertFails(setDoc(bottleRef("bad2"), bottle({ pumpId: 7 })));
+    await assertFails(setDoc(bottleRef("bad3"), bottle({ pumpId: "x".repeat(65) })));
+    await assertFails(setDoc(logRef(asAlice(), "bad4"), entry({ pumpId: "" })));
+  });
 });

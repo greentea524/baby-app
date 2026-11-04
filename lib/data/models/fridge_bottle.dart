@@ -22,6 +22,7 @@ class FridgeBottle implements BabyEvent {
     required this.amountMl,
     this.kind = MilkKind.expressed,
     this.notes,
+    this.pumpId,
   });
 
   @override
@@ -41,6 +42,12 @@ class FridgeBottle implements BabyEvent {
 
   final String? notes;
 
+  /// The pump session this milk came from, when it is known: chosen when the
+  /// bottle was added, or set when it went in the fridge from the pump sheet.
+  /// Null for formula and whole milk, for a bottle whose session nobody
+  /// said, and for every bottle from before it was kept.
+  final String? pumpId;
+
   FridgeBottle copyWith({
     DateTime? filledAt,
     double? amountMl,
@@ -52,6 +59,7 @@ class FridgeBottle implements BabyEvent {
     amountMl: amountMl ?? this.amountMl,
     kind: kind ?? this.kind,
     notes: notes ?? this.notes,
+    pumpId: pumpId,
   );
 
   factory FridgeBottle.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -62,6 +70,7 @@ class FridgeBottle implements BabyEvent {
       amountMl: (data['amountMl'] as num).toDouble(),
       kind: MilkKind.fromName(data['kind'] as String?),
       notes: data['notes'] as String?,
+      pumpId: data['pumpId'] as String?,
     );
   }
 
@@ -71,5 +80,6 @@ class FridgeBottle implements BabyEvent {
     'amountMl': amountMl,
     'kind': kind.name,
     'notes': notes,
+    'pumpId': pumpId,
   };
 }

@@ -46,11 +46,12 @@ FridgeBottle combined(
     for (final n in [kept.notes, poured.notes])
       if (n != null && n.trim().isNotEmpty) n.trim(),
   ];
+  final older = poured.filledAt.isBefore(kept.filledAt) ? poured : kept;
   return FridgeBottle(
     id: kept.id,
-    filledAt: poured.filledAt.isBefore(kept.filledAt)
-        ? poured.filledAt
-        : kept.filledAt,
+    filledAt: older.filledAt,
+    // The older milk's session, which is the one its age is counted from.
+    pumpId: older.pumpId,
     amountMl: kept.amountMl + pour,
     kind: kept.kind,
     notes: withHistory(
@@ -80,6 +81,7 @@ FridgeBottle combined(
       amountMl: bottle.amountMl - firstMl,
       kind: bottle.kind,
       notes: notes,
+      pumpId: bottle.pumpId,
     ),
   );
 }

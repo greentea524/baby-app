@@ -20,7 +20,8 @@ import 'fridge_order.dart';
 /// Adds a bottle to the fridge, or edits one already in it.
 ///
 /// [prefillFrom] is the session a new bottle takes its amount from — where the
-/// milk came from nine times in ten. Passed in rather than read from a provider inside
+/// milk came from nine times in ten — and is linked to. [pumps] are the
+/// recent sessions it can be linked to instead, newest first. Passed in rather than read from a provider inside
 /// the sheet: the last-pump stream is only live while something is watching
 /// it, and a sheet that reached for it itself would find it still loading and
 /// silently open blank.
@@ -28,18 +29,33 @@ Future<void> showBottleSheet(
   BuildContext context, {
   FridgeBottle? existing,
   PumpingEvent? prefillFrom,
+  List<PumpingEvent> pumps = const [],
 }) {
   return showAppSheet<void>(
     context,
-    builder: (_) => _BottleSheet(existing: existing, prefillFrom: prefillFrom),
+    builder: (_) => _BottleSheet(
+      existing: existing,
+      prefillFrom: prefillFrom,
+      pumps: pumps,
+    ),
   );
 }
 
+/// The sessions a bottle can be linked to: the last few days', newest first,
+/// with milk to show for it. Older milk has left the fridge by now.
+List<PumpingEvent> linkablePumps(List<PumpingEvent> recent, DateTime now) => [
+  for (final p in recent)
+    if ((p.amountMl ?? 0) > 0 &&
+        now.difference(p.time) < const Duration(days: 3))
+      p,
+].take(6).toList();
+
 class _BottleSheet extends ConsumerStatefulWidget {
-  const _BottleSheet({this.existing, this.prefillFrom});
+  const _BottleSheet({this.existing, this.prefillFrom, this.pumps = const []});
 
   final FridgeBottle? existing;
   final PumpingEvent? prefillFrom;
+  final List<PumpingEvent> pumps;
 
   @override
   ConsumerState<_BottleSheet> createState() => _BottleSheetState();
@@ -52,8 +68,24 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   late VolumeUnit _unit;
   late MilkKind _kind;
 
-  /// The session this bottle's amount is filled in from, if any.
-  PumpingEvent? get _prefill => widget.prefillFrom;
+  /// The session this bottle is from, when it is linked to one.
+  String? _pumpId;
+
+  /// The sessions to choose from: the recent ones, and the one passed in
+  /// even if it is older.
+  List<PumpingEvent> get _sessions => [
+    if (widget.prefillFrom case final p?
+        when !widget.pumps.any((s) => s.id == p.id))
+      p,
+    ...widget.pumps,
+  ];
+
+  PumpingEvent? get _linked {
+    for (final p in _sessions) {
+      if (p.id == _pumpId) return p;
+    }
+    return null;
+  }
 
   /// Guards a second tap landing while the sheet closes, as the other sheets
   /// do — there is no spinner to hide behind (#21).
@@ -75,6 +107,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
       _storedMl = e.amountMl;
       _amount.text = _unit.fieldText(e.amountMl);
       if (e.notes != null) _notes.text = e.notes!;
+      _pumpId = e.pumpId;
       return;
     }
 
@@ -93,6 +126,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     // watched: a starting value to correct, and a field that changed under
     // the caregiver mid-edit would be worse than one that started blank.
     final last = widget.prefillFrom;
+    _pumpId = last?.id;
     _storedMl = last?.amountMl;
     if (last?.amountMl != null) _amount.text = _unit.fieldText(last!.amountMl!);
   }
@@ -115,7 +149,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     setState(() {
       _kind = kind;
       if (!_amountEdited) {
-        final ml = kind == MilkKind.expressed ? _prefill?.amountMl : null;
+        final ml = kind == MilkKind.expressed ? _linked?.amountMl : null;
         _storedMl = ml;
         _amount.text = ml == null ? '' : _unit.fieldText(ml);
       }
@@ -142,6 +176,8 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
       amountMl: ml,
       kind: _kind,
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      // Only breast milk comes from a pump.
+      pumpId: _kind == MilkKind.expressed ? _pumpId : null,
     );
     _saving = true;
     saveAndClose(
@@ -193,11 +229,28 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
           label: _kind.filledLabel,
           onChanged: (t) => setState(() => _filledAt = t),
         ),
+        // Which session the milk is from: chosen here, or the one the
+        // sheet opened on. Choosing one fills its amount in; tapping it
+        // again leaves the bottle unlinked.
+        if (_kind == MilkKind.expressed && _sessions.isNotEmpty)
+          _PumpChooser(
+            sessions: _sessions,
+            selectedId: _pumpId,
+            onChanged: (session) => setState(() {
+              _pumpId = session?.id;
+              if (session?.amountMl case final ml?) {
+                _storedMl = ml;
+                _amountEdited = false;
+                _amount.text = _unit.fieldText(ml);
+              }
+            }),
+          ),
         // Says where the amount came from, while it still does.
-        if (_prefill case final session?
+        if (_linked case final session?
             when _kind == MilkKind.expressed &&
                 !_amountEdited &&
-                session.amountMl != null)
+                session.amountMl != null &&
+                _storedMl == session.amountMl)
           _FromPump(session: session),
         const SizedBox(height: 16),
         TextField(
@@ -707,6 +760,56 @@ class _CombinePreview extends StatelessWidget {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The recent pump sessions as chips — "9:05 AM · 135 ml" — one of them
+/// chosen when the bottle is from it.
+class _PumpChooser extends ConsumerWidget {
+  const _PumpChooser({
+    required this.sessions,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final List<PumpingEvent> sessions;
+  final String? selectedId;
+
+  /// The session chosen, or null when the chosen one is tapped again.
+  final ValueChanged<PumpingEvent?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final units = ref.watch(unitSystemProvider);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('From pump session', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final p in sessions)
+                ChoiceChip(
+                  key: ValueKey('from-pump-${p.id}'),
+                  label: Text(
+                    [
+                      FeedingFormat.clockStamp(context, p.time),
+                      if (p.amountMl case final ml?) formatVolume(ml, units),
+                    ].join(' · '),
+                  ),
+                  selected: p.id == selectedId,
+                  onSelected: (on) => onChanged(on ? p : null),
+                ),
+            ],
+          ),
         ],
       ),
     );

@@ -44,6 +44,7 @@ class FridgeLogEntry {
     required this.filledAt,
     this.notes,
     this.otherMl,
+    this.pumpId,
   });
 
   final String id;
@@ -61,6 +62,9 @@ class FridgeLogEntry {
   final MilkKind kind;
   final DateTime filledAt;
   final String? notes;
+
+  /// The pump session the bottle came from, when it was known.
+  final String? pumpId;
 
   /// For a split, how much went into the new bottle; for a combine, how much
   /// was poured into the other.
@@ -82,6 +86,7 @@ class FridgeLogEntry {
     filledAt: bottle.filledAt,
     notes: bottle.notes,
     otherMl: otherMl,
+    pumpId: bottle.pumpId,
   );
 
   /// The bottle as it was, under its old id: what putting it back puts.
@@ -91,6 +96,7 @@ class FridgeLogEntry {
     amountMl: amountMl,
     kind: kind,
     notes: notes,
+    pumpId: pumpId,
   );
 
   /// Null for an entry this version cannot read, which the history skips
@@ -109,6 +115,7 @@ class FridgeLogEntry {
       filledAt: (data['filledAt'] as Timestamp).toDate(),
       notes: data['notes'] as String?,
       otherMl: (data['otherMl'] as num?)?.toDouble(),
+      pumpId: data['pumpId'] as String?,
     );
   }
 
@@ -121,5 +128,6 @@ class FridgeLogEntry {
     'filledAt': Timestamp.fromDate(filledAt),
     'notes': notes,
     'otherMl': otherMl,
+    'pumpId': pumpId,
   };
 }

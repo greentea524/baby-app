@@ -1388,6 +1388,75 @@ void main() {
       );
     });
 
+    testWidgets('and links the session it is from, which can be changed', (
+      tester,
+    ) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        pumps: [
+          PumpingEvent(
+            id: 'p2',
+            time: now.subtract(const Duration(minutes: 20)),
+            amountMl: 135,
+          ),
+          PumpingEvent(
+            id: 'p1',
+            time: now.subtract(const Duration(hours: 5)),
+            amountMl: 90,
+          ),
+        ],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      expect(find.text('From pump session'), findsOneWidget);
+      expect(
+        tester
+            .widget<ChoiceChip>(find.byKey(const ValueKey('from-pump-p2')))
+            .selected,
+        isTrue,
+      );
+
+      // The older session instead: its amount comes with it.
+      final older = find.byKey(const ValueKey('from-pump-p1'));
+      await tester.ensureVisible(older);
+      await tester.tap(older);
+      await tester.pumpAndSettle();
+      expect(find.text('90'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Add to fridge'));
+      await tester.pumpAndSettle();
+      expect(repo.added.single.pumpId, 'p1');
+      expect(repo.added.single.amountMl, 90);
+    });
+
+    testWidgets('but a formula bottle is from no pump', (tester) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        pumps: [
+          PumpingEvent(
+            id: 'p1',
+            time: now.subtract(const Duration(minutes: 20)),
+            amountMl: 135,
+          ),
+        ],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Formula'));
+      await tester.pumpAndSettle();
+      expect(find.text('From pump session'), findsNothing);
+      await tester.enterText(find.byType(TextField).first, '60');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Add to fridge'));
+      await tester.pumpAndSettle();
+      expect(repo.added.single.kind, MilkKind.formula);
+      expect(repo.added.single.pumpId, isNull);
+    });
+
     testWidgets('and drops the note once the amount is typed over', (
       tester,
     ) async {

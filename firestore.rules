@@ -338,7 +338,9 @@ service cloud.firestore {
             // Where it stands: a lettered slot, or the space past them.
             // Optional, so a bottle saved before slots existed still passes;
             // the app gives it one the next time the fridge is opened.
-            && optional(d.get('slot', null), ['a', 'b', 'c', 'other']);
+            && optional(d.get('slot', null), ['a', 'b', 'c', 'other'])
+            // The pump session it came from, when that is known.
+            && pumpRef(d.get('pumpId', null));
         }
       }
 
@@ -360,7 +362,8 @@ service cloud.firestore {
             && optional(d.get('kind', null), ['expressed', 'formula', 'wholeMilk'])
             && d.filledAt is timestamp
             && text(d.get('notes', null))
-            && amount(d.get('otherMl', null));
+            && amount(d.get('otherMl', null))
+            && pumpRef(d.get('pumpId', null));
         }
       }
 
@@ -440,6 +443,11 @@ service cloud.firestore {
 
       function optional(v, allowed) {
         return v == null || v in allowed;
+      }
+
+      // A pump session's document id, as a bottle points at it.
+      function pumpRef(v) {
+        return v == null || (v is string && v.size() > 0 && v.size() <= 64);
       }
 
       // Free text. The app's own fields are a line or two; the cap is there

@@ -367,6 +367,10 @@ class HomeStatusCard extends ConsumerWidget {
           shelf: shelf,
           feeds: ref.read(recentFeedingsProvider).value ?? const [],
         ),
+        pumps: linkablePumps(
+          ref.read(recentPumpingProvider).value ?? const [],
+          now,
+        ),
       ),
       logLabel: 'Add a bottle to the fridge',
       label: 'Fridge',
