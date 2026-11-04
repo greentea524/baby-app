@@ -169,6 +169,14 @@ class _RecordingFridge extends FridgeRepository {
 
   @override
   Future<void> delete(String id) async => deleted.add(id);
+
+  // Taking a bottle off goes through these now, with its history; counted
+  // the same, so "nothing deleted" still means nothing taken off.
+  @override
+  Future<void> remove(FridgeBottle bottle) async => deleted.add(bottle.id);
+
+  @override
+  Future<void> finish(FridgeBottle bottle) async => deleted.add(bottle.id);
 }
 
 /// Never touched: the recording repositories override every call that would

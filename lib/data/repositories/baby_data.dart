@@ -30,6 +30,7 @@ class BabyData {
     'pumps',
     'meds',
     'bottles',
+    'fridgeLog',
     'appointments',
     'checks',
     'invites',

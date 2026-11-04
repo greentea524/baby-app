@@ -342,6 +342,28 @@ service cloud.firestore {
         }
       }
 
+      // The fridge's history: what was added, fed, removed, split, combined
+      // and put back, each with the bottle as it stood. Written alongside
+      // the change it records, and never edited after.
+      match /fridgeLog/{docId} {
+        allow read, delete: if isMember(babyId);
+        allow create: if isMember(babyId) && authored() && fridgeLogShape();
+
+        function fridgeLogShape() {
+          let d = request.resource.data;
+          return d.action in ['added', 'removed', 'fed', 'split', 'combined',
+                              'restored']
+            && d.at is timestamp
+            && d.bottleId is string
+            && d.bottleId.size() > 0 && d.bottleId.size() <= 64
+            && d.amountMl is number && d.amountMl > 0
+            && optional(d.get('kind', null), ['expressed', 'formula', 'wholeMilk'])
+            && d.filledAt is timestamp
+            && text(d.get('notes', null))
+            && amount(d.get('otherMl', null));
+        }
+      }
+
       match /appointments/{docId} {
         allow read, delete: if isMember(babyId);
         allow create: if isMember(babyId) && authored() && appointmentShape();

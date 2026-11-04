@@ -80,6 +80,7 @@ void main() {
         'pumps',
         'meds',
         'bottles',
+        'fridgeLog',
         'appointments',
         'checks',
         'invites',

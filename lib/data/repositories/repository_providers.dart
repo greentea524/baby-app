@@ -11,6 +11,7 @@ import '../models/daily_check.dart';
 import '../models/diaper_event.dart';
 import '../models/feeding_event.dart';
 import '../models/fridge_bottle.dart';
+import '../models/fridge_log_entry.dart';
 import '../models/appointment.dart';
 import '../models/growth_measurement.dart';
 import '../models/notification_prefs.dart';
@@ -290,6 +291,15 @@ final fridgeRepositoryProvider = Provider<FridgeRepository?>((ref) {
   final baby = ref.watch(currentBabyProvider);
   if (user == null || baby == null) return null;
   return FridgeRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+});
+
+/// The fridge's history, newest first. Only while the history is open.
+final fridgeLogProvider = StreamProvider.autoDispose<List<FridgeLogEntry>>((
+  ref,
+) {
+  final repo = ref.watch(fridgeRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchLog();
 });
 
 /// Everything in the fridge, in the order Firestore hands it back.

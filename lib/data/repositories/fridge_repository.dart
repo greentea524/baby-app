@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../features/fridge/fridge_order.dart';
 import '../models/fridge_bottle.dart';
+import '../models/fridge_log_entry.dart';
 import 'event_repository.dart';
 
 /// Whether the fridge on this device is in step with the server — see
@@ -14,9 +15,10 @@ typedef FridgeSync = ({bool fromCache, bool pending});
 /// `bottles`, not `fridge` — the collection is named for what is stored, the
 /// way `pumps` is.
 ///
-/// Takes [EventRepository] rather than [TimelineRepository]. A fridge has no
-/// history to page through: it is a list of what is there now, read whole,
-/// and "most recent 50" is not a question anyone asks of it.
+/// Takes [EventRepository] rather than [TimelineRepository]. The shelf is a
+/// list of what is there now, read whole, and "most recent 50" is not a
+/// question anyone asks of it. What happened to it is kept beside it, in the
+/// fridge's own history ([watchLog]).
 class FridgeRepository extends EventRepository<FridgeBottle> {
   FridgeRepository(super.firestore, super.babyId, super.uid);
 
@@ -29,6 +31,88 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
   @override
   FridgeBottle fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) =>
       FridgeBottle.fromDoc(doc);
+
+  /// What happened to the shelf: `babies/{babyId}/fridgeLog`.
+  CollectionReference<Map<String, dynamic>> get _log =>
+      firestore.collection('babies').doc(babyId).collection('fridgeLog');
+
+  Map<String, dynamic> _logged(FridgeLogEntry entry) => {
+    ...entry.toMap(),
+    'createdBy': uid,
+    'createdAt': FieldValue.serverTimestamp(),
+  };
+
+  Map<String, dynamic> _created(FridgeBottle bottle) => {
+    ...bottle.toMap(),
+    'createdBy': uid,
+    'createdAt': FieldValue.serverTimestamp(),
+  };
+
+  /// The fridge's history, newest first: the last [limit] things done to it.
+  Stream<List<FridgeLogEntry>> watchLog({int limit = 100}) => _log
+      .orderBy('at', descending: true)
+      .limit(limit)
+      .snapshots()
+      .map((s) => [...s.docs.map(FridgeLogEntry.fromDoc).nonNulls]);
+
+  /// Puts [event] on the shelf, and says so in the history.
+  @override
+  Future<String> add(FridgeBottle event) async {
+    final doc = col.doc();
+    final placed = FridgeBottle(
+      id: doc.id,
+      filledAt: event.filledAt,
+      amountMl: event.amountMl,
+      kind: event.kind,
+      notes: event.notes,
+    );
+    await (firestore.batch()
+          ..set(doc, _created(placed))
+          ..set(
+            _log.doc(),
+            _logged(
+              FridgeLogEntry.of(FridgeAction.added, placed, at: DateTime.now()),
+            ),
+          ))
+        .commit();
+    return doc.id;
+  }
+
+  /// Takes [bottle] off the shelf without its being fed. The history keeps
+  /// it whole, so it can be put back.
+  Future<void> remove(FridgeBottle bottle) =>
+      _takeOff(bottle, FridgeAction.removed);
+
+  /// Takes [bottle] off the shelf as it is fed.
+  Future<void> finish(FridgeBottle bottle) =>
+      _takeOff(bottle, FridgeAction.fed);
+
+  Future<void> _takeOff(FridgeBottle bottle, FridgeAction why) =>
+      (firestore.batch()
+            ..delete(col.doc(bottle.id))
+            ..set(
+              _log.doc(),
+              _logged(FridgeLogEntry.of(why, bottle, at: DateTime.now())),
+            ))
+          .commit();
+
+  /// Puts a removed bottle back as it was, under its old id.
+  Future<void> restore(FridgeLogEntry removed) {
+    final bottle = removed.bottle;
+    return (firestore.batch()
+          ..set(col.doc(bottle.id), _created(bottle))
+          ..set(
+            _log.doc(),
+            _logged(
+              FridgeLogEntry.of(
+                FridgeAction.restored,
+                bottle,
+                at: DateTime.now(),
+              ),
+            ),
+          ))
+        .commit();
+  }
 
   /// Everything in the fridge, oldest first.
   ///
@@ -83,7 +167,18 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
         ...kept.toMap(),
         'updatedBy': uid,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      })
+      ..set(
+        _log.doc(),
+        _logged(
+          FridgeLogEntry.of(
+            FridgeAction.split,
+            bottle,
+            at: DateTime.now(),
+            otherMl: sibling.amountMl,
+          ),
+        ),
+      );
     return batch.commit();
   }
 
@@ -102,6 +197,17 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
   }) {
     final pour = pourMl ?? poured.amountMl;
     final batch = firestore.batch()
+      ..set(
+        _log.doc(),
+        _logged(
+          FridgeLogEntry.of(
+            FridgeAction.combined,
+            poured,
+            at: DateTime.now(),
+            otherMl: pour,
+          ),
+        ),
+      )
       ..update(col.doc(kept.id), {
         ...combined(kept, poured, pourMl: pour).toMap(),
         'updatedBy': uid,

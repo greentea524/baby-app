@@ -86,6 +86,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('the history is a tap away', (tester) async {
+    await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 2)]);
+    await tester.tap(find.byTooltip('History'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fridge history'), findsOneWidget);
+  });
+
   group('the shelf', () {
     testWidgets('puts the oldest bottle on the left', (tester) async {
       // Left to right, oldest first: the reading order and the order milk
@@ -920,6 +927,9 @@ void main() {
     testWidgets('takes it off the shelf', (tester) async {
       final repo = await remove(tester, bottle('a', hoursAgo: 2, ml: 90));
       expect(repo.deleted, ['a']);
+      // As removed rather than fed, so the history can put it back.
+      expect(repo.removed, ['a']);
+      expect(repo.finished, isEmpty);
     });
 
     testWidgets('with no undo and no message over the shelf', (tester) async {
@@ -1022,6 +1032,8 @@ void main() {
       // That bottle, and only that one. And no message: the bottle leaving
       // is the answer.
       expect(repo.deleted, ['old']);
+      // As fed, in the fridge's history.
+      expect(repo.finished, ['old']);
       expect(find.byType(BottomSheet), findsNothing);
       expect(find.byType(SnackBar), findsNothing);
     });
@@ -1491,6 +1503,21 @@ class _RecordingFridge extends FridgeRepository {
 
   @override
   Future<void> delete(String id) async => deleted.add(id);
+
+  final removed = <String>[];
+  final finished = <String>[];
+
+  @override
+  Future<void> remove(FridgeBottle bottle) async {
+    removed.add(bottle.id);
+    deleted.add(bottle.id);
+  }
+
+  @override
+  Future<void> finish(FridgeBottle bottle) async {
+    finished.add(bottle.id);
+    deleted.add(bottle.id);
+  }
 
   @override
   Future<void> combine(

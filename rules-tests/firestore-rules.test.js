@@ -1292,3 +1292,56 @@ describe("the daily checklist", () => {
     await assertFails(getDoc(checkRef(asMallory(), "m1")));
   });
 });
+
+describe("the fridge's history", () => {
+  const entry = (over = {}) => ({
+    action: "removed",
+    at: AT,
+    bottleId: "bottle1",
+    amountMl: 120,
+    kind: "expressed",
+    filledAt: AT,
+    notes: null,
+    otherMl: null,
+    ...stamped(),
+    ...over,
+  });
+  const logRef = (db, id) => doc(db, "babies", BABY, "fridgeLog", id);
+
+  for (const action of ["added", "removed", "fed", "split", "combined", "restored"]) {
+    it(`accepts a ${action} entry as the app writes it`, async () => {
+      await assertSucceeds(
+        setDoc(logRef(asAlice(), `e-${action}`), entry({ action, otherMl: 40 })),
+      );
+    });
+  }
+
+  it("refuses an action the app does not have", async () => {
+    await assertFails(setDoc(logRef(asAlice(), "x"), entry({ action: "drank" })));
+  });
+
+  it("refuses an empty bottle, or none named", async () => {
+    await assertFails(setDoc(logRef(asAlice(), "z"), entry({ amountMl: 0 })));
+    await assertFails(setDoc(logRef(asAlice(), "n"), entry({ bottleId: "" })));
+  });
+
+  it("is not edited after it is written", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(logRef(ctx.firestore(), "e1"), entry());
+    });
+    await assertFails(
+      updateDoc(logRef(asAlice(), "e1"), { amountMl: 999, ...edited() }),
+    );
+  });
+
+  it("keeps a non-member out", async () => {
+    await assertFails(setDoc(logRef(asMallory(), "m"), entry({ ...stamped("mallory") })));
+    await assertFails(getDoc(logRef(asMallory(), "m")));
+  });
+
+  it("puts a removed bottle back under its old id", async () => {
+    await assertSucceeds(
+      setDoc(doc(asAlice(), "babies", BABY, "bottles", "bottle1"), bottle()),
+    );
+  });
+});

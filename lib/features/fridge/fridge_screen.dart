@@ -16,6 +16,7 @@ import '../reminders/feed_prediction.dart';
 import 'bottle_gauge.dart';
 import 'bottle_sheet.dart';
 import 'fridge_button.dart';
+import 'fridge_history_screen.dart';
 import 'fridge_order.dart';
 
 /// What bottles are in the fridge, laid out the way the fridge is.
@@ -53,7 +54,20 @@ class FridgeScreen extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('In the fridge')),
+      appBar: AppBar(
+        title: const Text('In the fridge'),
+        actions: [
+          IconButton(
+            tooltip: 'History',
+            icon: const Icon(Icons.history),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => FridgeHistoryScreen(now: now),
+              ),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: add,
         icon: const Icon(Icons.add),
@@ -459,7 +473,7 @@ void _finish(
       onSaved: () {
         if (repo == null) return;
         unawaited(
-          Future.sync(() => repo.delete(bottle.id)).catchError((Object e) {
+          Future.sync(() => repo.finish(bottle)).catchError((Object e) {
             messenger.showSnackBar(
               SnackBar(
                 content: Text(

@@ -261,11 +261,13 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
 
   /// Takes the bottle off the shelf.
   ///
-  /// No confirmation and no undo. Removing is how this screen is *used* — a
-  /// bottle comes out of the fridge several times a day — and it is already
-  /// two taps, through the bottle's own sheet. No message either: the bottle
-  /// leaving the shelf is the confirmation, and a bar saying so would only
-  /// cover the shelf it is confirming. Only a failure is worth a word.
+  /// No confirmation. Removing is how this screen is *used* — a bottle comes
+  /// out of the fridge several times a day — and it is already two taps,
+  /// through the bottle's own sheet. A mistake is put right from the
+  /// fridge's history, which can put a removed bottle back. No message
+  /// either: the bottle leaving the shelf is the confirmation, and a bar
+  /// saying so would only cover the shelf it is confirming. Only a failure
+  /// is worth a word.
   void _remove(FridgeBottle bottle) {
     if (_saving) return;
     final repo = ref.read(fridgeRepositoryProvider);
@@ -273,7 +275,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     _saving = true;
     saveAndClose(
       context,
-      () => repo.delete(bottle.id),
+      () => repo.remove(bottle),
       failure: 'Could not remove the bottle',
     );
   }
