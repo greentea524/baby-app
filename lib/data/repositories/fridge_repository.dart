@@ -67,6 +67,7 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
       notes: event.notes,
       pumpId: event.pumpId,
       parts: event.parts,
+      placeAt: event.placeAt,
     );
     await (firestore.batch()
           ..set(doc, _created(placed))

@@ -342,7 +342,9 @@ service cloud.firestore {
             // The pump session it came from, when that is known.
             && pumpRef(d.get('pumpId', null))
             // The ages a combined bottle holds.
-            && milkParts(d.get('parts', null));
+            && milkParts(d.get('parts', null))
+            // Where it stands, when that is not its age.
+            && moment(d.get('placeAt', null));
         }
       }
 
@@ -366,7 +368,8 @@ service cloud.firestore {
             && text(d.get('notes', null))
             && amount(d.get('otherMl', null))
             && pumpRef(d.get('pumpId', null))
-            && milkParts(d.get('parts', null));
+            && milkParts(d.get('parts', null))
+            && moment(d.get('placeAt', null));
         }
       }
 
@@ -451,6 +454,11 @@ service cloud.firestore {
       // A pump session's document id, as a bottle points at it.
       function pumpRef(v) {
         return v == null || (v is string && v.size() > 0 && v.size() <= 64);
+      }
+
+      // A time, or none.
+      function moment(v) {
+        return v == null || v is timestamp;
       }
 
       // The ages in a combined bottle: two to four of them, each a time and

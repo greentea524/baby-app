@@ -1366,6 +1366,15 @@ describe("the fridge's history", () => {
     );
   });
 
+  it("keeps where a bottle stands, as a time", async () => {
+    const bottleRef = (id) => doc(asAlice(), "babies", BABY, "bottles", id);
+    await assertSucceeds(setDoc(bottleRef("place1"), bottle({ placeAt: AT })));
+    await assertSucceeds(
+      setDoc(logRef(asAlice(), "place2"), entry({ placeAt: AT })),
+    );
+    await assertFails(setDoc(bottleRef("place3"), bottle({ placeAt: "front" })));
+  });
+
   it("refuses ages that are not times and amounts", async () => {
     const bottleRef = (id) => doc(asAlice(), "babies", BABY, "bottles", id);
     const p = { at: AT, ml: 10 };

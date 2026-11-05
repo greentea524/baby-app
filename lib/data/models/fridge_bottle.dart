@@ -24,6 +24,7 @@ class FridgeBottle implements BabyEvent {
     this.notes,
     this.pumpId,
     this.parts,
+    this.placeAt,
   });
 
   @override
@@ -53,6 +54,16 @@ class FridgeBottle implements BabyEvent {
   /// was when they were poured together. Null for a bottle of one age, which
   /// is almost every bottle; see [layers] for reading it.
   final List<MilkPart>? parts;
+
+  /// The time its place on the shelf is ordered by, when that is not
+  /// [filledAt]: a bottle that older milk was poured into keeps the place it
+  /// had, rather than jumping along the shelf to where its new age would
+  /// put it. Null for almost every bottle; see [placedBy].
+  final DateTime? placeAt;
+
+  /// What the shelf orders it by: where it stood before anything was poured
+  /// into it, or else its age.
+  DateTime get placedBy => placeAt ?? filledAt;
 
   /// The most ages one bottle tells apart. Past it the two closest are taken
   /// as one, at the older time: four shades are as many as read apart at a
@@ -92,6 +103,7 @@ class FridgeBottle implements BabyEvent {
     notes: notes ?? this.notes,
     pumpId: pumpId,
     parts: parts,
+    placeAt: placeAt,
   );
 
   /// The same bottle holding one age only, from [filledAt]: what a bottle
@@ -115,6 +127,7 @@ class FridgeBottle implements BabyEvent {
       notes: data['notes'] as String?,
       pumpId: data['pumpId'] as String?,
       parts: MilkPart.listFrom(data['parts']),
+      placeAt: (data['placeAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -126,6 +139,7 @@ class FridgeBottle implements BabyEvent {
     'notes': notes,
     'pumpId': pumpId,
     'parts': MilkPart.listToMap(parts),
+    'placeAt': placeAt == null ? null : Timestamp.fromDate(placeAt!),
   };
 }
 

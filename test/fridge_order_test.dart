@@ -178,6 +178,43 @@ void main() {
     });
   });
 
+  group('a bottle poured into', () {
+    test('keeps its place on the shelf, though it is now as old as the '
+        'oldest milk in it', () {
+      // Reported: pouring bottle 1 into bottle 2 moved bottle 2 to the
+      // front, as the oldest.
+      final one = bottle('1', atHour: 1, ml: 60);
+      final two = bottle('2', atHour: 5, ml: 40);
+      final three = bottle('3', atHour: 9, ml: 50);
+      final into = combined(two, one, pourMl: 30);
+      expect(into.filledAt, one.filledAt);
+      expect(idsOf(shelfOrder([three, into, pouredRemainder(one, 30)!])), [
+        '1',
+        '2',
+        '3',
+      ]);
+      // And all of it poured: 2 stays between where 1 was and 3.
+      final all = combined(three, one);
+      expect(idsOf(shelfOrder([all, two])), ['2', '3']);
+      expect(all.filledAt, one.filledAt);
+    });
+
+    test('and keeps it when poured into again, and split', () {
+      final into = combined(bottle('2', atHour: 5), bottle('1', atHour: 1));
+      final again = combined(into, bottle('0', atHour: 0));
+      expect(again.placedBy, base.add(const Duration(hours: 5)));
+      final (:kept, :sibling) = splitBottle(again, 100, siblingId: 's');
+      expect(kept.placedBy, again.placedBy);
+      expect(sibling.placedBy, again.placedBy);
+    });
+
+    test('but a newer pour into an older bottle changes nothing', () {
+      final into = combined(bottle('1', atHour: 1), bottle('2', atHour: 5));
+      expect(into.placeAt, isNull);
+      expect(into.placedBy, base.add(const Duration(hours: 1)));
+    });
+  });
+
   group('a mix of ages', () {
     MilkPart part(int atHour, double ml) => MilkPart(
       filledAt: base.add(Duration(hours: atHour)),

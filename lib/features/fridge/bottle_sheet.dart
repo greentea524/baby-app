@@ -185,6 +185,11 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
       parts: existing != null && existing.filledAt == _filledAt
           ? existing.parts
           : null,
+      // Its place on the shelf too; a time set by hand puts it where that
+      // time goes.
+      placeAt: existing != null && existing.filledAt == _filledAt
+          ? existing.placeAt
+          : null,
     );
     _saving = true;
     saveAndClose(

@@ -17,9 +17,14 @@ import '../timeline/timeline_format.dart';
 /// are — by id. Without the tiebreak, which came first was down to the
 /// order each device happened to receive them in, and two phones could
 /// draw the shelf in two different orders.
+///
+/// By [FridgeBottle.placedBy], which is the age for every bottle but one
+/// older milk was poured into: that one stays where it stood. Pouring is
+/// done with both bottles in hand, and the one in your hand jumping along
+/// the shelf when you put it back reads as the app losing it.
 List<FridgeBottle> shelfOrder(List<FridgeBottle> bottles) =>
     [...bottles]..sort((a, b) {
-      final byAge = a.filledAt.compareTo(b.filledAt);
+      final byAge = a.placedBy.compareTo(b.placedBy);
       return byAge != 0 ? byAge : a.id.compareTo(b.id);
     });
 
@@ -57,6 +62,8 @@ FridgeBottle combined(
     id: kept.id,
     // The oldest milk in it, which is what its age is counted from.
     filledAt: parts.first.filledAt,
+    // But it stays where it stood on the shelf.
+    placeAt: parts.first.filledAt == kept.placedBy ? null : kept.placedBy,
     // The older milk's session, which is the one its age is counted from.
     pumpId: older.pumpId,
     parts: parts.length > 1 ? parts : null,
@@ -93,6 +100,8 @@ FridgeBottle combined(
       // The same mix as the bottle it came from: the shares are scaled to
       // what each half holds.
       parts: bottle.parts,
+      // Beside the other half.
+      placeAt: bottle.placeAt,
     ),
   );
 }
