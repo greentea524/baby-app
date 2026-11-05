@@ -178,6 +178,110 @@ void main() {
     });
   });
 
+  group('a mix of ages', () {
+    MilkPart part(int atHour, double ml) => MilkPart(
+      filledAt: base.add(Duration(hours: atHour)),
+      amountMl: ml,
+    );
+    List<(int, double)> shape(FridgeBottle b) => [
+      for (final p in b.layers)
+        (p.filledAt.difference(base).inHours, p.amountMl),
+    ];
+
+    test('combining two ages keeps how much of each, oldest first', () {
+      final into = combined(
+        bottle('a', atHour: 10, ml: 40),
+        bottle('b', atHour: 1, ml: 60),
+      );
+      expect(into.isMixed, isTrue);
+      expect(shape(into), [(1, 60.0), (10, 40.0)]);
+      expect(into.filledAt, base.add(const Duration(hours: 1)));
+    });
+
+    test('pouring some takes that much of every age in it', () {
+      final mix = combined(
+        bottle('a', atHour: 1, ml: 60),
+        bottle('b', atHour: 10, ml: 40),
+      );
+      final into = combined(bottle('c', atHour: 20, ml: 50), mix, pourMl: 50);
+      expect(shape(into), [(1, 30.0), (10, 20.0), (20, 50.0)]);
+      // And what is left behind is still the same mix.
+      expect(shape(pouredRemainder(mix, 50)!), [(1, 30.0), (10, 20.0)]);
+    });
+
+    test('a split keeps the mix in both halves', () {
+      final mix = combined(
+        bottle('a', atHour: 1, ml: 90),
+        bottle('b', atHour: 10, ml: 30),
+      );
+      final (:kept, :sibling) = splitBottle(mix, 80, siblingId: 's');
+      expect(shape(kept), [(1, 60.0), (10, 20.0)]);
+      expect(shape(sibling), [(1, 30.0), (10, 10.0)]);
+    });
+
+    test('milk of one age poured back together is one age again', () {
+      final (:kept, :sibling) = splitBottle(
+        bottle('a', atHour: 1, ml: 100),
+        60,
+        siblingId: 's',
+      );
+      final back = combined(kept, sibling);
+      expect(back.isMixed, isFalse);
+      expect(back.parts, isNull);
+      expect(back.amountMl, 100);
+    });
+
+    test('ages half an hour apart are taken as one, at the older time', () {
+      final parts = mixParts([
+        MilkPart(filledAt: base, amountMl: 50),
+        MilkPart(filledAt: base.add(const Duration(minutes: 20)), amountMl: 30),
+      ]);
+      expect(parts, hasLength(1));
+      expect(parts.single.filledAt, base);
+      expect(parts.single.amountMl, 80);
+    });
+
+    test('keeps four ages at most, joining the closest at the older', () {
+      final parts = mixParts([
+        part(0, 10),
+        part(10, 10),
+        part(20, 10),
+        part(21, 10),
+        part(40, 10),
+      ]);
+      expect(
+        [for (final p in parts) p.filledAt.difference(base).inHours],
+        [0, 10, 20, 40],
+      );
+      expect(parts[2].amountMl, 20);
+      expect(parts.fold<double>(0, (acc, p) => acc + p.amountMl), 50);
+    });
+
+    test('is stored, and read back, as times and amounts', () {
+      final stored = MilkPart.listToMap([part(1, 60), part(5, 40)]);
+      final back = MilkPart.listFrom(stored);
+      expect(back, hasLength(2));
+      expect(back![0].amountMl, 60);
+      expect(back[1].filledAt, base.add(const Duration(hours: 5)));
+      // One age is stored as none, and anything unreadable is read as one.
+      expect(MilkPart.listToMap([part(1, 60)]), isNull);
+      expect(
+        MilkPart.listFrom([
+          {'at': 'yesterday', 'ml': 4},
+          2,
+        ]),
+        isNull,
+      );
+    });
+
+    test('a short age for the key', () {
+      final now = base.add(const Duration(hours: 50));
+      expect(shortAge(now.subtract(const Duration(minutes: 40)), now), '40m');
+      expect(shortAge(now.subtract(const Duration(hours: 5)), now), '5h');
+      expect(shortAge(base, now), '2d');
+    });
+  });
+
   group('what kind of bottle', () {
     test('the two are counted apart', () {
       // They do not keep the same way, so how much of each there is is a

@@ -16,6 +16,7 @@ import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
 import '../feeding/feeding_format.dart';
 import 'fridge_order.dart';
+import 'mix_key.dart';
 
 /// Adds a bottle to the fridge, or edits one already in it.
 ///
@@ -178,6 +179,12 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
       notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
       // Only breast milk comes from a pump.
       pumpId: _kind == MilkKind.expressed ? _pumpId : null,
+      // A mix keeps its ages through an edit of the amount or the note,
+      // scaled to the new amount. A time set by hand is one age, though:
+      // there is no saying which part it meant.
+      parts: existing != null && existing.filledAt == _filledAt
+          ? existing.parts
+          : null,
     );
     _saving = true;
     saveAndClose(
@@ -229,6 +236,27 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
           label: _kind.filledLabel,
           onChanged: (t) => setState(() => _filledAt = t),
         ),
+        // A mix says what is in it, in its bands' shades, under the time it
+        // is counted from — which is its oldest milk's.
+        if (existing case final b? when b.isMixed)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: b.filledAt == _filledAt
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mixed, oldest first',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      MixKey(bottle: b, now: DateTime.now()),
+                    ],
+                  )
+                : Text(
+                    'With the time changed, it is kept as one age.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+          ),
         // Which session the milk is from: chosen here, or the one the
         // sheet opened on. Choosing one fills its amount in; tapping it
         // again leaves the bottle unlinked.

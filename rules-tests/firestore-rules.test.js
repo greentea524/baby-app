@@ -1353,6 +1353,32 @@ describe("the fridge's history", () => {
     );
   });
 
+  it("keeps the ages a combined bottle holds", async () => {
+    const bottleRef = (id) => doc(asAlice(), "babies", BABY, "bottles", id);
+    const parts = [
+      { at: AT, ml: 60 },
+      { at: AT, ml: 30 },
+    ];
+    await assertSucceeds(setDoc(bottleRef("mix1"), bottle({ parts })));
+    await assertSucceeds(setDoc(bottleRef("mix2"), bottle({ parts: null })));
+    await assertSucceeds(
+      setDoc(logRef(asAlice(), "mix3"), entry({ action: "combined", parts })),
+    );
+  });
+
+  it("refuses ages that are not times and amounts", async () => {
+    const bottleRef = (id) => doc(asAlice(), "babies", BABY, "bottles", id);
+    const p = { at: AT, ml: 10 };
+    await assertFails(setDoc(bottleRef("bad5"), bottle({ parts: [p] })));
+    await assertFails(setDoc(bottleRef("bad6"), bottle({ parts: [p, p, p, p, p] })));
+    await assertFails(setDoc(bottleRef("bad7"), bottle({ parts: [p, { at: AT, ml: 0 }] })));
+    await assertFails(setDoc(bottleRef("bad8"), bottle({ parts: [p, { at: "x", ml: 5 }] })));
+    await assertFails(
+      setDoc(bottleRef("bad9"), bottle({ parts: [p, p, { ...p, extra: 1 }] })),
+    );
+    await assertFails(setDoc(bottleRef("bad10"), bottle({ parts: "lots" })));
+  });
+
   it("refuses a pump session that is not an id", async () => {
     const bottleRef = (id) => doc(asAlice(), "babies", BABY, "bottles", id);
     await assertFails(setDoc(bottleRef("bad1"), bottle({ pumpId: "" })));

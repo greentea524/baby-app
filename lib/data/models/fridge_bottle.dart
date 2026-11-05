@@ -23,6 +23,7 @@ class FridgeBottle implements BabyEvent {
     this.kind = MilkKind.expressed,
     this.notes,
     this.pumpId,
+    this.parts,
   });
 
   @override
@@ -48,6 +49,36 @@ class FridgeBottle implements BabyEvent {
   /// said, and for every bottle from before it was kept.
   final String? pumpId;
 
+  /// What a bottle combined from others holds: how much of each age, as it
+  /// was when they were poured together. Null for a bottle of one age, which
+  /// is almost every bottle; see [layers] for reading it.
+  final List<MilkPart>? parts;
+
+  /// The most ages one bottle tells apart. Past it the two closest are taken
+  /// as one, at the older time: four shades are as many as read apart at a
+  /// glance, and erring old is the safe way with milk.
+  static const maxParts = 4;
+
+  /// What is in the bottle, oldest first, adding up to [amountMl].
+  ///
+  /// The milk is mixed, so what is poured out takes from each age alike:
+  /// the stored parts are shares, scaled here to whatever is left. One part,
+  /// at [filledAt], for a bottle of one age.
+  List<MilkPart> get layers {
+    final p = parts;
+    final total = p?.fold<double>(0, (acc, x) => acc + x.amountMl) ?? 0;
+    if (p == null || p.length < 2 || total <= 0) {
+      return [MilkPart(filledAt: filledAt, amountMl: amountMl)];
+    }
+    return [
+      for (final x in p)
+        MilkPart(filledAt: x.filledAt, amountMl: x.amountMl * amountMl / total),
+    ];
+  }
+
+  /// Whether it holds milk of more than one age.
+  bool get isMixed => layers.length > 1;
+
   FridgeBottle copyWith({
     DateTime? filledAt,
     double? amountMl,
@@ -60,6 +91,18 @@ class FridgeBottle implements BabyEvent {
     kind: kind ?? this.kind,
     notes: notes ?? this.notes,
     pumpId: pumpId,
+    parts: parts,
+  );
+
+  /// The same bottle holding one age only, from [filledAt]: what a bottle
+  /// whose time is changed by hand becomes.
+  FridgeBottle unmixed() => FridgeBottle(
+    id: id,
+    filledAt: filledAt,
+    amountMl: amountMl,
+    kind: kind,
+    notes: notes,
+    pumpId: pumpId,
   );
 
   factory FridgeBottle.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -71,6 +114,7 @@ class FridgeBottle implements BabyEvent {
       kind: MilkKind.fromName(data['kind'] as String?),
       notes: data['notes'] as String?,
       pumpId: data['pumpId'] as String?,
+      parts: MilkPart.listFrom(data['parts']),
     );
   }
 
@@ -81,5 +125,38 @@ class FridgeBottle implements BabyEvent {
     'kind': kind.name,
     'notes': notes,
     'pumpId': pumpId,
+    'parts': MilkPart.listToMap(parts),
   };
+}
+
+/// Some of the milk in a bottle, and when it was filled.
+class MilkPart {
+  const MilkPart({required this.filledAt, required this.amountMl});
+
+  final DateTime filledAt;
+  final double amountMl;
+
+  /// Null for anything but two or more readable parts: a bottle of one age
+  /// is stored without them, and one written wrong is read as one age
+  /// rather than not read at all.
+  static List<MilkPart>? listFrom(Object? raw) {
+    if (raw is! List) return null;
+    final parts = <MilkPart>[];
+    for (final p in raw) {
+      if (p is! Map) return null;
+      final at = p['at'];
+      final ml = p['ml'];
+      if (at is! Timestamp || ml is! num || ml <= 0) return null;
+      parts.add(MilkPart(filledAt: at.toDate(), amountMl: ml.toDouble()));
+    }
+    return parts.length < 2 ? null : parts;
+  }
+
+  static List<Map<String, dynamic>>? listToMap(List<MilkPart>? parts) =>
+      parts == null || parts.length < 2
+      ? null
+      : [
+          for (final p in parts)
+            {'at': Timestamp.fromDate(p.filledAt), 'ml': p.amountMl},
+        ];
 }

@@ -1228,6 +1228,91 @@ void main() {
       );
     });
 
+    group('a mix of ages', () {
+      final mixed = FridgeBottle(
+        id: 'mix',
+        filledAt: now.subtract(const Duration(hours: 50)),
+        amountMl: 100,
+        parts: [
+          MilkPart(
+            filledAt: now.subtract(const Duration(hours: 50)),
+            amountMl: 60,
+          ),
+          MilkPart(
+            filledAt: now.subtract(const Duration(hours: 5)),
+            amountMl: 40,
+          ),
+        ],
+      );
+
+      testWidgets('is drawn in bands, the oldest at the bottom and strongest', (
+        tester,
+      ) async {
+        await pumpFridge(tester, bottles: [mixed]);
+        final bands = painterFor(tester, '100').bands;
+        expect(bands, hasLength(2));
+        expect(bands.first.$1, closeTo(0.6, 1e-9));
+        expect(bands.last.$1, closeTo(0.4, 1e-9));
+        final scheme = Theme.of(tester.element(find.text('100'))).colorScheme;
+        expect(bands.first.$2, mixShades(scheme, MilkKind.expressed, 2).first);
+        expect(bands.last.$2, scheme.primaryContainer);
+      });
+
+      testWidgets('with a key to them on the card', (tester) async {
+        await pumpFridge(tester, bottles: [mixed]);
+        expect(find.text('60 · 2d'), findsOneWidget);
+        expect(find.text('40 · 5h'), findsOneWidget);
+      });
+
+      testWidgets('and stands level with a bottle of one age', (tester) async {
+        await pumpFridge(
+          tester,
+          bottles: [
+            mixed,
+            bottle('one', hoursAgo: 3, ml: 100, notes: 'hi'),
+          ],
+        );
+        final gauges = find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is BottlePainter,
+        );
+        expect(
+          tester.getRect(gauges.at(0)).bottom,
+          tester.getRect(gauges.at(1)).bottom,
+        );
+      });
+
+      testWidgets('and its sheet says what is in it', (tester) async {
+        await pumpFridge(tester, bottles: [mixed]);
+        await tester.tap(find.text('100'));
+        await tester.pumpAndSettle();
+        expect(find.text('Mixed, oldest first'), findsOneWidget);
+        expect(find.textContaining('60 ml · pumped'), findsOneWidget);
+        expect(find.textContaining('40 ml · pumped'), findsOneWidget);
+      });
+
+      testWidgets('and an edit keeps the mix, scaled to the new amount', (
+        tester,
+      ) async {
+        final repo = _RecordingFridge();
+        await pumpFridge(tester, bottles: [mixed], repo: repo);
+        await tester.tap(find.text('100'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField).first, '50');
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Save changes'));
+        await tester.pumpAndSettle();
+        final saved = repo.updated.single;
+        expect(saved.amountMl, 50);
+        expect([for (final p in saved.layers) p.amountMl], [30, 20]);
+      });
+
+      testWidgets('a bottle of one age is one colour', (tester) async {
+        await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 2, ml: 90)]);
+        expect(painterFor(tester, '90').bands, hasLength(1));
+        expect(find.textContaining(' · 2h'), findsNothing);
+      });
+    });
+
     testWidgets('standing above its numbers on a tall shelf', (tester) async {
       await pumpFridge(
         tester,
@@ -1572,6 +1657,11 @@ class _RecordingFridge extends FridgeRepository {
 
   @override
   Future<void> delete(String id) async => deleted.add(id);
+
+  final updated = <FridgeBottle>[];
+
+  @override
+  Future<void> update(FridgeBottle event) async => updated.add(event);
 
   final removed = <String>[];
   final finished = <String>[];

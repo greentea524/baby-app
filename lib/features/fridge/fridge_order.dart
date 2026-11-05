@@ -47,11 +47,19 @@ FridgeBottle combined(
       if (n != null && n.trim().isNotEmpty) n.trim(),
   ];
   final older = poured.filledAt.isBefore(kept.filledAt) ? poured : kept;
+  final share = poured.amountMl <= 0 ? 0.0 : pour / poured.amountMl;
+  final parts = mixParts([
+    ...kept.layers,
+    for (final p in poured.layers)
+      MilkPart(filledAt: p.filledAt, amountMl: p.amountMl * share),
+  ]);
   return FridgeBottle(
     id: kept.id,
-    filledAt: older.filledAt,
+    // The oldest milk in it, which is what its age is counted from.
+    filledAt: parts.first.filledAt,
     // The older milk's session, which is the one its age is counted from.
     pumpId: older.pumpId,
+    parts: parts.length > 1 ? parts : null,
     amountMl: kept.amountMl + pour,
     kind: kept.kind,
     notes: withHistory(
@@ -82,8 +90,55 @@ FridgeBottle combined(
       kind: bottle.kind,
       notes: notes,
       pumpId: bottle.pumpId,
+      // The same mix as the bottle it came from: the shares are scaled to
+      // what each half holds.
+      parts: bottle.parts,
     ),
   );
+}
+
+/// How near two parts' times can be and still be one age: a bottle poured
+/// out and back, or two pours from one session, are not a mix worth
+/// telling apart.
+const samePartWindow = Duration(minutes: 30);
+
+/// [parts] as a bottle keeps them: oldest first, ages within
+/// [samePartWindow] of each other as one, and at most
+/// [FridgeBottle.maxParts] — the closest two taken as one each time, at the
+/// older time, until it fits. Empty parts are dropped.
+List<MilkPart> mixParts(List<MilkPart> parts) {
+  final sorted = [
+    for (final p in parts)
+      if (p.amountMl > 0) p,
+  ]..sort((a, b) => a.filledAt.compareTo(b.filledAt));
+  final out = <MilkPart>[];
+  for (final p in sorted) {
+    if (out.isNotEmpty &&
+        p.filledAt.difference(out.last.filledAt) <= samePartWindow) {
+      out.last = MilkPart(
+        filledAt: out.last.filledAt,
+        amountMl: out.last.amountMl + p.amountMl,
+      );
+    } else {
+      out.add(p);
+    }
+  }
+  while (out.length > FridgeBottle.maxParts) {
+    var closest = 0;
+    for (var i = 1; i < out.length - 1; i++) {
+      final gap = out[i + 1].filledAt.difference(out[i].filledAt);
+      if (gap < out[closest + 1].filledAt.difference(out[closest].filledAt)) {
+        closest = i;
+      }
+    }
+    out
+      ..[closest] = MilkPart(
+        filledAt: out[closest].filledAt,
+        amountMl: out[closest].amountMl + out[closest + 1].amountMl,
+      )
+      ..removeAt(closest + 1);
+  }
+  return out;
 }
 
 /// What is left of [poured] after [pourMl] of it went into another bottle,
@@ -317,6 +372,16 @@ String hoursAgo(DateTime filledAt, DateTime now) {
   final h = diff.inHours;
   final m = diff.inMinutes.remainder(60);
   return m == 0 ? '$h hr ago' : '$h hr $m min ago';
+}
+
+/// How old [filledAt]'s milk is, as short as it goes, for a mixed bottle's
+/// key: "40m", "5h", "2d". Hours up to two days, the span the shelf's
+/// warnings are about.
+String shortAge(DateTime filledAt, DateTime now) {
+  final diff = now.difference(filledAt);
+  if (diff.inMinutes < 60) return '${diff.inMinutes < 0 ? 0 : diff.inMinutes}m';
+  if (diff.inHours < 48) return '${diff.inHours}h';
+  return '${diff.inDays}d';
 }
 
 /// How long a bottle may stand in the fridge before it should be drunk.

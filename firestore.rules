@@ -340,7 +340,9 @@ service cloud.firestore {
             // the app gives it one the next time the fridge is opened.
             && optional(d.get('slot', null), ['a', 'b', 'c', 'other'])
             // The pump session it came from, when that is known.
-            && pumpRef(d.get('pumpId', null));
+            && pumpRef(d.get('pumpId', null))
+            // The ages a combined bottle holds.
+            && milkParts(d.get('parts', null));
         }
       }
 
@@ -363,7 +365,8 @@ service cloud.firestore {
             && d.filledAt is timestamp
             && text(d.get('notes', null))
             && amount(d.get('otherMl', null))
-            && pumpRef(d.get('pumpId', null));
+            && pumpRef(d.get('pumpId', null))
+            && milkParts(d.get('parts', null));
         }
       }
 
@@ -448,6 +451,20 @@ service cloud.firestore {
       // A pump session's document id, as a bottle points at it.
       function pumpRef(v) {
         return v == null || (v is string && v.size() > 0 && v.size() <= 64);
+      }
+
+      // The ages in a combined bottle: two to four of them, each a time and
+      // an amount. Rules cannot loop, so each place is checked in turn.
+      function milkParts(v) {
+        return v == null || (v is list && v.size() >= 2 && v.size() <= 4
+          && milkPart(v[0]) && milkPart(v[1])
+          && (v.size() < 3 || milkPart(v[2]))
+          && (v.size() < 4 || milkPart(v[3])));
+      }
+
+      function milkPart(p) {
+        return p is map && p.keys().hasOnly(['at', 'ml'])
+          && p.at is timestamp && p.ml is number && p.ml > 0;
       }
 
       // Free text. The app's own fields are a line or two; the cap is there

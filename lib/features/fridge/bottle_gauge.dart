@@ -17,11 +17,24 @@ import 'fridge_order.dart';
 /// Coloured by kind, from the theme rather than chosen by hand, so it follows
 /// the accent and the dark theme like everything else: breast milk in the
 /// primary colours, formula in the tertiary, whole milk in the secondary.
+///
+/// A bottle combined from milk of different ages is drawn in bands, one per
+/// age, oldest at the bottom and in the strongest shade: how much of what
+/// age is in it, at a glance. See [mixShades].
 class BottleGauge extends StatelessWidget {
-  const BottleGauge({super.key, required this.amountMl, required this.kind});
+  const BottleGauge({
+    super.key,
+    required this.amountMl,
+    required this.kind,
+    this.layers = const [],
+  });
 
   final double amountMl;
   final MilkKind kind;
+
+  /// What is in it, oldest first ([FridgeBottle.layers]). Fewer than two is
+  /// one age, drawn in one colour.
+  final List<MilkPart> layers;
 
   /// Width to height: a feeding bottle, tall and narrow.
   static const aspectRatio = 0.5;
@@ -30,11 +43,15 @@ class BottleGauge extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final level = fullness(amountMl);
-    final (milk, surface) = switch (kind) {
-      MilkKind.expressed => (scheme.primaryContainer, scheme.primary),
-      MilkKind.formula => (scheme.tertiaryContainer, scheme.tertiary),
-      MilkKind.wholeMilk => (scheme.secondaryContainer, scheme.secondary),
-    };
+    final (milk, surface) = milkColors(scheme, kind);
+    final total = layers.fold<double>(0, (acc, p) => acc + p.amountMl);
+    final shades = mixShades(scheme, kind, layers.length);
+    final bands = layers.length < 2 || total <= 0
+        ? [(1.0, milk)]
+        : [
+            for (var i = 0; i < layers.length; i++)
+              (layers[i].amountMl / total, shades[i]),
+          ];
 
     // The drawing carries nothing a screen reader could use, so it says the
     // one thing it adds to the card: the level. The amount is read out from
@@ -46,7 +63,7 @@ class BottleGauge extends StatelessWidget {
         child: CustomPaint(
           painter: BottlePainter(
             level: level,
-            milk: milk,
+            bands: bands,
             surface: surface,
             glass: scheme.surfaceContainerLowest,
             outline: scheme.outline,
@@ -59,6 +76,30 @@ class BottleGauge extends StatelessWidget {
   }
 }
 
+/// The milk's colour and its surface line's, for [kind]: breast milk in the
+/// primary colours, formula in the tertiary, whole milk in the secondary.
+(Color milk, Color surface) milkColors(ColorScheme scheme, MilkKind kind) =>
+    switch (kind) {
+      MilkKind.expressed => (scheme.primaryContainer, scheme.primary),
+      MilkKind.formula => (scheme.tertiaryContainer, scheme.tertiary),
+      MilkKind.wholeMilk => (scheme.secondaryContainer, scheme.secondary),
+    };
+
+/// The shades of [count] ages of [kind]'s milk, oldest first: the oldest
+/// the strongest, the newest the plain milk colour, and the rest between.
+///
+/// Shades of the one colour rather than colours of their own, so it still
+/// reads as one kind of milk; strength for age, so the eye goes to the
+/// oldest first, which is the milk whose age the bottle is counted from.
+List<Color> mixShades(ColorScheme scheme, MilkKind kind, int count) {
+  final (milk, surface) = milkColors(scheme, kind);
+  if (count < 2) return [milk];
+  return [
+    for (var i = 0; i < count; i++)
+      Color.lerp(milk, surface, 0.75 * (count - 1 - i) / (count - 1))!,
+  ];
+}
+
 /// The bottle itself: teat, collar and body, with the milk inside the body.
 ///
 /// Public for its [shouldRepaint] and for tests, which check the level it is
@@ -66,7 +107,7 @@ class BottleGauge extends StatelessWidget {
 class BottlePainter extends CustomPainter {
   const BottlePainter({
     required this.level,
-    required this.milk,
+    required this.bands,
     required this.surface,
     required this.glass,
     required this.outline,
@@ -76,7 +117,14 @@ class BottlePainter extends CustomPainter {
 
   /// How full, 0 to 1.
   final double level;
-  final Color milk;
+
+  /// The milk, bottom up: each band's share of it, and its colour. One band
+  /// for a bottle of one age.
+  final List<(double, Color)> bands;
+
+  /// The colour of the milk at the bottom: the only one, for a bottle of one
+  /// age.
+  Color get milk => bands.first.$2;
 
   /// The line across the top of the milk. Its own colour, darker than the
   /// milk, because a level is read off an edge.
@@ -120,11 +168,18 @@ class BottlePainter extends CustomPainter {
       final top = body.bottom - body.height * level;
       canvas
         ..save()
-        ..clipRRect(body)
-        ..drawRect(
-          Rect.fromLTRB(body.left, top, body.right, body.bottom),
-          Paint()..color = milk,
+        ..clipRRect(body);
+      var bottom = body.bottom;
+      for (final (i, (share, colour)) in bands.indexed) {
+        final bandTop = i == bands.length - 1
+            ? top
+            : bottom - body.height * level * share;
+        canvas.drawRect(
+          Rect.fromLTRB(body.left, bandTop, body.right, bottom),
+          Paint()..color = colour,
         );
+        bottom = bandTop;
+      }
       // A full bottle's surface would sit on the shoulder line, where it only
       // thickens the outline.
       if (level < 1) {
@@ -183,10 +238,18 @@ class BottlePainter extends CustomPainter {
   @override
   bool shouldRepaint(BottlePainter old) =>
       old.level != level ||
-      old.milk != milk ||
+      !_sameBands(old.bands, bands) ||
       old.surface != surface ||
       old.glass != glass ||
       old.outline != outline ||
       old.teat != teat ||
       old.collar != collar;
+}
+
+bool _sameBands(List<(double, Color)> a, List<(double, Color)> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }

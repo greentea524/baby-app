@@ -288,6 +288,20 @@ void main() {
     expect(back.notes, 'Split');
     expect(back.pumpId, 'p7');
     expect(e.toMap()['pumpId'], 'p7');
+    expect(e.toMap()['parts'], isNull);
+
+    // A mix comes back a mix.
+    final mix = FridgeBottle(
+      id: 'm',
+      filledAt: DateTime(2026, 11, 2, 9),
+      amountMl: 100,
+      parts: [
+        MilkPart(filledAt: DateTime(2026, 11, 2, 9), amountMl: 70),
+        MilkPart(filledAt: DateTime(2026, 11, 3, 9), amountMl: 30),
+      ],
+    );
+    final m = FridgeLogEntry.of(FridgeAction.removed, mix, at: now).bottle;
+    expect([for (final p in m.layers) p.amountMl], [70, 30]);
     expect(e.toMap()['action'], 'removed');
   });
 }

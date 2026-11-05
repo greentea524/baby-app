@@ -18,6 +18,7 @@ import 'bottle_sheet.dart';
 import 'fridge_button.dart';
 import 'fridge_history_screen.dart';
 import 'fridge_order.dart';
+import 'mix_key.dart';
 
 /// What bottles are in the fridge, laid out the way the fridge is.
 ///
@@ -537,7 +538,11 @@ class _BottleCard extends StatelessWidget {
       ],
     );
 
-    final gauge = BottleGauge(amountMl: bottle.amountMl, kind: bottle.kind);
+    final gauge = BottleGauge(
+      amountMl: bottle.amountMl,
+      kind: bottle.kind,
+      layers: bottle.layers,
+    );
 
     // The quick way out of the fridge, one tap from the shelf. Taking a
     // bottle out is what this screen is used for most, and it used to be two
@@ -962,7 +967,21 @@ class _Facts extends StatelessWidget {
         // level. Without it, a card with a note grew a line and pushed its
         // bottle up above its neighbours' — on a row whose point is to compare
         // levels at a glance.
-        if (showNotes) ...[
+        // A mix says what is in it, in the note's place and in the shades
+        // its bands are drawn in: the line under the bottle is the key to
+        // it. The note itself is a tap away, in the bottle.
+        if (showNotes && bottle.isMixed) ...[
+          const SizedBox(height: 4),
+          // The same height as the note's line, so a mixed bottle stands
+          // level with the rest.
+          Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              Text(' ', style: theme.textTheme.bodySmall, maxLines: 1),
+              MixKey(bottle: bottle, now: now, dense: true),
+            ],
+          ),
+        ] else if (showNotes) ...[
           const SizedBox(height: 4),
           Visibility(
             visible: notes.isNotEmpty,
