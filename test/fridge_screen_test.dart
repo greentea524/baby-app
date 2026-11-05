@@ -10,6 +10,7 @@ import 'package:baby_app/core/format/volume_format.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
+import 'package:baby_app/data/models/fridge_log_entry.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/feeding_repository.dart';
 import 'package:baby_app/data/repositories/fridge_repository.dart';
@@ -49,6 +50,7 @@ void main() {
     List<FeedingEvent> fed = const [],
     FridgeSync? sync,
     double textScale = 1.0,
+    List<FridgeLogEntry> log = const [],
   }) async {
     SharedPreferences.setMockInitialValues({'unit_system': 'metric'});
     final stored = await SharedPreferences.getInstance();
@@ -70,6 +72,7 @@ void main() {
           recentFeedingsProvider.overrideWith((ref) => Stream.value(fed)),
           fridgeSyncProvider.overrideWith((ref) => Stream.value(sync)),
           recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
+          fridgeLogProvider.overrideWith((ref) => Stream.value(log)),
         ],
         child: MaterialApp(
           home: Builder(
@@ -86,11 +89,55 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the history is a tap away', (tester) async {
-    await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 2)]);
-    await tester.tap(find.byTooltip('History'));
-    await tester.pumpAndSettle();
-    expect(find.text('Fridge history'), findsOneWidget);
+  testWidgets('the history is under the shelf, its heading in view', (
+    tester,
+  ) async {
+    await pumpFridge(
+      tester,
+      bottles: [bottle('a', hoursAgo: 2)],
+      log: [
+        FridgeLogEntry(
+          id: 'e1',
+          action: FridgeAction.added,
+          at: now.subtract(const Duration(hours: 2)),
+          bottleId: 'a',
+          amountMl: 100,
+          kind: MilkKind.expressed,
+          filledAt: now.subtract(const Duration(hours: 2)),
+        ),
+      ],
+    );
+    expect(find.byTooltip('History'), findsNothing);
+    final heading = tester.getRect(find.text('History'));
+    expect(heading.top, greaterThan(tester.getRect(find.byType(Card)).bottom));
+    expect(heading.bottom, lessThanOrEqualTo(844));
+    // Below the fold, a scroll away.
+    await tester.scrollUntilVisible(
+      find.text('Added 100 ml breast milk'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Added 100 ml breast milk'), findsOneWidget);
+  });
+
+  testWidgets('and an empty fridge shows it too', (tester) async {
+    await pumpFridge(
+      tester,
+      log: [
+        FridgeLogEntry(
+          id: 'e1',
+          action: FridgeAction.removed,
+          at: now.subtract(const Duration(hours: 1)),
+          bottleId: 'a',
+          amountMl: 100,
+          kind: MilkKind.expressed,
+          filledAt: now.subtract(const Duration(hours: 9)),
+        ),
+      ],
+    );
+    expect(find.text('Nothing in the fridge'), findsOneWidget);
+    expect(find.text('Removed 100 ml breast milk'), findsOneWidget);
+    expect(find.text('Put back'), findsOneWidget);
   });
 
   group('the shelf', () {

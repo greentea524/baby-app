@@ -16,7 +16,7 @@ import '../reminders/feed_prediction.dart';
 import 'bottle_gauge.dart';
 import 'bottle_sheet.dart';
 import 'fridge_button.dart';
-import 'fridge_history_screen.dart';
+import 'fridge_history.dart';
 import 'fridge_order.dart';
 import 'mix_key.dart';
 
@@ -61,28 +61,23 @@ class FridgeScreen extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('In the fridge'),
-        actions: [
-          IconButton(
-            tooltip: 'History',
-            icon: const Icon(Icons.history),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => FridgeHistoryScreen(now: now),
-              ),
-            ),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('In the fridge')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: add,
         icon: const Icon(Icons.add),
         label: const Text('Add bottle'),
       ),
       body: SafeArea(
+        // What happened in the fridge follows what is in it, on the same
+        // page: scroll down past the shelf for it.
         child: shelf.isEmpty
-            ? const _EmptyFridge()
+            ? CustomScrollView(
+                slivers: [
+                  const SliverToBoxAdapter(child: _EmptyFridge()),
+                  FridgeHistory(now: now),
+                  const SliverToBoxAdapter(child: SizedBox(height: 88)),
+                ],
+              )
             : _Shelf(shelf: shelf, now: now ?? DateTime.now()),
       ),
     );
@@ -111,11 +106,21 @@ class _Shelf extends ConsumerWidget {
   /// all, invisibly and without an error.
   static const _minShelf = 330.0;
 
+  /// How much of the history under the shelf shows before any scrolling:
+  /// its heading clear above the Add button, and the start of its first
+  /// day beside the button.
+  static const _historyPeek = 128.0;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final units = ref.watch(unitSystemProvider);
     final byKind = totalByKind(shelf);
+    // The history under the shelf shows its heading before any scrolling,
+    // so it is plain there is more below. Most of the room it takes is the
+    // room the Add button needed under the cards anyway.
+    final hasHistory = ref.watch(fridgeLogProvider).value?.isNotEmpty ?? false;
+    final peek = hasHistory ? _historyPeek : 0.0;
     int aged(BottleAge age) =>
         shelf.where((b) => BottleAge.of(b.filledAt, now) == age).length;
     // Named at the top as well, because the shelf scrolls sideways: a red
@@ -190,7 +195,9 @@ class _Shelf extends ConsumerWidget {
       // Clear of the Add button at the bottom. Without the gap it sat
       // over the last card, on top of the very lines that say when that
       // bottle was pumped.
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+      // With the history below, that gap is the history's: its heading
+      // stands over the button instead.
+      padding: EdgeInsets.fromLTRB(16, 16, 16, hasHistory ? 8 : 88),
       itemCount: shelf.length,
       separatorBuilder: (_, _) => const SizedBox(width: 12),
       // As tall as the card needs, from the top of the shelf, rather than
@@ -216,7 +223,8 @@ class _Shelf extends ConsumerWidget {
           builder: (context, constraints) {
             final left =
                 constraints.viewportMainAxisExtent -
-                constraints.precedingScrollExtent;
+                constraints.precedingScrollExtent -
+                peek;
             return SliverToBoxAdapter(
               child: SizedBox(
                 height: left > _minShelf ? left : _minShelf,
@@ -225,6 +233,9 @@ class _Shelf extends ConsumerWidget {
             );
           },
         ),
+        FridgeHistory(now: now),
+        // Clear of the Add button, at the foot of the page.
+        if (hasHistory) const SliverToBoxAdapter(child: SizedBox(height: 88)),
       ],
     );
   }
@@ -1012,8 +1023,11 @@ class _EmptyFridge extends StatelessWidget {
     final theme = Theme.of(context);
     // Scrollable for the same reason the shelf is: at the largest text size
     // on a phone on its side, these three lines are taller than the screen.
+    // The page scrolls, for the same reason the shelf's does: at the
+    // largest text size on a phone on its side, these three lines are taller
+    // than the screen.
     return Center(
-      child: SingleChildScrollView(
+      child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

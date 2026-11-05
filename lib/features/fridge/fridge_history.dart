@@ -16,16 +16,17 @@ import 'bottle_sheet.dart';
 import 'fridge_order.dart';
 
 /// What happened in the fridge, newest first: bottles added, fed, removed,
-/// split, combined and put back.
+/// split, combined and put back, and the week's pump sessions among them.
 ///
-/// Here only, not in the activity log. The log is what happened to the
-/// baby; this is the shelf's own bookkeeping.
+/// Under the shelf on the fridge screen, as slivers of its scroll: what is
+/// there and what happened to it, on one page. Not in the activity log. The
+/// log is what happened to the baby; this is the shelf's own bookkeeping.
 ///
 /// A removed bottle can be put back from here, as it was: the answer to a
 /// tap on the wrong bottle, without a confirmation every time one is taken
-/// out.
-class FridgeHistoryScreen extends ConsumerWidget {
-  const FridgeHistoryScreen({super.key, this.now});
+/// out. Nothing at all while there is nothing to say.
+class FridgeHistory extends ConsumerWidget {
+  const FridgeHistory({super.key, this.now});
 
   /// A fixed clock, for tests.
   final DateTime? now;
@@ -50,107 +51,93 @@ class FridgeHistoryScreen extends ConsumerWidget {
         if (clock.difference(p.time) < const Duration(days: pumpDays)) p,
     ];
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Fridge history')),
-      body: log.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Could not load: $e')),
-        data: (entries) {
-          if (entries.isEmpty && pumps.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Text(
-                  'Nothing yet. Bottles added to the fridge, fed from it or '
-                  'taken out will show here.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ),
-            );
-          }
-          // A removed bottle can come back while it is off the shelf and
-          // nothing has happened to it since — its latest entry, newest
-          // first being the order they come in.
-          final latest = <String>{};
-          final canPutBack = <String>{};
-          for (final e in entries) {
-            if (latest.add(e.bottleId) &&
-                e.action == FridgeAction.removed &&
-                !shelf.contains(e.bottleId)) {
-              canPutBack.add(e.id);
-            }
-          }
+    // Loading or failed, there is nothing to say yet, and the shelf above
+    // is the page's point either way.
+    final entries = log.value ?? const <FridgeLogEntry>[];
+    if (entries.isEmpty && pumps.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+    // A removed bottle can come back while it is off the shelf and
+    // nothing has happened to it since — its latest entry, newest
+    // first being the order they come in.
+    final latest = <String>{};
+    final canPutBack = <String>{};
+    for (final e in entries) {
+      if (latest.add(e.bottleId) &&
+          e.action == FridgeAction.removed &&
+          !shelf.contains(e.bottleId)) {
+        canPutBack.add(e.id);
+      }
+    }
 
-          // A session is in a bottle once one says so, now or ever — or,
-          // for bottles from before they said, once one was filled in its
-          // window.
-          final linked = {
-            for (final b in shelfBottles) ?b.pumpId,
-            for (final e in entries) ?e.pumpId,
-          };
-          final byId = {for (final p in recentPumps) p.id: p};
-          bool bottled(PumpingEvent p, DateTime? next) =>
-              linked.contains(p.id) ||
-              isBottled(p.time, shelfBottles, nextPumpAt: next);
+    // A session is in a bottle once one says so, now or ever — or,
+    // for bottles from before they said, once one was filled in its
+    // window.
+    final linked = {
+      for (final b in shelfBottles) ?b.pumpId,
+      for (final e in entries) ?e.pumpId,
+    };
+    final byId = {for (final p in recentPumps) p.id: p};
+    bool bottled(PumpingEvent p, DateTime? next) =>
+        linked.contains(p.id) ||
+        isBottled(p.time, shelfBottles, nextPumpAt: next);
 
-          // The two lists, newest first, as one.
-          final items = <({DateTime at, Object item})>[
-            for (final e in entries) (at: e.at, item: e),
-            for (final p in pumps) (at: p.time, item: p),
-          ]..sort((a, b) => b.at.compareTo(a.at));
+    // The two lists, newest first, as one.
+    final items = <({DateTime at, Object item})>[
+      for (final e in entries) (at: e.at, item: e),
+      for (final p in pumps) (at: p.time, item: p),
+    ]..sort((a, b) => b.at.compareTo(a.at));
 
-          final rows = <Widget>[];
-          DateTime? day;
-          for (final it in items) {
-            final d = DateTime(it.at.year, it.at.month, it.at.day);
-            if (d != day) {
-              day = d;
-              rows.add(_DayHeader(day: d, now: clock));
-            }
-            switch (it.item) {
-              case final FridgeLogEntry e:
-                rows.add(
-                  _EntryTile(
-                    entry: e,
-                    now: clock,
-                    from: byId[e.pumpId],
-                    onPutBack: canPutBack.contains(e.id)
-                        ? () => _putBack(context, ref, e)
-                        : null,
-                  ),
-                );
-              case final PumpingEvent p:
-                // The next session along, newest first being the order.
-                final i = recentPumps.indexOf(p);
-                final next = i > 0 ? recentPumps[i - 1].time : null;
-                final inBottle = bottled(p, next);
-                final canAdd =
-                    (p.amountMl ?? 0) > 0 &&
-                    clock.difference(p.time) < const Duration(days: 3) &&
-                    !inBottle;
-                rows.add(
-                  _PumpTile(
-                    session: p,
-                    inBottle: inBottle,
-                    onAdd: canAdd
-                        ? () => showBottleSheet(
-                            context,
-                            prefillFrom: p,
-                            pumps: linkablePumps(recentPumps, clock),
-                          )
-                        : null,
-                  ),
-                );
-            }
-          }
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 24),
-            children: rows,
-          );
-        },
+    final rows = <Widget>[
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        child: Text('History', style: theme.textTheme.titleMedium),
       ),
-    );
+    ];
+    DateTime? day;
+    for (final it in items) {
+      final d = DateTime(it.at.year, it.at.month, it.at.day);
+      if (d != day) {
+        day = d;
+        rows.add(_DayHeader(day: d, now: clock));
+      }
+      switch (it.item) {
+        case final FridgeLogEntry e:
+          rows.add(
+            _EntryTile(
+              entry: e,
+              now: clock,
+              from: byId[e.pumpId],
+              onPutBack: canPutBack.contains(e.id)
+                  ? () => _putBack(context, ref, e)
+                  : null,
+            ),
+          );
+        case final PumpingEvent p:
+          // The next session along, newest first being the order.
+          final i = recentPumps.indexOf(p);
+          final next = i > 0 ? recentPumps[i - 1].time : null;
+          final inBottle = bottled(p, next);
+          final canAdd =
+              (p.amountMl ?? 0) > 0 &&
+              clock.difference(p.time) < const Duration(days: 3) &&
+              !inBottle;
+          rows.add(
+            _PumpTile(
+              session: p,
+              inBottle: inBottle,
+              onAdd: canAdd
+                  ? () => showBottleSheet(
+                      context,
+                      prefillFrom: p,
+                      pumps: linkablePumps(recentPumps, clock),
+                    )
+                  : null,
+            ),
+          );
+      }
+    }
+    return SliverList(delegate: SliverChildListDelegate(rows));
   }
 
   /// Puts [removed] back on the shelf. Not waited on, like every write: the

@@ -11,7 +11,7 @@ import 'package:baby_app/data/models/fridge_log_entry.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/fridge_repository.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
-import 'package:baby_app/features/fridge/fridge_history_screen.dart';
+import 'package:baby_app/features/fridge/fridge_history.dart';
 
 /// The fridge's history: what was added, fed, removed, split and combined,
 /// and putting a removed bottle back.
@@ -63,7 +63,11 @@ void main() {
           fridgeShelfProvider.overrideWithValue(shelf),
           recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
         ],
-        child: MaterialApp(home: FridgeHistoryScreen(now: now)),
+        child: MaterialApp(
+          home: Scaffold(
+            body: CustomScrollView(slivers: [FridgeHistory(now: now)]),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -167,9 +171,9 @@ void main() {
     expect(find.text('Put back'), findsNothing);
   });
 
-  testWidgets('says so when there is nothing yet', (tester) async {
+  testWidgets('says nothing when there is nothing yet', (tester) async {
     await pump(tester, log: const []);
-    expect(find.textContaining('Nothing yet.'), findsOneWidget);
+    expect(find.text('History'), findsNothing);
   });
 
   group('pump sessions', () {
