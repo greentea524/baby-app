@@ -145,13 +145,43 @@ void main() {
     expect(find.text('3 bottles · 180\u00a0ml'), findsOneWidget);
   });
 
-  testWidgets('but past three, gives only the count', (tester) async {
+  testWidgets('draws up to six, four or more under the headline', (
+    tester,
+  ) async {
     await pumpCard(
       tester,
-      bottles: [for (var i = 0; i < 4; i++) bottle('b$i', i + 1, 60)],
+      bottles: [for (var i = 0; i < 6; i++) bottle('b$i', 6 - i, 60)],
     );
-    expect(find.text('4 bottles · 240\u00a0ml'), findsOneWidget);
+    expect(find.text('6 bottles · 360\u00a0ml'), findsOneWidget);
+    expect(find.byType(BottleGauge), findsNWidgets(6));
+    // Under the count rather than beside it, oldest first.
+    final headline = tester.getRect(find.text('6 bottles · 360\u00a0ml'));
+    final first = tester.getRect(find.byKey(const ValueKey('home-bottle-b0')));
+    final last = tester.getRect(find.byKey(const ValueKey('home-bottle-b5')));
+    expect(first.top, greaterThan(headline.bottom));
+    expect(first.left, lessThan(last.left));
+  });
+
+  testWidgets('but past six, gives only the count', (tester) async {
+    await pumpCard(
+      tester,
+      bottles: [for (var i = 0; i < 7; i++) bottle('b$i', i + 1, 60)],
+    );
+    expect(find.text('7 bottles · 420\u00a0ml'), findsOneWidget);
     expect(find.byType(BottleGauge), findsNothing);
+  });
+
+  testWidgets('six fit a small phone at large text', (tester) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await pumpCard(
+      tester,
+      bottles: [for (var i = 0; i < 6; i++) bottle('b$i', i + 1, 90)],
+      textScale: 2.0,
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.byType(BottleGauge), findsNWidgets(6));
   });
 
   testWidgets('and fits a small phone at large text', (tester) async {

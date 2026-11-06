@@ -413,15 +413,26 @@ class HomeStatusCard extends ConsumerWidget {
           _keep(formatVolume(totalMl(shelf), units)),
         ),
       },
-      picture: _bottlePicture(shelf),
+      // Beside the headline while it fits there; four or more stand on a
+      // line of their own under it, where they do not squeeze the count
+      // into a sliver.
+      picture: shelf.length <= _maxBeside ? _bottlePicture(shelf) : null,
+      chips: [
+        if (shelf.length > _maxBeside)
+          if (_bottlePicture(shelf) case final picture?)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Align(alignment: Alignment.centerLeft, child: picture),
+            ),
+      ],
       detail: warning,
       now: now,
     );
   }
 
   /// The bottles themselves, up to [_maxDrawn], drawn filled to their
-  /// level, oldest first as on the fridge's own shelf: three small bottles
-  /// say "three, and how full" at a glance. Past that a row of drawings is
+  /// level, oldest first as on the fridge's own shelf: small bottles say
+  /// "this many, and how full" at a glance. Past that a row of drawings is
   /// slower to read than the count the headline already gives, so null.
   static Widget? _bottlePicture(List<FridgeBottle> shelf) {
     if (shelf.isEmpty || shelf.length > _maxDrawn) return null;
@@ -439,7 +450,11 @@ class HomeStatusCard extends ConsumerWidget {
               key: ValueKey('home-bottle-${b.id}'),
               width: width,
               height: height,
-              child: BottleGauge(amountMl: b.amountMl, kind: b.kind),
+              child: BottleGauge(
+                amountMl: b.amountMl,
+                kind: b.kind,
+                layers: b.layers,
+              ),
             ),
           ],
         ],
@@ -448,7 +463,10 @@ class HomeStatusCard extends ConsumerWidget {
   }
 
   /// The most bottles drawn on the row before only the count is given.
-  static const _maxDrawn = 3;
+  static const _maxDrawn = 6;
+
+  /// The most drawn beside the headline; more go on a line under it.
+  static const _maxBeside = 3;
 
   /// [text] with each number held to the word after it, so "120 ml" and
   /// "2:50 PM" never come apart across a line. Only those spaces: "120 ml

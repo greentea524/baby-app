@@ -440,7 +440,10 @@ void main() {
       // selectedDayProvider is global and sticky, and Insights can now push
       // it weeks back (#32). Home's drill-down is of Home's recent list, so
       // it means today.
-      await pumpHome(tester);
+      //
+      // On a tall screen, so the link is on it at every hour: see the note
+      // on `tall` below.
+      await pumpHome(tester, size: const Size(390, 1600));
       final container = ProviderScope.containerOf(
         tester.element(find.byType(HomeScreen)),
       );
@@ -486,8 +489,8 @@ void main() {
       matching: find.text(label),
     );
 
-    // A tall screen for the two that look for the list, which starts below
-    // the status card. The fixture's times follow the real clock, so the
+    // A tall screen for every one here, since all of them reach for the
+    // list or its toggle, which start below the status card. The fixture's times follow the real clock, so the
     // card's text — the next-feed chip, the clock times — changes with the
     // hour, and in the test font (every glyph a full em wide) some of it
     // wraps at some hours and not others. On a phone-height screen the card
@@ -507,7 +510,11 @@ void main() {
     testWidgets('Today is the day charts instead', (tester) async {
       // The same two the Insights day view draws, so a glance at how today
       // has gone does not cost a tab change.
-      await pumpHome(tester, prefs: {'home_activity_scope': 'today'});
+      await pumpHome(
+        tester,
+        size: tall,
+        prefs: {'home_activity_scope': 'today'},
+      );
       expect(find.byType(DayTimelineStrip), findsOneWidget);
       expect(find.byType(DiaperMixBar), findsOneWidget);
       expect(find.byType(RecentActivityList), findsNothing);
@@ -531,7 +538,11 @@ void main() {
     });
 
     testWidgets('the charts show what was logged today', (tester) async {
-      await pumpHome(tester, prefs: {'home_activity_scope': 'today'});
+      await pumpHome(
+        tester,
+        size: tall,
+        prefs: {'home_activity_scope': 'today'},
+      );
       // The fixture is a bottle, some solids, a diaper and a pump, all today.
       expect(find.text('2 feeds'), findsOneWidget);
       expect(find.text('1 diaper'), findsOneWidget);
@@ -541,7 +552,11 @@ void main() {
     testWidgets('and the counts are not repeated above them', (tester) async {
       // The summary row used to carry the same numbers a centimetre higher.
       // Its volumes stay — no legend carries millilitres.
-      await pumpHome(tester, prefs: {'home_activity_scope': 'today'});
+      await pumpHome(
+        tester,
+        size: tall,
+        prefs: {'home_activity_scope': 'today'},
+      );
       expect(find.text('2 feeds'), findsOneWidget, reason: 'legend only');
       expect(find.text('1 diapers'), findsNothing);
       expect(find.textContaining('fl oz'), findsWidgets);
@@ -552,7 +567,7 @@ void main() {
       // Moved onto the feed and pump rows, beside the clock time, as the
       // diaper row has its counts. The counts are the rows' FEED #2 and
       // DIAPER #1.
-      await pumpHome(tester);
+      await pumpHome(tester, size: tall);
       expect(find.text('2 feeds'), findsNothing);
       expect(find.text('1 diapers'), findsNothing);
       expect(find.textContaining('Today: '), findsNWidgets(2));
@@ -569,7 +584,7 @@ void main() {
     });
 
     testWidgets('the choice is remembered', (tester) async {
-      await pumpHome(tester);
+      await pumpHome(tester, size: tall);
       await tester.tap(segment('Today'));
       await tester.pump();
 
