@@ -587,6 +587,53 @@ void main() {
       expect(offset(tester), greaterThan(0));
     }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
+    for (final withHistory in [false, true]) {
+      testWidgets(
+        'its scrollbar runs under the Finished buttons, not across them'
+        '${withHistory ? ', with the history below' : ''}',
+        (tester) async {
+          // Reported: on a computer the scrollbar sat across the buttons and
+          // took the clicks meant for them, once the history under the
+          // shelf had shrunk the gap it used to run in.
+          await pumpFridge(
+            tester,
+            bottles: many,
+            size: const Size(800, 700),
+            log: [
+              if (withHistory)
+                FridgeLogEntry(
+                  id: 'e1',
+                  action: FridgeAction.added,
+                  at: now.subtract(const Duration(hours: 1)),
+                  bottleId: 'x',
+                  amountMl: 60,
+                  kind: MilkKind.expressed,
+                  filledAt: now.subtract(const Duration(hours: 1)),
+                ),
+            ],
+          );
+          // The shelf's own, always shown; the page has one of its own.
+          final bar = find.byWidgetPredicate(
+            (w) => w is Scrollbar && (w.thumbVisibility ?? false),
+          );
+          final box = tester.getRect(bar);
+          // Inset from the bottom by the padding it is given, and at most
+          // 12 thick with a 2 margin when hovered.
+          final inset = MediaQuery.of(tester.element(bar)).padding.bottom;
+          final thumbTop = box.bottom - inset - 14;
+          final buttons = find.widgetWithText(FilledButton, 'Finished');
+          expect(buttons, findsWidgets);
+          for (var i = 0; i < buttons.evaluate().length; i++) {
+            expect(
+              tester.getRect(buttons.at(i)).bottom,
+              lessThanOrEqualTo(thumbTop),
+            );
+          }
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      );
+    }
+
     testWidgets('a phone keeps the plain swipe, with no arrows', (
       tester,
     ) async {

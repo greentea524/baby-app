@@ -121,6 +121,7 @@ class _Shelf extends ConsumerWidget {
     // room the Add button needed under the cards anyway.
     final hasHistory = ref.watch(fridgeLogProvider).value?.isNotEmpty ?? false;
     final peek = hasHistory ? _historyPeek : 0.0;
+    final cardsBottom = hasHistory ? 24.0 : 88.0;
     int aged(BottleAge age) =>
         shelf.where((b) => BottleAge.of(b.filledAt, now) == age).length;
     // Named at the top as well, because the shelf scrolls sideways: a red
@@ -196,8 +197,10 @@ class _Shelf extends ConsumerWidget {
       // over the last card, on top of the very lines that say when that
       // bottle was pumped.
       // With the history below, that gap is the history's: its heading
-      // stands over the button instead.
-      padding: EdgeInsets.fromLTRB(16, 16, 16, hasHistory ? 8 : 88),
+      // stands over the button instead, and what is left is room for the
+      // shelf's scrollbar on a computer, under the cards rather than across
+      // their Finished buttons.
+      padding: EdgeInsets.fromLTRB(16, 16, 16, cardsBottom),
       itemCount: shelf.length,
       separatorBuilder: (_, _) => const SizedBox(width: 12),
       // As tall as the card needs, from the top of the shelf, rather than
@@ -228,7 +231,11 @@ class _Shelf extends ConsumerWidget {
             return SliverToBoxAdapter(
               child: SizedBox(
                 height: left > _minShelf ? left : _minShelf,
-                child: _ShelfScroller(step: _cardWidth + 12, builder: list),
+                child: _ShelfScroller(
+                  step: _cardWidth + 12,
+                  cardsBottom: cardsBottom,
+                  builder: list,
+                ),
               ),
             );
           },
@@ -254,10 +261,19 @@ class _Shelf extends ConsumerWidget {
 /// is what the platform says even in a browser; a phone's browser keeps the
 /// plain swipe that already works there.
 class _ShelfScroller extends StatefulWidget {
-  const _ShelfScroller({required this.step, required this.builder});
+  const _ShelfScroller({
+    required this.step,
+    required this.cardsBottom,
+    required this.builder,
+  });
 
   /// How far one arrow press moves: a card and its gap.
   final double step;
+
+  /// The shelf's bottom padding, which the cards stop short of: clear of
+  /// the Add button, or of the history under the shelf. The scrollbar runs
+  /// in it, and the arrows centre on the cards, not on it.
+  final double cardsBottom;
 
   final Widget Function(ScrollController controller) builder;
 
@@ -273,10 +289,6 @@ class _ShelfScrollerState extends State<_ShelfScroller> {
   /// which says nothing when the shelf is first laid out, or when a bottle
   /// added or taken away changes how far there is to go.
   final _metrics = ValueNotifier<ScrollMetrics?>(null);
-
-  /// The shelf's bottom padding, which the cards stop short of to stay
-  /// clear of the Add button. The arrows centre on the cards, not on that.
-  static const double _cardsBottom = 88;
 
   @override
   void dispose() {
@@ -332,10 +344,12 @@ class _ShelfScrollerState extends State<_ShelfScroller> {
     if (!desktop) return shelf;
 
     shelf = MediaQuery(
-      // The scrollbar insets itself by the padding it is given: lifted
-      // clear of the Add button, and in from the edges with the cards.
+      // The scrollbar insets itself by the padding it is given: in the gap
+      // under the cards — it used to be lifted a fixed 74 off the bottom,
+      // which once the gap shrank put it across their Finished buttons —
+      // and in from the edges with the cards.
       data: mq.copyWith(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, _cardsBottom - 14),
+        padding: EdgeInsets.fromLTRB(16, 0, 16, widget.cardsBottom - 14),
       ),
       child: Scrollbar(
         controller: _controller,
@@ -354,7 +368,7 @@ class _ShelfScrollerState extends State<_ShelfScroller> {
           ),
         ),
         Positioned.fill(
-          bottom: _cardsBottom,
+          bottom: widget.cardsBottom,
           child: ValueListenableBuilder(
             valueListenable: _metrics,
             builder: (context, p, _) {
