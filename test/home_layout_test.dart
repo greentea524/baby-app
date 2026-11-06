@@ -547,10 +547,15 @@ void main() {
       expect(find.textContaining('fl oz'), findsWidgets);
     });
 
-    testWidgets('but Recent still gets them, having no legend', (tester) async {
+    testWidgets('and the day\'s totals are on the rows, not a line of '
+        'their own', (tester) async {
+      // Moved onto the feed and pump rows, beside the clock time, as the
+      // diaper row has its counts. The counts are the rows' FEED #2 and
+      // DIAPER #1.
       await pumpHome(tester);
-      expect(find.text('2 feeds'), findsOneWidget);
-      expect(find.text('1 diapers'), findsOneWidget);
+      expect(find.text('2 feeds'), findsNothing);
+      expect(find.text('1 diapers'), findsNothing);
+      expect(find.textContaining('Today: '), findsNWidgets(2));
     });
 
     testWidgets('and cope with a day that has not started', (tester) async {

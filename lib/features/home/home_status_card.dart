@@ -22,6 +22,7 @@ import '../pumping/pumping_quick_log.dart';
 import '../fridge/bottle_gauge.dart';
 import '../insights/day_view_data.dart';
 import '../insights/chart_palette.dart';
+import '../timeline/day_stats.dart';
 import '../timeline/timeline_format.dart';
 import '../fridge/bottle_sheet.dart';
 import 'home_prefs.dart';
@@ -156,8 +157,28 @@ class HomeStatusCard extends ConsumerWidget {
       when: last?.startTime,
       now: now,
       detail: last == null ? null : FeedingFormat.extras(last, units),
+      // How much today, beside the clock time, as the diaper row has its
+      // counts: what the line under the card used to say on its own.
+      tally: _feedTotal(ref, units),
       chips: [?next],
     );
+  }
+
+  /// "Today: 540 ml · 25 min breast", or as much of it as today has: the
+  /// volume is the bottles', said without the word, since only a bottle has
+  /// one.
+  /// Null before anything has been drunk today.
+  Widget? _feedTotal(WidgetRef ref, UnitSystem units) {
+    final stats = DayStats.from([
+      for (final f in ref.watch(recentFeedingsProvider).value ?? const [])
+        if (TimelineFormat.isSameDay(f.startTime, now)) f,
+    ], const []);
+    final parts = [
+      if (stats.bottleMl > 0) formatVolume(stats.bottleMl, units),
+      if (stats.breastMinutes > 0)
+        '${stats.breastMinutes}\u00a0min\u00a0breast',
+    ];
+    return parts.isEmpty ? null : TodayTotal(parts: parts);
   }
 
   /// Solids, with no countdown attached.
@@ -310,13 +331,24 @@ class HomeStatusCard extends ConsumerWidget {
           : switch ([
               if (last.side != null) FeedingFormat.sideLabel(last.side!),
               if (PumpingFormat.measure(last, units) case final m?) _keep(m),
+              // How long it took, beside how much: the line under it is
+              // today's total now.
+              if (last.amountMl != null && last.durationMinutes != null)
+                _keep('${last.durationMinutes} min'),
             ]) {
               [] => 'Pumped',
               final parts => parts.join(' · '),
             },
       when: last?.time,
       now: now,
-      detail: last == null ? null : PumpingFormat.extras(last),
+      detail: last?.notes?.trim(),
+      tally: switch ([
+        for (final p in ref.watch(recentPumpingProvider).value ?? const [])
+          if (TimelineFormat.isSameDay(p.time, now)) p.amountMl ?? 0,
+      ].fold<double>(0, (a, b) => a + b)) {
+        final ml when ml > 0 => TodayTotal(parts: [formatVolume(ml, units)]),
+        _ => null,
+      },
       chips: [?next],
     );
   }
@@ -1062,6 +1094,38 @@ class DiaperTally extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// How much today, on a row's line beside the clock time: "Today: 540 ml".
+///
+/// The feed and pump rows' counterpart to [DiaperTally]. It is what the
+/// "Today" line under the card used to say, moved onto the rows it is
+/// about, where it costs no height of its own. One run of text, so at a
+/// large text size it wraps like any other line.
+class TodayTotal extends StatelessWidget {
+  const TodayTotal({super.key, required this.parts});
+
+  /// What there was today, each already worded: "540 ml bottle".
+  final List<String> parts;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Text.rich(
+      TextSpan(
+        style: theme.textTheme.bodyMedium?.copyWith(color: muted),
+        children: [
+          TextSpan(
+            text: 'Today: ',
+            style: TextStyle(color: theme.colorScheme.primary),
+          ),
+          // Each figure kept whole, so a wrap falls between them.
+          TextSpan(text: parts.join(' · ')),
+        ],
       ),
     );
   }

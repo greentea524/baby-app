@@ -174,11 +174,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   // Today's checklist, when the household keeps one: under
                   // the readings, since it is ticked rather than logged.
                   SliverToBoxAdapter(child: DailyChecklistCard(now: _now)),
-                  // The day charts' legend carries the counts, so the row
-                  // above them is left with the volumes it alone can show.
-                  SliverToBoxAdapter(
-                    child: TodaySummaryRow(showCounts: showList),
-                  ),
                   // Today is the same day the Insights day view draws, shown
                   // here so the glance does not cost a tab change. Recent is
                   // the running log, which needs its kind filter; the charts

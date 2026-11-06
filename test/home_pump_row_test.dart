@@ -101,10 +101,9 @@ void main() {
 
     expect(rowLabel('PUMP'), findsOneWidget);
     expect(find.text('25m ago'), findsOneWidget);
-    // The newer session, not the 60 ml one five hours back: the amount in
-    // the headline, the time it took underneath.
-    expect(find.text('90\u00a0ml'), findsOneWidget);
-    expect(find.text('15 min'), findsOneWidget);
+    // The newer session, not the 60 ml one five hours back: the amount and
+    // the time it took in the headline, today's total underneath.
+    expect(find.text('90\u00a0ml · 15\u00a0min'), findsOneWidget);
   });
 
   testWidgets('is there before the first session, to log it from', (
