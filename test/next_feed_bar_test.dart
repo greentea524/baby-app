@@ -14,6 +14,7 @@ void main() {
     WidgetTester tester,
     double? remaining, {
     double? soonFrom,
+    bool barBelow = false,
   }) async {
     tester.view.physicalSize = const Size(400, 200);
     tester.view.devicePixelRatio = 1.0;
@@ -29,6 +30,7 @@ void main() {
               state: DueState.upcoming,
               remaining: remaining,
               soonFrom: soonFrom,
+              barBelow: barBelow,
             ),
           ),
         ),
@@ -129,6 +131,29 @@ void main() {
         ),
         1,
       );
+    });
+  });
+
+  group('as a bar under the chip, as on Home', () {
+    testWidgets('the bottle cards\' bar: 8 high, rounded, under the words', (
+      tester,
+    ) async {
+      await pumpChip(tester, 0.5, soonFrom: 0.2, barBelow: true);
+      final track = tester.widget<BandedTrack>(find.byType(BandedTrack));
+      expect(track.height, 8);
+      expect(track.rounded, isTrue);
+      final words = tester.getRect(find.text('Next feed in 1h · 5:00 PM'));
+      final bar = tester.getRect(find.byType(BandedTrack));
+      expect(bar.top, greaterThan(words.bottom));
+      // The same reading as the underline it replaces.
+      expect(widthOf(tester, band(0)), greaterThan(0));
+      expect(widthOf(tester, band(1)), greaterThan(0));
+    });
+
+    testWidgets('and nothing under it without a fraction', (tester) async {
+      await pumpChip(tester, null, barBelow: true);
+      expect(find.byType(BandedTrack), findsNothing);
+      expect(find.text('Next feed in 1h · 5:00 PM'), findsOneWidget);
     });
   });
 }

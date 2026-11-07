@@ -109,6 +109,8 @@ class HomeStatusCard extends ConsumerWidget {
       final settings = ref.watch(reminderSettingsProvider);
       state = feedDueState(due, now: now, within: settings.headsUp);
       next = DueChip(
+        // The bar under the chip, as the fridge's bottles have theirs.
+        barBelow: true,
         state: state,
         remaining: feedRemaining(
           due: due,
@@ -292,6 +294,8 @@ class HomeStatusCard extends ConsumerWidget {
       state = feedDueState(due, now: now, within: headsUp);
       final at = _keep(TimeOfDay.fromDateTime(due).format(context));
       next = DueChip(
+        // The bar under the chip, as the fridge's bottles have theirs.
+        barBelow: true,
         state: state,
         remaining: feedRemaining(
           due: due,
@@ -592,6 +596,7 @@ class DueChip extends StatelessWidget {
     this.remaining,
     this.soonFrom,
     this.icon,
+    this.barBelow = false,
   });
 
   final String text;
@@ -617,8 +622,16 @@ class DueChip extends StatelessWidget {
   /// amber can be seen, not only that it has. Null keeps it one colour.
   final double? soonFrom;
 
+  /// The track as a bar of its own under the chip, the bottle cards' time
+  /// bar's height and shape, rather than an underline along its edge: how
+  /// Home's feed and pump rows show it, so they read like the fridge's.
+  final bool barBelow;
+
   /// Thick enough to read the bands in, thin enough to stay an underline.
   static const double _trackHeight = 4;
+
+  /// The bottle cards' time bar's height, for [barBelow].
+  static const double _barHeight = 8;
 
   @override
   Widget build(BuildContext context) {
@@ -628,9 +641,46 @@ class DueChip extends StatelessWidget {
     );
     final icon = this.icon ?? stateIcon;
     final inks = warningInks(context);
-    final left = remaining;
+    // With the bar below, the chip itself carries no underline.
+    final left = barBelow ? null : remaining;
     final amber = soonFrom;
+    final bands = <TrackBand>[
+      if (amber != null && amber > 0) (from: 0.0, to: amber, colour: inks.soon),
+      (from: amber ?? 0.0, to: 1.0, colour: inks.ok),
+    ];
 
+    final chip = _chip(context, background, foreground, icon, left, bands);
+    if (barBelow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          chip,
+          if (remaining case final rest?) ...[
+            const SizedBox(height: 8),
+            BandedTrack(
+              remaining: rest,
+              height: _barHeight,
+              cut:
+                  Theme.of(context).cardTheme.color ??
+                  Theme.of(context).colorScheme.surfaceContainerLow,
+              bands: bands,
+            ),
+          ],
+        ],
+      );
+    }
+    return chip;
+  }
+
+  Widget _chip(
+    BuildContext context,
+    Color background,
+    Color foreground,
+    IconData icon,
+    double? left,
+    List<TrackBand> bands,
+  ) {
     return Container(
       margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
@@ -651,11 +701,7 @@ class DueChip extends StatelessWidget {
                 height: _trackHeight,
                 rounded: false,
                 cut: background,
-                bands: [
-                  if (amber != null && amber > 0)
-                    (from: 0.0, to: amber, colour: inks.soon),
-                  (from: amber ?? 0.0, to: 1.0, colour: inks.ok),
-                ],
+                bands: bands,
               ),
             ),
           Padding(
