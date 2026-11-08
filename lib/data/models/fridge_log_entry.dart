@@ -47,6 +47,7 @@ class FridgeLogEntry {
     this.pumpId,
     this.parts,
     this.placeAt,
+    this.vessel = Vessel.bottle,
   });
 
   final String id;
@@ -74,6 +75,9 @@ class FridgeLogEntry {
   /// Where it stood on the shelf: see [FridgeBottle.placeAt].
   final DateTime? placeAt;
 
+  /// What it was kept in.
+  final Vessel vessel;
+
   /// For a split, how much went into the new bottle; for a combine, how much
   /// was poured into the other.
   final double? otherMl;
@@ -97,6 +101,7 @@ class FridgeLogEntry {
     pumpId: bottle.pumpId,
     parts: bottle.isMixed ? bottle.layers : null,
     placeAt: bottle.placeAt,
+    vessel: bottle.vessel,
   );
 
   /// The bottle as it was, under its old id: what putting it back puts.
@@ -109,6 +114,7 @@ class FridgeLogEntry {
     pumpId: pumpId,
     parts: parts,
     placeAt: placeAt,
+    vessel: vessel,
   );
 
   /// Null for an entry this version cannot read, which the history skips
@@ -130,6 +136,7 @@ class FridgeLogEntry {
       pumpId: data['pumpId'] as String?,
       parts: MilkPart.listFrom(data['parts']),
       placeAt: (data['placeAt'] as Timestamp?)?.toDate(),
+      vessel: Vessel.fromName(data['vessel'] as String?),
     );
   }
 
@@ -145,5 +152,6 @@ class FridgeLogEntry {
     'pumpId': pumpId,
     'parts': MilkPart.listToMap(parts),
     'placeAt': placeAt == null ? null : Timestamp.fromDate(placeAt!),
+    'vessel': vessel.name,
   };
 }

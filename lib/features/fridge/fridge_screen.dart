@@ -549,6 +549,8 @@ class _BottleCard extends StatelessWidget {
         // tint across a kitchen.
         Expanded(
           child: Text(
+            // The milk only: a container is plain from its drawing, and
+            // "Breast milk · Container" did not fit a phone's card.
             bottle.kind.label,
             style: theme.textTheme.labelMedium?.copyWith(
               color: scheme.onSurfaceVariant,
@@ -567,6 +569,7 @@ class _BottleCard extends StatelessWidget {
       amountMl: bottle.amountMl,
       kind: bottle.kind,
       layers: bottle.layers,
+      vessel: bottle.vessel,
     );
 
     // The quick way out of the fridge, one tap from the shelf. Taking a

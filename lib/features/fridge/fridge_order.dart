@@ -64,6 +64,8 @@ FridgeBottle combined(
     filledAt: parts.first.filledAt,
     // But it stays where it stood on the shelf.
     placeAt: parts.first.filledAt == kept.placedBy ? null : kept.placedBy,
+    // What it is kept in is what was poured into.
+    vessel: kept.vessel,
     // The older milk's session, which is the one its age is counted from.
     pumpId: older.pumpId,
     parts: parts.length > 1 ? parts : null,
@@ -102,6 +104,7 @@ FridgeBottle combined(
       parts: bottle.parts,
       // Beside the other half.
       placeAt: bottle.placeAt,
+      vessel: bottle.vessel,
     ),
   );
 }

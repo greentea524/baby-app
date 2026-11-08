@@ -5,6 +5,24 @@ import 'milk_kind.dart';
 
 export 'milk_kind.dart';
 
+/// What the milk is kept in: a feeding bottle, or a storage container that
+/// is poured from. Only how it is drawn and named; it keeps, fills and is
+/// fed from the same way.
+///
+/// Stored by [name]; the rules accept exactly these. A missing or unknown
+/// one is a bottle, which is what every one was before containers.
+enum Vessel {
+  bottle('Bottle'),
+  container('Container');
+
+  const Vessel(this.label);
+
+  final String label;
+
+  static Vessel fromName(String? name) =>
+      values.asNameMap()[name] ?? Vessel.bottle;
+}
+
 /// One bottle standing in the fridge. Stored at
 /// `babies/{babyId}/bottles/{id}`.
 ///
@@ -25,6 +43,7 @@ class FridgeBottle implements BabyEvent {
     this.pumpId,
     this.parts,
     this.placeAt,
+    this.vessel = Vessel.bottle,
   });
 
   @override
@@ -54,6 +73,9 @@ class FridgeBottle implements BabyEvent {
   /// was when they were poured together. Null for a bottle of one age, which
   /// is almost every bottle; see [layers] for reading it.
   final List<MilkPart>? parts;
+
+  /// What it is kept in.
+  final Vessel vessel;
 
   /// The time its place on the shelf is ordered by, when that is not
   /// [filledAt]: a bottle that older milk was poured into keeps the place it
@@ -104,6 +126,7 @@ class FridgeBottle implements BabyEvent {
     pumpId: pumpId,
     parts: parts,
     placeAt: placeAt,
+    vessel: vessel,
   );
 
   /// The same bottle holding one age only, from [filledAt]: what a bottle
@@ -115,6 +138,7 @@ class FridgeBottle implements BabyEvent {
     kind: kind,
     notes: notes,
     pumpId: pumpId,
+    vessel: vessel,
   );
 
   factory FridgeBottle.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -128,6 +152,7 @@ class FridgeBottle implements BabyEvent {
       pumpId: data['pumpId'] as String?,
       parts: MilkPart.listFrom(data['parts']),
       placeAt: (data['placeAt'] as Timestamp?)?.toDate(),
+      vessel: Vessel.fromName(data['vessel'] as String?),
     );
   }
 
@@ -140,6 +165,7 @@ class FridgeBottle implements BabyEvent {
     'pumpId': pumpId,
     'parts': MilkPart.listToMap(parts),
     'placeAt': placeAt == null ? null : Timestamp.fromDate(placeAt!),
+    'vessel': vessel.name,
   };
 }
 

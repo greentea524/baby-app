@@ -27,10 +27,15 @@ class BottleGauge extends StatelessWidget {
     required this.amountMl,
     required this.kind,
     this.layers = const [],
+    this.vessel = Vessel.bottle,
   });
 
   final double amountMl;
   final MilkKind kind;
+
+  /// A feeding bottle, or a storage container: drawn as what is on the
+  /// shelf, filled the same way.
+  final Vessel vessel;
 
   /// What is in it, oldest first ([FridgeBottle.layers]). Fewer than two is
   /// one age, drawn in one colour.
@@ -57,13 +62,17 @@ class BottleGauge extends StatelessWidget {
     // one thing it adds to the card: the level. The amount is read out from
     // the text beside it.
     return Semantics(
-      label: '${(level * 100).round()}% full',
+      label: [
+        if (vessel == Vessel.container) vessel.label,
+        '${(level * 100).round()}% full',
+      ].join(', '),
       child: AspectRatio(
         aspectRatio: aspectRatio,
         child: CustomPaint(
           painter: BottlePainter(
             level: level,
             bands: bands,
+            vessel: vessel,
             surface: surface,
             glass: scheme.surfaceContainerLowest,
             outline: scheme.outline,
@@ -108,6 +117,7 @@ class BottlePainter extends CustomPainter {
   const BottlePainter({
     required this.level,
     required this.bands,
+    this.vessel = Vessel.bottle,
     required this.surface,
     required this.glass,
     required this.outline,
@@ -117,6 +127,10 @@ class BottlePainter extends CustomPainter {
 
   /// How full, 0 to 1.
   final double level;
+
+  /// What to draw: a teat and collar on a bottle, a screw lid on a
+  /// straight-sided container.
+  final Vessel vessel;
 
   /// The milk, bottom up: each band's share of it, and its colour. One band
   /// for a bottle of one age.
@@ -142,25 +156,39 @@ class BottlePainter extends CustomPainter {
     final half = stroke / 2;
     final cx = w / 2;
 
+    final container = vessel == Vessel.container;
     final teatBottom = h * 0.2;
-    final collarBottom = h * 0.3;
+    // A container's lid sits low and flat on it, where a bottle has its
+    // teat and collar, so it stands a little shorter than a bottle.
+    final collarBottom = container ? h * 0.24 : h * 0.3;
+    final lidTop = h * 0.12;
 
     final lines = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
       ..color = outline;
 
-    // The body: squared-off shoulders under the collar, a rounded base.
-    final body = RRect.fromLTRBAndCorners(
-      half,
-      collarBottom,
-      w - half,
-      h - half,
-      topLeft: Radius.circular(w * 0.1),
-      topRight: Radius.circular(w * 0.1),
-      bottomLeft: Radius.circular(w * 0.22),
-      bottomRight: Radius.circular(w * 0.22),
-    );
+    // The body: squared-off shoulders under the collar, a rounded base. A
+    // container's is a straight-sided cup, barely rounded at all.
+    final body = container
+        ? RRect.fromLTRBAndCorners(
+            half,
+            collarBottom,
+            w - half,
+            h - half,
+            bottomLeft: Radius.circular(w * 0.08),
+            bottomRight: Radius.circular(w * 0.08),
+          )
+        : RRect.fromLTRBAndCorners(
+            half,
+            collarBottom,
+            w - half,
+            h - half,
+            topLeft: Radius.circular(w * 0.1),
+            topRight: Radius.circular(w * 0.1),
+            bottomLeft: Radius.circular(w * 0.22),
+            bottomRight: Radius.circular(w * 0.22),
+          );
     canvas.drawRRect(body, Paint()..color = glass);
 
     // The milk, clipped to the body so it takes the shape of the base.
@@ -208,6 +236,32 @@ class BottlePainter extends CustomPainter {
     }
     canvas.drawRRect(body, lines);
 
+    if (container) {
+      // The screw lid: flat, a touch wider than the body, ridged for grip.
+      final lid = RRect.fromLTRBR(
+        half,
+        lidTop,
+        w - half,
+        collarBottom,
+        Radius.circular(w * 0.06),
+      );
+      canvas
+        ..drawRRect(lid, Paint()..color = collar)
+        ..drawRRect(lid, lines);
+      final ridges = Paint()
+        ..color = outline.withValues(alpha: 0.6)
+        ..strokeWidth = (stroke * 0.7).clamp(1.0, 2.0);
+      for (var i = 1; i < 6; i++) {
+        final x = w * i / 6;
+        canvas.drawLine(
+          Offset(x, lidTop + stroke),
+          Offset(x, collarBottom - stroke),
+          ridges,
+        );
+      }
+      return;
+    }
+
     // The collar screwed on over the shoulders, narrower than the body.
     final collarRect = RRect.fromLTRBR(
       cx - w * 0.36,
@@ -238,6 +292,7 @@ class BottlePainter extends CustomPainter {
   @override
   bool shouldRepaint(BottlePainter old) =>
       old.level != level ||
+      old.vessel != vessel ||
       !_sameBands(old.bands, bands) ||
       old.surface != surface ||
       old.glass != glass ||

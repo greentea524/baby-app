@@ -458,6 +458,7 @@ class HomeStatusCard extends ConsumerWidget {
                 amountMl: b.amountMl,
                 kind: b.kind,
                 layers: b.layers,
+                vessel: b.vessel,
               ),
             ),
           ],

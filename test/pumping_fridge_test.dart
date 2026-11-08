@@ -28,11 +28,13 @@ void main() {
     bool? fridgeShown,
     PumpingEvent? existing,
     List<FridgeBottle> shelf = const [],
+    String? vessel,
   }) async {
     SharedPreferences.setMockInitialValues({
       'unit_system': 'metric',
       'pump_to_fridge': ?remembered,
       'show_fridge': ?fridgeShown,
+      'fridge_vessel': ?vessel,
     });
     stored = await SharedPreferences.getInstance();
     pumps = _RecordingPumps();
@@ -116,6 +118,18 @@ void main() {
     expect(bottle.kind, MilkKind.expressed);
     // As old as the pumping, and matched to its session by that time.
     expect(bottle.filledAt, session.time);
+  });
+
+  testWidgets('in a container, where that is what this household uses', (
+    tester,
+  ) async {
+    await openSheet(tester, vessel: 'container');
+    await tester.enterText(amountField(), '110');
+    await tester.tap(toggle());
+    await tester.pumpAndSettle();
+    expect(find.text('As a 110 ml container'), findsOneWidget);
+    await save(tester);
+    expect(fridge.added.single.vessel, Vessel.container);
   });
 
   testWidgets('and is off again the next time', (tester) async {

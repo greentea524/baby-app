@@ -140,6 +140,70 @@ void main() {
     expect(find.text('Put back'), findsOneWidget);
   });
 
+  group('a storage container', () {
+    final jar = FridgeBottle(
+      id: 'jar',
+      filledAt: now.subtract(const Duration(hours: 3)),
+      amountMl: 90,
+      vessel: Vessel.container,
+    );
+
+    testWidgets('is drawn as one, and said as one', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpFridge(tester, bottles: [jar, bottle('b', hoursAgo: 2)]);
+      expect(find.bySemanticsLabel(RegExp('Container, 75% full')), findsOne);
+      semantics.dispose();
+      final painters = [
+        for (final w in tester.widgetList<CustomPaint>(
+          find.byWidgetPredicate(
+            (w) => w is CustomPaint && w.painter is BottlePainter,
+          ),
+        ))
+          w.painter! as BottlePainter,
+      ];
+      expect(
+        {for (final p in painters) p.vessel},
+        {Vessel.container, Vessel.bottle},
+      );
+    });
+
+    testWidgets('is a choice when adding, remembered for the next one', (
+      tester,
+    ) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(tester, repo: repo);
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Container'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '100');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Add to fridge'));
+      await tester.pumpAndSettle();
+      expect(repo.added.single.vessel, Vessel.container);
+
+      // The next one starts on a container.
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      final chooser = tester.widget<SegmentedButton<Vessel>>(
+        find.byType(SegmentedButton<Vessel>),
+      );
+      expect(chooser.selected, {Vessel.container});
+    });
+
+    testWidgets('and an edit keeps what it is kept in', (tester) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(tester, bottles: [jar], repo: repo);
+      await tester.tap(find.text('90'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '80');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save changes'));
+      await tester.pumpAndSettle();
+      expect(repo.updated.single.vessel, Vessel.container);
+    });
+  });
+
   group('the shelf', () {
     testWidgets('puts the oldest bottle on the left', (tester) async {
       // Left to right, oldest first: the reading order and the order milk

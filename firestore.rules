@@ -344,7 +344,10 @@ service cloud.firestore {
             // The ages a combined bottle holds.
             && milkParts(d.get('parts', null))
             // Where it stands, when that is not its age.
-            && moment(d.get('placeAt', null));
+            && moment(d.get('placeAt', null))
+            // A feeding bottle or a storage container. Optional: every
+            // bottle from before containers is a bottle.
+            && optional(d.get('vessel', null), ['bottle', 'container']);
         }
       }
 
@@ -369,7 +372,8 @@ service cloud.firestore {
             && amount(d.get('otherMl', null))
             && pumpRef(d.get('pumpId', null))
             && milkParts(d.get('parts', null))
-            && moment(d.get('placeAt', null));
+            && moment(d.get('placeAt', null))
+            && optional(d.get('vessel', null), ['bottle', 'container']);
         }
       }
 

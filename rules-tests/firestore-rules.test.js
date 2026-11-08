@@ -1366,6 +1366,17 @@ describe("the fridge's history", () => {
     );
   });
 
+  it("keeps what the milk is kept in: a bottle or a container", async () => {
+    const bottleRef = (id) => doc(asAlice(), "babies", BABY, "bottles", id);
+    await assertSucceeds(setDoc(bottleRef("v1"), bottle({ vessel: "container" })));
+    await assertSucceeds(setDoc(bottleRef("v2"), bottle({ vessel: "bottle" })));
+    await assertSucceeds(
+      setDoc(logRef(asAlice(), "v3"), entry({ vessel: "container" })),
+    );
+    await assertFails(setDoc(bottleRef("v4"), bottle({ vessel: "jug" })));
+    await assertFails(setDoc(logRef(asAlice(), "v5"), entry({ vessel: 3 })));
+  });
+
   it("keeps where a bottle stands, as a time", async () => {
     const bottleRef = (id) => doc(asAlice(), "babies", BABY, "bottles", id);
     await assertSucceeds(setDoc(bottleRef("place1"), bottle({ placeAt: AT })));

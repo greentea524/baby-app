@@ -15,6 +15,7 @@ import '../common/event_time_row.dart';
 import '../common/number_input.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
+import '../fridge/vessel_pref.dart';
 import '../home/home_prefs.dart';
 
 /// Opens the pumping quick-log sheet (KAN-145). Pass [existing] to edit.
@@ -128,6 +129,8 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
             filledAt: event.time,
             amountMl: event.amountMl!,
             pumpId: added.id,
+            // In what this household keeps its milk in.
+            vessel: ref.read(lastVesselProvider),
           );
         }
       }
@@ -262,14 +265,16 @@ class _FridgeToggle extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final units = ref.watch(unitSystemProvider);
     final ml = amountMl;
+    // What it will go in: a bottle, or this household's containers.
+    final vessel = ref.watch(lastVesselProvider).label.toLowerCase();
     return SwitchListTile(
       contentPadding: EdgeInsets.zero,
       secondary: const Icon(Icons.kitchen_outlined),
       title: const Text('Add to the fridge'),
       subtitle: Text(switch ((on, ml)) {
-        (false, _) => 'Also store it as a bottle on the shelf',
+        (false, _) => 'Also store it as a $vessel on the shelf',
         (true, final ml?) when ml > 0 =>
-          'As a ${formatVolume(ml, units)} bottle',
+          'As a ${formatVolume(ml, units)} $vessel',
         (true, _) => 'Once there is an amount',
       }),
       value: on,

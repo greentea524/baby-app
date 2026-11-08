@@ -17,6 +17,7 @@ import '../common/volume_field.dart';
 import '../feeding/feeding_format.dart';
 import 'fridge_order.dart';
 import 'mix_key.dart';
+import 'vessel_pref.dart';
 
 /// Adds a bottle to the fridge, or edits one already in it.
 ///
@@ -68,6 +69,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   late DateTime _filledAt;
   late VolumeUnit _unit;
   late MilkKind _kind;
+  late Vessel _vessel;
 
   /// The session this bottle is from, when it is linked to one.
   String? _pumpId;
@@ -104,6 +106,7 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     final e = widget.existing;
     if (e != null) {
       _kind = e.kind;
+      _vessel = e.vessel;
       _filledAt = e.filledAt;
       _storedMl = e.amountMl;
       _amount.text = _unit.fieldText(e.amountMl);
@@ -116,6 +119,8 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     // it and because a household that pumps is the one that has a fridge full
     // of bottles to keep track of. Formula is one tap away.
     _kind = MilkKind.expressed;
+    // What this device kept the last one in.
+    _vessel = ref.read(lastVesselProvider);
 
     // Now, always. It used to open on the pump session's time, which read as
     // a field stuck on an old value — and was plainly wrong whenever the
@@ -190,7 +195,12 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
       placeAt: existing != null && existing.filledAt == _filledAt
           ? existing.placeAt
           : null,
+      vessel: _vessel,
     );
+    // The next new one starts on what this one was kept in.
+    if (existing == null) {
+      unawaited(ref.read(lastVesselProvider.notifier).set(_vessel));
+    }
     _saving = true;
     saveAndClose(
       context,
@@ -220,6 +230,12 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
         // First, because it changes what the fields under it mean — and, for
         // a new bottle, what they start out holding.
         MilkChooser(value: _kind, onChanged: _setKind),
+        const SizedBox(height: 8),
+        // What it is kept in: how it is drawn on the shelf, nothing more.
+        VesselChooser(
+          value: _vessel,
+          onChanged: (v) => setState(() => _vessel = v),
+        ),
         const SizedBox(height: 16),
         VolumeField(
           controller: _amount,

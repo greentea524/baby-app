@@ -215,6 +215,29 @@ void main() {
     });
   });
 
+  group('what it is kept in', () {
+    test('is kept through a split and by what is poured into', () {
+      final jar = FridgeBottle(
+        id: 'j',
+        filledAt: base,
+        amountMl: 100,
+        vessel: Vessel.container,
+      );
+      final (:kept, :sibling) = splitBottle(jar, 60, siblingId: 's');
+      expect(kept.vessel, Vessel.container);
+      expect(sibling.vessel, Vessel.container);
+      // Poured into a bottle, it is a bottle; into a container, a container.
+      expect(combined(bottle('b', atHour: 2), jar).vessel, Vessel.bottle);
+      expect(combined(jar, bottle('b', atHour: 2)).vessel, Vessel.container);
+    });
+
+    test('is a bottle when not said, as every one was before', () {
+      expect(Vessel.fromName(null), Vessel.bottle);
+      expect(Vessel.fromName('jug'), Vessel.bottle);
+      expect(Vessel.fromName('container'), Vessel.container);
+    });
+  });
+
   group('a mix of ages', () {
     MilkPart part(int atHour, double ml) => MilkPart(
       filledAt: base.add(Duration(hours: atHour)),

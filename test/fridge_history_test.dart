@@ -307,6 +307,21 @@ void main() {
     final m = FridgeLogEntry.of(FridgeAction.removed, mix, at: now).bottle;
     expect([for (final p in m.layers) p.amountMl], [70, 30]);
 
+    // And what it was kept in.
+    expect(
+      FridgeLogEntry.of(
+        FridgeAction.removed,
+        FridgeBottle(
+          id: 'c',
+          filledAt: DateTime(2026, 11, 2, 9),
+          amountMl: 100,
+          vessel: Vessel.container,
+        ),
+        at: now,
+      ).bottle.vessel,
+      Vessel.container,
+    );
+
     // And where it stood.
     final placed = FridgeBottle(
       id: 'p',
