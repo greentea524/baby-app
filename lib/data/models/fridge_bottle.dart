@@ -44,6 +44,7 @@ class FridgeBottle implements BabyEvent {
     this.parts,
     this.placeAt,
     this.vessel = Vessel.bottle,
+    this.queuedAt,
   });
 
   @override
@@ -76,6 +77,11 @@ class FridgeBottle implements BabyEvent {
 
   /// What it is kept in.
   final Vessel vessel;
+
+  /// When it was made the one up next: the bottle being fed, or the one to
+  /// feed next. Null for every other. Shared, so every caregiver sees the
+  /// same one; see [upNext].
+  final DateTime? queuedAt;
 
   /// The time its place on the shelf is ordered by, when that is not
   /// [filledAt]: a bottle that older milk was poured into keeps the place it
@@ -127,6 +133,21 @@ class FridgeBottle implements BabyEvent {
     parts: parts,
     placeAt: placeAt,
     vessel: vessel,
+    queuedAt: queuedAt,
+  );
+
+  /// This bottle made up next from [at], or no longer.
+  FridgeBottle queued(DateTime? at) => FridgeBottle(
+    id: id,
+    filledAt: filledAt,
+    amountMl: amountMl,
+    kind: kind,
+    notes: notes,
+    pumpId: pumpId,
+    parts: parts,
+    placeAt: placeAt,
+    vessel: vessel,
+    queuedAt: at,
   );
 
   /// The same bottle holding one age only, from [filledAt]: what a bottle
@@ -153,6 +174,7 @@ class FridgeBottle implements BabyEvent {
       parts: MilkPart.listFrom(data['parts']),
       placeAt: (data['placeAt'] as Timestamp?)?.toDate(),
       vessel: Vessel.fromName(data['vessel'] as String?),
+      queuedAt: (data['queuedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -166,7 +188,21 @@ class FridgeBottle implements BabyEvent {
     'parts': MilkPart.listToMap(parts),
     'placeAt': placeAt == null ? null : Timestamp.fromDate(placeAt!),
     'vessel': vessel.name,
+    'queuedAt': queuedAt == null ? null : Timestamp.fromDate(queuedAt!),
   };
+}
+
+/// The bottle up next on [shelf]: the one most recently made so, or null.
+///
+/// The latest rather than the only, so two phones choosing at once settle
+/// on the same one, the later choice, without either having to know.
+FridgeBottle? upNext(List<FridgeBottle> shelf) {
+  FridgeBottle? next;
+  for (final b in shelf) {
+    final at = b.queuedAt;
+    if (at != null && (next == null || at.isAfter(next.queuedAt!))) next = b;
+  }
+  return next;
 }
 
 /// Some of the milk in a bottle, and when it was filled.

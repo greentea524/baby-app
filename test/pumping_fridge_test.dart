@@ -132,6 +132,22 @@ void main() {
     expect(fridge.added.single.vessel, Vessel.container);
   });
 
+  testWidgets('and can be the bottle up next', (tester) async {
+    await openSheet(tester);
+    final upNext = find.widgetWithText(SwitchListTile, 'Up next');
+    // Only once it is going in the fridge.
+    expect(upNext, findsNothing);
+    await tester.enterText(amountField(), '110');
+    await tester.tap(toggle());
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(upNext);
+    await tester.tap(upNext);
+    await tester.pumpAndSettle();
+    await save(tester);
+    expect(fridge.added.single.queuedAt, isNotNull);
+    expect(fridge.unqueuedCalled, isTrue);
+  });
+
   testWidgets('and is off again the next time', (tester) async {
     // A choice for this session, not remembered: most pumped milk is fed
     // fresh, so each session starts from not bottling it.
@@ -237,6 +253,11 @@ class _RecordingFridge extends FridgeRepository {
   _RecordingFridge() : super(_NoFirestore(), 'baby1', 'alice');
 
   final added = <FridgeBottle>[];
+  bool unqueuedCalled = false;
+
+  @override
+  Future<void> unqueue(Iterable<FridgeBottle> bottles) async =>
+      unqueuedCalled = true;
 
   @override
   Future<String> add(FridgeBottle event) async {

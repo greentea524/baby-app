@@ -347,7 +347,9 @@ service cloud.firestore {
             && moment(d.get('placeAt', null))
             // A feeding bottle or a storage container. Optional: every
             // bottle from before containers is a bottle.
-            && optional(d.get('vessel', null), ['bottle', 'container']);
+            && optional(d.get('vessel', null), ['bottle', 'container'])
+            // When it was made the one up next, or none.
+            && moment(d.get('queuedAt', null));
         }
       }
 

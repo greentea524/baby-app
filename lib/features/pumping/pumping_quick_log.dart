@@ -15,6 +15,7 @@ import '../common/event_time_row.dart';
 import '../common/number_input.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
+import '../fridge/bottle_sheet.dart' show UpNextSwitch;
 import '../fridge/vessel_pref.dart';
 import '../home/home_prefs.dart';
 
@@ -62,6 +63,9 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
   /// switch left on from last time is easy to save past without noticing,
   /// putting a bottle on the shelf that never went in the fridge.
   bool _fridgeOn = false;
+
+  /// Whether that bottle is the one up next. Off each time too.
+  bool _upNext = false;
 
   @override
   void initState() {
@@ -131,6 +135,7 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
             pumpId: added.id,
             // In what this household keeps its milk in.
             vessel: ref.read(lastVesselProvider),
+            queuedAt: _upNext ? DateTime.now() : null,
           );
         }
       }
@@ -139,6 +144,10 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
       // the shelf now. Reports its own failure, since the session itself was
       // saved.
       if (bottle case final b? when fridge != null) {
+        // One up next at a time: this one takes the place of any other.
+        if (b.queuedAt != null) {
+          unawaited(fridge.unqueue(ref.read(fridgeShelfProvider)));
+        }
         unawaited(
           Future<void>.sync(() => fridge.add(b)).catchError((Object e) {
             messenger.showSnackBar(
@@ -211,6 +220,13 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
             amountMl: _amountMl(),
             onChanged: (v) => setState(() => _fridgeOn = v),
           ),
+          // Whether that bottle is the one to feed next: only once it is
+          // going in the fridge at all.
+          if (_fridgeOn)
+            UpNextSwitch(
+              value: _upNext,
+              onChanged: (v) => setState(() => _upNext = v),
+            ),
         ],
         const SizedBox(height: 12),
         TextField(

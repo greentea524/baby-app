@@ -140,6 +140,147 @@ void main() {
     expect(find.text('Put back'), findsOneWidget);
   });
 
+  group('the bottle up next', () {
+    FridgeBottle queued(FridgeBottle b, int minutesAgo) =>
+        b.queued(now.subtract(Duration(minutes: minutesAgo)));
+    double left(WidgetTester tester, String amount) => tester
+        .getRect(
+          find.ancestor(of: find.text(amount), matching: find.byType(Card)),
+        )
+        .left;
+
+    testWidgets('stands first, outlined and labelled, whatever its age', (
+      tester,
+    ) async {
+      await pumpFridge(
+        tester,
+        bottles: [
+          bottle('old', hoursAgo: 30, ml: 60),
+          queued(bottle('new', hoursAgo: 2, ml: 90), 5),
+        ],
+      );
+      expect(find.text('UP NEXT'), findsOneWidget);
+      expect(left(tester, '90'), lessThan(left(tester, '60')));
+      final card = tester.widget<Card>(
+        find.ancestor(of: find.text('90'), matching: find.byType(Card)),
+      );
+      expect((card.shape! as RoundedRectangleBorder).side.width, 2.5);
+      // The label stands over it, and every card at the same level.
+      final label = tester.getRect(find.text('UP NEXT'));
+      final cards = find.byType(Card);
+      expect(label.bottom, lessThanOrEqualTo(tester.getRect(cards.at(0)).top));
+      expect(tester.getRect(cards.at(0)).top, tester.getRect(cards.at(1)).top);
+    });
+
+    testWidgets('is the latest chosen, where two say so', (tester) async {
+      await pumpFridge(
+        tester,
+        bottles: [
+          queued(bottle('a', hoursAgo: 9, ml: 60), 30),
+          queued(bottle('b', hoursAgo: 5, ml: 90), 2),
+        ],
+      );
+      expect(left(tester, '90'), lessThan(left(tester, '60')));
+    });
+
+    testWidgets('and with none, there is no label and no gap for one', (
+      tester,
+    ) async {
+      await pumpFridge(tester, bottles: [bottle('a', hoursAgo: 2)]);
+      expect(find.text('UP NEXT'), findsNothing);
+    });
+
+    testWidgets('is chosen from its sheet, clearing the one before', (
+      tester,
+    ) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        bottles: [
+          queued(bottle('was', hoursAgo: 9, ml: 60), 30),
+          bottle('now', hoursAgo: 5, ml: 90),
+        ],
+      );
+      await tester.tap(find.text('90'));
+      await tester.pumpAndSettle();
+      final upNext = find.widgetWithText(SwitchListTile, 'Up next');
+      await tester.ensureVisible(upNext);
+      expect(tester.widget<SwitchListTile>(upNext).value, isFalse);
+      await tester.tap(upNext);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save changes'));
+      await tester.pumpAndSettle();
+      expect(repo.updated.single.id, 'now');
+      expect(repo.updated.single.queuedAt, isNotNull);
+      expect(repo.unqueued, ['was']);
+    });
+
+    testWidgets('and its sheet says so, and can turn it off', (tester) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        bottles: [queued(bottle('q', hoursAgo: 5, ml: 90), 10)],
+      );
+      await tester.tap(find.text('90'));
+      await tester.pumpAndSettle();
+      final upNext = find.widgetWithText(SwitchListTile, 'Up next');
+      await tester.ensureVisible(upNext);
+      expect(tester.widget<SwitchListTile>(upNext).value, isTrue);
+      await tester.tap(upNext);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save changes'));
+      await tester.pumpAndSettle();
+      expect(repo.updated.single.queuedAt, isNull);
+    });
+
+    testWidgets('or as a new bottle goes in', (tester) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        bottles: [queued(bottle('was', hoursAgo: 9, ml: 60), 30)],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '100');
+      final upNext = find.widgetWithText(SwitchListTile, 'Up next');
+      await tester.ensureVisible(upNext);
+      await tester.tap(upNext);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Add to fridge'));
+      await tester.pumpAndSettle();
+      expect(repo.added.single.queuedAt, isNotNull);
+      expect(repo.unqueued, ['was']);
+    });
+
+    testWidgets('and is finished from its card as any other', (tester) async {
+      final repo = _RecordingFridge();
+      await pumpFridge(
+        tester,
+        repo: repo,
+        feeds: _RecordingFeeds(),
+        bottles: [
+          bottle('old', hoursAgo: 30, ml: 60),
+          queued(bottle('q', hoursAgo: 2, ml: 90), 5),
+        ],
+      );
+      // The first card's Finished is the one up next: the feed sheet opens
+      // on its 90 ml, not the older bottle's 60.
+      await tester.tap(find.widgetWithText(FilledButton, 'Finished').first);
+      await tester.pumpAndSettle();
+      final sheet = find.byType(BottomSheet);
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.widgetWithText(TextField, '90'),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('a storage container', () {
     final jar = FridgeBottle(
       id: 'jar',
@@ -1820,6 +1961,15 @@ class _RecordingFridge extends FridgeRepository {
 
   @override
   Future<void> update(FridgeBottle event) async => updated.add(event);
+
+  final unqueued = <String>[];
+
+  @override
+  Future<void> unqueue(Iterable<FridgeBottle> bottles) async =>
+      unqueued.addAll([
+        for (final b in bottles)
+          if (b.queuedAt != null) b.id,
+      ]);
 
   final removed = <String>[];
   final finished = <String>[];

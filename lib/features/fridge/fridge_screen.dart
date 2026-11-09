@@ -180,10 +180,28 @@ class _Shelf extends ConsumerWidget {
       ),
     );
 
+    // The bottle up next stands first, wherever its age would put it: it is
+    // the one in hand, or the one to reach for, and Finished on it is the
+    // tap this screen is opened for.
+    final next = upNext(shelf);
+    final shown = next == null
+        ? shelf
+        : [
+            next,
+            for (final b in shelf)
+              if (b.id != next.id) b,
+          ];
+    // Room over the cards for its label. Over every card, so all of them
+    // stand at the same level, and only while there is one up next.
+    final labelHeight = next == null
+        ? 0.0
+        : MediaQuery.textScalerOf(context).scale(16) + 8;
+
     Widget card(FridgeBottle b) => _BottleCard(
       bottle: b,
       units: units,
       now: now,
+      upNext: b.id == next?.id,
       onFinished: () => _finish(context, ref, b, now),
     );
 
@@ -201,14 +219,29 @@ class _Shelf extends ConsumerWidget {
       // shelf's scrollbar on a computer, under the cards rather than across
       // their Finished buttons.
       padding: EdgeInsets.fromLTRB(16, 16, 16, cardsBottom),
-      itemCount: shelf.length,
+      itemCount: shown.length,
       separatorBuilder: (_, _) => const SizedBox(width: 12),
       // As tall as the card needs, from the top of the shelf, rather than
       // stretched to the height of it.
       itemBuilder: (context, i) => SizedBox(
-        key: ValueKey(shelf[i].id),
+        key: ValueKey(shown[i].id),
         width: _cardWidth,
-        child: Align(alignment: Alignment.topCenter, child: card(shelf[i])),
+        child: Column(
+          children: [
+            if (labelHeight > 0)
+              SizedBox(
+                height: labelHeight,
+                width: double.infinity,
+                child: i == 0 ? const _UpNextLabel() : null,
+              ),
+            Expanded(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: card(shown[i]),
+              ),
+            ),
+          ],
+        ),
       ),
     );
 
@@ -528,11 +561,15 @@ class _BottleCard extends StatelessWidget {
     required this.units,
     required this.now,
     required this.onFinished,
+    this.upNext = false,
   });
 
   final FridgeBottle bottle;
   final UnitSystem units;
   final DateTime now;
+
+  /// The one up next: outlined, so it stands out from the rest.
+  final bool upNext;
 
   /// The bottle has been fed: log it, and take it off the shelf.
   final VoidCallback onFinished;
@@ -613,6 +650,12 @@ class _BottleCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       margin: EdgeInsets.zero,
+      shape: upNext
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: scheme.primary, width: 2.5),
+            )
+          : null,
       color: switch (_dueStateOf(age)) {
         final state? => dueTint(context, state, scheme.surfaceContainerLow),
         null => null,
@@ -1027,6 +1070,39 @@ class _Facts extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// "UP NEXT", over the bottle that is: small capitals in the app's colour,
+/// like Home's row labels, with the arrow saying it is the next one.
+class _UpNextLabel extends StatelessWidget {
+  const _UpNextLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colour = theme.colorScheme.primary;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.play_arrow_rounded, size: 18, color: colour),
+            const SizedBox(width: 2),
+            Text(
+              'UP NEXT',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colour,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

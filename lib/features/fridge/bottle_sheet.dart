@@ -71,6 +71,11 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   late MilkKind _kind;
   late Vessel _vessel;
 
+  /// Whether this is the bottle up next, and whether it was when the sheet
+  /// opened: choosing it anew is what clears the one before.
+  late bool _upNext;
+  late bool _wasUpNext;
+
   /// The session this bottle is from, when it is linked to one.
   String? _pumpId;
 
@@ -104,6 +109,8 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
     super.initState();
     _unit = VolumeUnit.initial;
     final e = widget.existing;
+    _wasUpNext = e != null && upNext(ref.read(fridgeShelfProvider))?.id == e.id;
+    _upNext = _wasUpNext;
     if (e != null) {
       _kind = e.kind;
       _vessel = e.vessel;
@@ -196,7 +203,22 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
           ? existing.placeAt
           : null,
       vessel: _vessel,
+      // Up next from when it was first made so, or from now.
+      queuedAt: !_upNext
+          ? null
+          : _wasUpNext
+          ? existing!.queuedAt
+          : DateTime.now(),
     );
+    // One up next at a time: choosing this one clears whichever was.
+    if (_upNext && !_wasUpNext) {
+      unawaited(
+        repo.unqueue([
+          for (final b in ref.read(fridgeShelfProvider))
+            if (b.id != existing?.id) b,
+        ]),
+      );
+    }
     // The next new one starts on what this one was kept in.
     if (existing == null) {
       unawaited(ref.read(lastVesselProvider.notifier).set(_vessel));
@@ -309,7 +331,12 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
             border: OutlineInputBorder(),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 4),
+        UpNextSwitch(
+          value: _upNext,
+          onChanged: (v) => setState(() => _upNext = v),
+        ),
+        const SizedBox(height: 8),
         FilledButton(
           onPressed: canSave ? _save : null,
           child: Text(isEdit ? 'Save changes' : 'Add to fridge'),
@@ -898,4 +925,24 @@ class _FromPump extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Up next": whether a bottle is the one being fed, or the one to feed
+/// next. In the bottle sheet and, for a session going in the fridge, the
+/// pump sheet.
+class UpNextSwitch extends StatelessWidget {
+  const UpNextSwitch({super.key, required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SwitchListTile(
+    contentPadding: EdgeInsets.zero,
+    secondary: const Icon(Icons.play_arrow_rounded),
+    title: const Text('Up next'),
+    subtitle: const Text('The one being fed, or to feed next'),
+    value: value,
+    onChanged: onChanged,
+  );
 }

@@ -215,6 +215,33 @@ void main() {
     });
   });
 
+  group('the bottle up next', () {
+    test('is the one most recently made so', () {
+      final a = bottle(
+        'a',
+        atHour: 1,
+      ).queued(base.add(const Duration(hours: 5)));
+      final b = bottle(
+        'b',
+        atHour: 2,
+      ).queued(base.add(const Duration(hours: 6)));
+      expect(upNext([a, b, bottle('c', atHour: 3)])!.id, 'b');
+      expect(upNext([bottle('c', atHour: 3)]), isNull);
+    });
+
+    test('stays so when poured into, and when split, on the half kept', () {
+      final q = bottle(
+        'q',
+        atHour: 4,
+      ).queued(base.add(const Duration(hours: 5)));
+      expect(combined(q, bottle('o', atHour: 1)).queuedAt, q.queuedAt);
+      expect(combined(bottle('o', atHour: 1), q).queuedAt, isNull);
+      final (:kept, :sibling) = splitBottle(q, 40, siblingId: 's');
+      expect(kept.queuedAt, q.queuedAt);
+      expect(sibling.queuedAt, isNull);
+    });
+  });
+
   group('what it is kept in', () {
     test('is kept through a split and by what is poured into', () {
       final jar = FridgeBottle(

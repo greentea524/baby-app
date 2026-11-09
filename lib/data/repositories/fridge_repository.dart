@@ -69,6 +69,7 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
       parts: event.parts,
       placeAt: event.placeAt,
       vessel: event.vessel,
+      queuedAt: event.queuedAt,
     );
     await (firestore.batch()
           ..set(doc, _created(placed))
@@ -99,6 +100,26 @@ class FridgeRepository extends EventRepository<FridgeBottle> {
               _logged(FridgeLogEntry.of(why, bottle, at: DateTime.now())),
             ))
           .commit();
+
+  /// Makes none of [bottles] up next any more: what is left of an earlier
+  /// choice once another bottle is chosen, so finishing the new one does not
+  /// bring an old one back. Nothing to write for an empty list.
+  Future<void> unqueue(Iterable<FridgeBottle> bottles) async {
+    final stale = [
+      for (final b in bottles)
+        if (b.queuedAt != null) b,
+    ];
+    if (stale.isEmpty) return;
+    final batch = firestore.batch();
+    for (final b in stale) {
+      batch.update(col.doc(b.id), {
+        'queuedAt': null,
+        'updatedBy': uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+  }
 
   /// Puts a removed bottle back as it was, under its old id.
   Future<void> restore(FridgeLogEntry removed) {
