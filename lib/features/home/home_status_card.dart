@@ -25,6 +25,7 @@ import '../insights/chart_palette.dart';
 import '../timeline/day_stats.dart';
 import '../timeline/timeline_format.dart';
 import '../fridge/bottle_sheet.dart';
+import '../fridge/finish_bottle.dart';
 import 'home_prefs.dart';
 
 /// The Home status card (KAN-179): where feeding, diapers and pumping stand.
@@ -428,6 +429,13 @@ class HomeStatusCard extends ConsumerWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Align(alignment: Alignment.centerLeft, child: picture),
             ),
+        // The bottle up next, fed in one tap from here, as its Finished
+        // button does on the shelf.
+        if (upNext(shelf) != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: UpNextButton(now: now),
+          ),
       ],
       detail: warning,
       now: now,

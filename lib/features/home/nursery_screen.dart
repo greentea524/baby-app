@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
+import '../../core/format/volume_format.dart';
 import '../../data/models/baby.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -12,6 +13,8 @@ import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
+import '../../data/models/fridge_bottle.dart';
+import '../fridge/finish_bottle.dart';
 import '../fridge/fridge_button.dart';
 import '../medication/medicine_sheet.dart';
 import '../pumping/pump_schedule.dart';
@@ -315,7 +318,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          const _LogButtons(),
+                          _LogButtons(now: widget.now),
                         ],
                       );
                     },
@@ -840,11 +843,29 @@ int _across(BoxConstraints c, int cards) {
 /// Pumping follows the same preference the Home button does, so a household
 /// that has turned it off does not meet it again here.
 class _LogButtons extends ConsumerWidget {
-  const _LogButtons();
+  const _LogButtons({this.now});
+
+  /// A fixed clock, for tests.
+  final DateTime? now;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // The bottle up next, fed in one tap: first in the row, as the one most
+    // likely wanted when there is one. In the row rather than over it, so it
+    // costs the cards no height on a phone on its side.
+    final next = ref.watch(showFridgeProvider)
+        ? upNext(ref.watch(fridgeShelfProvider))
+        : null;
+    final units = ref.watch(unitSystemProvider);
     final buttons = [
+      if (next != null)
+        _BigButton(
+          key: const ValueKey('up-next-finished'),
+          icon: Icons.check_circle_outline,
+          label: 'Up next · ${formatVolume(next.amountMl, units)}',
+          onPressed: () =>
+              finishBottle(context, ref, next, now ?? DateTime.now()),
+        ),
       _BigButton(
         icon: FeedingFormat.typeIcon(FeedingType.bottle),
         label: 'Bottle',
@@ -876,6 +897,7 @@ class _LogButtons extends ConsumerWidget {
 
 class _BigButton extends StatelessWidget {
   const _BigButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.onPressed,

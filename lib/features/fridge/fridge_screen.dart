@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,13 +8,13 @@ import '../../data/models/fridge_bottle.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/banded_track.dart';
 import '../feeding/feeding_format.dart';
-import '../feeding/feeding_quick_log.dart';
 import '../home/home_status_card.dart';
 import '../reminders/feed_prediction.dart';
 import 'bottle_gauge.dart';
 import 'bottle_sheet.dart';
 import 'fridge_button.dart';
 import 'fridge_history.dart';
+import 'finish_bottle.dart';
 import 'fridge_order.dart';
 import 'mix_key.dart';
 
@@ -202,7 +200,7 @@ class _Shelf extends ConsumerWidget {
       units: units,
       now: now,
       upNext: b.id == next?.id,
-      onFinished: () => _finish(context, ref, b, now),
+      onFinished: () => finishBottle(context, ref, b, now),
     );
 
     // The shelf takes a height rather than wrapping its cards: a fixed-height
@@ -500,58 +498,6 @@ class _SyncLine extends ConsumerWidget {
       ),
     );
   }
-}
-
-/// Logs a finished bottle as a feed, and takes it off the shelf.
-///
-/// Opens the bottle form with this bottle in it rather than removing it on
-/// the spot: a bottle out of the fridge is a feed, and removing it without
-/// logging one meant logging it again by hand from Home. The bottle leaves
-/// the shelf when the feed is saved, and stays if the sheet is closed — so
-/// a mistaken press costs nothing. A bottle poured away rather than fed
-/// is removed from its own sheet, under the card.
-///
-/// The removal is not through `saveAndClose`, which is the feed sheet's to
-/// call. Otherwise the same shape: started at once, the shelf updates from the
-/// local cache, and only a failure says anything, on this screen, which is
-/// still underneath when the sheet has gone.
-void _finish(
-  BuildContext context,
-  WidgetRef ref,
-  FridgeBottle bottle,
-  DateTime now,
-) {
-  final repo = ref.read(fridgeRepositoryProvider);
-  final messenger = ScaffoldMessenger.of(context);
-  final when = FeedingFormat.clockStamp(context, bottle.filledAt, now: now);
-  final notes = bottle.notes?.trim() ?? '';
-
-  showFeedingQuickLog(
-    context,
-    draft: BottleDraft(
-      amountMl: bottle.amountMl,
-      source:
-          'From the fridge, ${bottle.kind.filledLabel.toLowerCase()} $when. '
-          'Saving takes it off the shelf.',
-      notes: notes.isEmpty ? null : notes,
-      milk: bottle.kind,
-      onSaved: () {
-        if (repo == null) return;
-        unawaited(
-          Future.sync(() => repo.finish(bottle)).catchError((Object e) {
-            messenger.showSnackBar(
-              SnackBar(
-                content: Text(
-                  'The feed is logged, but the bottle could not be taken '
-                  'off the shelf: $e',
-                ),
-              ),
-            );
-          }),
-        );
-      },
-    ),
-  );
 }
 
 /// One bottle: how much, when it was pumped, and how old that makes it.

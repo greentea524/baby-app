@@ -123,6 +123,32 @@ void main() {
     expect(dot(tester), warningInks(again).overdue);
   });
 
+  testWidgets('has the bottle up next, to feed in one tap', (tester) async {
+    await pumpCard(
+      tester,
+      bottles: [
+        bottle('a', 9, 60),
+        bottle('b', 2, 90).queued(now.subtract(const Duration(minutes: 5))),
+      ],
+    );
+    final button = find.byKey(const ValueKey('up-next-finished'));
+    expect(find.textContaining('Finished up next · 90'), findsOneWidget);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.widgetWithText(TextField, '90'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('but no such button without one up next', (tester) async {
+    await pumpCard(tester, bottles: [bottle('a', 9, 60)]);
+    expect(find.byKey(const ValueKey('up-next-finished')), findsNothing);
+  });
+
   testWidgets('says one bottle as one', (tester) async {
     await pumpCard(tester, bottles: [bottle('a', 5, 90)]);
     expect(find.byKey(const ValueKey('home-bottle-a')), findsOneWidget);

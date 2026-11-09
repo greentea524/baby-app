@@ -10,6 +10,7 @@ import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
+import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/fridge/fridge_button.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
@@ -48,6 +49,7 @@ void main() {
     List<DiaperEvent>? diapers,
     List<PumpingEvent> pumps = const [],
     Map<String, Object> prefs = const {},
+    List<FridgeBottle> bottles = const [],
   }) async {
     SharedPreferences.setMockInitialValues({
       'display_mode': 'nursery',
@@ -94,6 +96,7 @@ void main() {
           ),
         ),
         recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
+        fridgeBottlesProvider.overrideWith((ref) => Stream.value(bottles)),
       ],
     );
     addTearDown(container.dispose);
@@ -119,6 +122,59 @@ void main() {
     await tester.pumpAndSettle();
     return container;
   }
+
+  group('the bottle up next', () {
+    final next = FridgeBottle(
+      id: 'q',
+      filledAt: now.subtract(const Duration(hours: 5)),
+      amountMl: 90,
+      queuedAt: now.subtract(const Duration(minutes: 10)),
+    );
+
+    testWidgets('is first among the big buttons, to feed in one tap', (
+      tester,
+    ) async {
+      await pumpNursery(tester, bottles: [next]);
+      final button = find.byKey(const ValueKey('up-next-finished'));
+      expect(button, findsOneWidget);
+      expect(find.textContaining('Up next · 90'), findsOneWidget);
+      // In the row, before the others.
+      expect(
+        tester.getRect(button).right,
+        lessThan(tester.getRect(find.text('Bottle')).left),
+      );
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.widgetWithText(TextField, '90'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('and is not there without one', (tester) async {
+      await pumpNursery(tester, bottles: [next.queued(null)]);
+      expect(find.byKey(const ValueKey('up-next-finished')), findsNothing);
+    });
+
+    testWidgets('nor with the fridge switched off', (tester) async {
+      await pumpNursery(tester, bottles: [next], prefs: {'show_fridge': false});
+      expect(find.byKey(const ValueKey('up-next-finished')), findsNothing);
+    });
+
+    testWidgets('and fits a phone on its side at large text', (tester) async {
+      await pumpNursery(
+        tester,
+        bottles: [next],
+        size: const Size(844, 390),
+        textScale: 1.6,
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const ValueKey('up-next-finished')), findsOneWidget);
+    });
+  });
 
   testWidgets('shows how long since each, large', (tester) async {
     await pumpNursery(tester);
