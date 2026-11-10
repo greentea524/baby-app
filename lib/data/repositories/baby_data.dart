@@ -33,6 +33,7 @@ class BabyData {
     'fridgeLog',
     'appointments',
     'checks',
+    'diaperStock',
     'invites',
   ];
 
@@ -48,6 +49,7 @@ class BabyData {
     'bottles': ('bottle in the fridge', 'bottles in the fridge'),
     'appointments': ('appointment', 'appointments'),
     'checks': ('daily check', 'daily checks'),
+    'diaperStock': ('diaper stock entry', 'diaper stock entries'),
   };
 
   /// A batch is capped at 500 writes; this leaves room to be wrong about

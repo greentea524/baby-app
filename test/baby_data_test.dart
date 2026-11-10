@@ -83,6 +83,7 @@ void main() {
         'fridgeLog',
         'appointments',
         'checks',
+        'diaperStock',
         'invites',
       ]);
     });

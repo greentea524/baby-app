@@ -1293,6 +1293,51 @@ describe("the daily checklist", () => {
   });
 });
 
+describe("the diaper stock", () => {
+  const line = (over = {}) => ({
+    action: "added",
+    at: AT,
+    count: 44,
+    notes: null,
+    ...stamped(),
+    ...over,
+  });
+  const stockRef = (db, id) => doc(db, "babies", BABY, "diaperStock", id);
+
+  it("accepts a pack added and a count made", async () => {
+    await assertSucceeds(setDoc(stockRef(asAlice(), "s1"), line()));
+    await assertSucceeds(
+      setDoc(stockRef(asAlice(), "s2"), line({ action: "counted", count: 0 })),
+    );
+    await assertSucceeds(
+      setDoc(stockRef(asAlice(), "s3"), line({ notes: "Size 2" })),
+    );
+  });
+
+  it("refuses a pack of nothing, a fraction, or an action it does not have", async () => {
+    await assertFails(setDoc(stockRef(asAlice(), "b1"), line({ count: 0 })));
+    await assertFails(setDoc(stockRef(asAlice(), "b2"), line({ count: 2.5 })));
+    await assertFails(setDoc(stockRef(asAlice(), "b3"), line({ count: -4 })));
+    await assertFails(setDoc(stockRef(asAlice(), "b4"), line({ count: 20000 })));
+    await assertFails(setDoc(stockRef(asAlice(), "b5"), line({ action: "used" })));
+  });
+
+  it("is taken back, not edited", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(stockRef(ctx.firestore(), "e1"), line());
+    });
+    await assertFails(
+      updateDoc(stockRef(asAlice(), "e1"), { count: 99, ...edited() }),
+    );
+    await assertSucceeds(deleteDoc(stockRef(asAlice(), "e1")));
+  });
+
+  it("keeps a non-member out", async () => {
+    await assertFails(setDoc(stockRef(asMallory(), "m"), line({ ...stamped("mallory") })));
+    await assertFails(getDoc(stockRef(asMallory(), "m")));
+  });
+});
+
 describe("the fridge's history", () => {
   const entry = (over = {}) => ({
     action: "removed",

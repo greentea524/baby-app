@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../auth/auth_providers.dart';
 import '../../features/appointments/appointments_screen.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/diaper/diaper_stock_screen.dart';
 import '../../features/fridge/fridge_screen.dart';
 import '../../features/growth/growth_screen.dart';
 import '../../features/home/home_prefs.dart';
@@ -19,6 +20,7 @@ abstract final class AppRoutes {
   static const home = '/';
   static const timeline = '/timeline';
   static const fridge = '/fridge';
+  static const diaperStock = '/diaper-stock';
   static const insights = '/insights';
   static const growth = '/growth';
   static const appointments = '/appointments';
@@ -63,6 +65,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.fridge,
         builder: (context, state) => const FridgeScreen(),
+      ),
+      // The same again, from Home's diaper row.
+      GoRoute(
+        path: AppRoutes.diaperStock,
+        builder: (context, state) => const DiaperStockScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

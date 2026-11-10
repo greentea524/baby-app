@@ -17,6 +17,7 @@ import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
 import '../diaper/diaper_quick_log.dart';
+import '../diaper/diaper_stock_screen.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../pumping/pumping_quick_log.dart';
 import '../fridge/bottle_gauge.dart';
@@ -253,6 +254,10 @@ class HomeStatusCard extends ConsumerWidget {
       when: last?.time,
       now: now,
       detail: notes,
+      // How many diapers are left, and the way into the stock: at the end of
+      // the label's line, which the row otherwise leaves empty, rather than
+      // beside the headline, where it would squeeze the times.
+      badge: const DiaperStockBadge(),
       // Today's changes by what was in them, on the line beside the clock
       // time, which this row otherwise leaves empty — so it costs no height.
       // The Insights day view's bar said the same at three lines' height.
@@ -779,6 +784,7 @@ class _StatusRow extends StatelessWidget {
     this.action,
     this.onLog,
     this.logLabel,
+    this.badge,
   });
 
   /// Where the text starts: the padding, the icon, and the gap after it.
@@ -844,6 +850,10 @@ class _StatusRow extends StatelessWidget {
   /// What [onLog] does, for its tooltip and for a screen reader: "Log feed".
   final String? logLabel;
 
+  /// Something small at the end of the label's line: the diaper row's
+  /// stock.
+  final Widget? badge;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -874,7 +884,12 @@ class _StatusRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Eyebrow(label: label, alert: alert, alertLabel: alertLabel),
+                _Eyebrow(
+                  label: label,
+                  alert: alert,
+                  alertLabel: alertLabel,
+                  trailing: badge,
+                ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
@@ -909,11 +924,17 @@ class _StatusRow extends StatelessWidget {
 
 /// A row's label, small and in capitals, with its [alert] dot in front.
 class _Eyebrow extends StatelessWidget {
-  const _Eyebrow({required this.label, this.alert, this.alertLabel});
+  const _Eyebrow({
+    required this.label,
+    this.alert,
+    this.alertLabel,
+    this.trailing,
+  });
 
   final String label;
   final DueState? alert;
   final String? alertLabel;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -940,7 +961,9 @@ class _Eyebrow extends StatelessWidget {
           ),
           const SizedBox(width: 6),
         ],
-        Flexible(
+        // Taking the rest of the line, so a badge after it sits at the
+        // row's right edge, over the times.
+        Expanded(
           child: Semantics(
             label: label,
             excludeSemantics: true,
@@ -958,6 +981,7 @@ class _Eyebrow extends StatelessWidget {
             ),
           ),
         ),
+        if (trailing case final t?) ...[const SizedBox(width: 8), t],
       ],
     );
   }

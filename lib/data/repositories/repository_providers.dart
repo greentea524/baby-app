@@ -9,6 +9,7 @@ import '../models/baby.dart';
 import '../models/caregiver_invite.dart';
 import '../models/daily_check.dart';
 import '../models/diaper_event.dart';
+import '../models/diaper_stock_entry.dart';
 import '../models/feeding_event.dart';
 import '../models/fridge_bottle.dart';
 import '../models/fridge_log_entry.dart';
@@ -22,6 +23,7 @@ import 'account_data.dart';
 import 'baby_data.dart';
 import 'babies_repository.dart';
 import 'checks_repository.dart';
+import 'diaper_stock_repository.dart';
 import 'diaper_repository.dart';
 import 'feeding_repository.dart';
 import 'fridge_repository.dart';
@@ -283,6 +285,33 @@ final checksForDayProvider = StreamProvider<List<DailyCheck>>((ref) {
   if (repo == null) return Stream.value(const []);
   return repo.watchForDay(ref.watch(selectedDayProvider));
 });
+
+// --- The diaper stock -------------------------------------------------------
+
+final diaperStockRepositoryProvider = Provider<DiaperStockRepository?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final baby = ref.watch(currentBabyProvider);
+  if (user == null || baby == null) return null;
+  return DiaperStockRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+});
+
+/// The stock's lines, newest first: packs added and counts made.
+final diaperStockEntriesProvider = StreamProvider<List<DiaperStockEntry>>((
+  ref,
+) {
+  final repo = ref.watch(diaperStockRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchRecent(limit: 200);
+});
+
+/// Every diaper change from [start] on, earliest first: what has come off
+/// the stock since it was last counted.
+final diapersSinceProvider = StreamProvider.autoDispose
+    .family<List<DiaperEvent>, DateTime>((ref, start) {
+      final repo = ref.watch(diaperRepositoryProvider);
+      if (repo == null) return Stream.value(const []);
+      return repo.watchSince(start);
+    });
 
 // --- The fridge -------------------------------------------------------------
 
