@@ -1772,6 +1772,60 @@ void main() {
       );
     });
 
+    testWidgets('and offers only the last three sessions not yet bottled', (
+      tester,
+    ) async {
+      // Reported: every session of the last three days was offered, those
+      // already in a bottle, or bottled and finished, among them.
+      PumpingEvent session(String id, int hoursAgo) => PumpingEvent(
+        id: id,
+        time: now.subtract(Duration(hours: hoursAgo)),
+        amountMl: 100,
+      );
+      await pumpFridge(
+        tester,
+        pumps: [
+          session('p6', 1),
+          session('p5', 5),
+          session('p4', 9),
+          session('p3', 13),
+          session('p2', 17),
+          session('p1', 21),
+        ],
+        // p5 is on the shelf; p4 went in and has been finished since.
+        bottles: [
+          FridgeBottle(
+            id: 'b5',
+            filledAt: now.subtract(const Duration(hours: 5)),
+            amountMl: 100,
+            pumpId: 'p5',
+          ),
+        ],
+        log: [
+          FridgeLogEntry(
+            id: 'e1',
+            action: FridgeAction.fed,
+            at: now.subtract(const Duration(hours: 2)),
+            bottleId: 'b4',
+            amountMl: 100,
+            kind: MilkKind.expressed,
+            filledAt: now.subtract(const Duration(hours: 9)),
+            pumpId: 'p4',
+          ),
+        ],
+      );
+      await tester.tap(find.text('Add bottle'));
+      await tester.pumpAndSettle();
+      bool offered(String id) =>
+          find.byKey(ValueKey('from-pump-$id')).evaluate().isNotEmpty;
+      expect(
+        [
+          for (final id in ['p6', 'p5', 'p4', 'p3', 'p2', 'p1']) offered(id),
+        ],
+        [true, false, false, true, true, false],
+      );
+    });
+
     testWidgets('and links the session it is from, which can be changed', (
       tester,
     ) async {

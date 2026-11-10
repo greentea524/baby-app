@@ -7,6 +7,7 @@ import '../../core/format/unit_system.dart';
 import '../../core/format/volume_entry.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
+import '../../data/models/fridge_log_entry.dart';
 import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
@@ -52,6 +53,46 @@ List<PumpingEvent> linkablePumps(List<PumpingEvent> recent, DateTime now) => [
       p,
 ].take(6).toList();
 
+/// The sessions worth offering a new bottle, out of [recent] (newest
+/// first): those whose milk is not in a bottle yet, the latest [max] of
+/// them.
+///
+/// A session is in a bottle once one says so — on the shelf, or in the
+/// fridge's history, which keeps the ones since finished or poured away —
+/// or, for bottles from before they said, once one was filled in its time.
+/// Offering those again was most of the list, and the wrong answer to tap.
+///
+/// [keep] are shown whatever: the session the sheet opened on, and the one
+/// a bottle being edited is already from.
+List<PumpingEvent> suggestedPumps(
+  List<PumpingEvent> recent, {
+  required List<FridgeBottle> shelf,
+  required List<FridgeLogEntry> log,
+  Set<String?> keep = const {},
+  int max = 3,
+}) {
+  final taken = {
+    for (final b in shelf) ?b.pumpId,
+    for (final e in log) ?e.pumpId,
+  };
+  final unlinked = [
+    for (final b in shelf)
+      if (b.pumpId == null) b,
+  ];
+  final open = <PumpingEvent>[];
+  for (final (i, p) in recent.indexed) {
+    final next = i > 0 ? recent[i - 1].time : null;
+    final bottled =
+        taken.contains(p.id) || isBottled(p.time, unlinked, nextPumpAt: next);
+    if (!bottled) open.add(p);
+  }
+  final shown = open.take(max).toList();
+  return [
+    for (final p in recent)
+      if (shown.contains(p) || keep.contains(p.id)) p,
+  ];
+}
+
 class _BottleSheet extends ConsumerStatefulWidget {
   const _BottleSheet({this.existing, this.prefillFrom, this.pumps = const []});
 
@@ -79,13 +120,21 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
   /// The session this bottle is from, when it is linked to one.
   String? _pumpId;
 
-  /// The sessions to choose from: the recent ones, and the one passed in
-  /// even if it is older.
+  /// The sessions to choose from: the last few whose milk is not in a
+  /// bottle yet, and the one passed in even if it is older or is.
   List<PumpingEvent> get _sessions => [
     if (widget.prefillFrom case final p?
         when !widget.pumps.any((s) => s.id == p.id))
       p,
-    ...widget.pumps,
+    ...suggestedPumps(
+      widget.pumps,
+      shelf: [
+        for (final b in ref.read(fridgeShelfProvider))
+          if (b.id != widget.existing?.id) b,
+      ],
+      log: ref.read(fridgeLogProvider).value ?? const [],
+      keep: {widget.prefillFrom?.id, widget.existing?.pumpId, _pumpId},
+    ),
   ];
 
   PumpingEvent? get _linked {
@@ -233,6 +282,10 @@ class _BottleSheetState extends ConsumerState<_BottleSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // What the session list is worked out from, watched so it keeps up.
+    ref
+      ..watch(fridgeShelfProvider)
+      ..watch(fridgeLogProvider);
     final existing = widget.existing;
     final isEdit = existing != null;
     final ml = _amountMl;

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
+import 'package:baby_app/features/fridge/bottle_sheet.dart';
 import 'package:baby_app/features/fridge/fridge_order.dart';
 
 /// Which order the bottles stand in, and the sums over them.
@@ -212,6 +213,63 @@ void main() {
       final into = combined(bottle('1', atHour: 1), bottle('2', atHour: 5));
       expect(into.placeAt, isNull);
       expect(into.placedBy, base.add(const Duration(hours: 1)));
+    });
+  });
+
+  group('the sessions a new bottle is offered', () {
+    PumpingEvent session(String id, int atHour) => PumpingEvent(
+      id: id,
+      time: base.add(Duration(hours: atHour)),
+      amountMl: 90,
+    );
+    final recent = [
+      session('p5', 20),
+      session('p4', 16),
+      session('p3', 12),
+      session('p2', 8),
+      session('p1', 4),
+    ];
+    List<String> ids(List<PumpingEvent> ps) => [for (final p in ps) p.id];
+
+    test('are the latest three, with none bottled', () {
+      expect(ids(suggestedPumps(recent, shelf: const [], log: const [])), [
+        'p5',
+        'p4',
+        'p3',
+      ]);
+    });
+
+    test('leave out one in a bottle, and one bottled before it said so', () {
+      final shelf = [
+        // Says it is from p5.
+        FridgeBottle(
+          id: 'a',
+          filledAt: base.add(const Duration(hours: 21)),
+          amountMl: 90,
+          pumpId: 'p5',
+        ),
+        // Says nothing, but was filled in p3's time, before p4.
+        FridgeBottle(
+          id: 'b',
+          filledAt: base.add(const Duration(hours: 13)),
+          amountMl: 90,
+        ),
+      ];
+      expect(ids(suggestedPumps(recent, shelf: shelf, log: const [])), [
+        'p4',
+        'p2',
+        'p1',
+      ]);
+    });
+
+    test('but keep the one the bottle is already from', () {
+      final shelf = [
+        FridgeBottle(id: 'a', filledAt: base, amountMl: 90, pumpId: 'p1'),
+      ];
+      expect(
+        ids(suggestedPumps(recent, shelf: shelf, log: const [], keep: {'p1'})),
+        ['p5', 'p4', 'p3', 'p1'],
+      );
     });
   });
 
