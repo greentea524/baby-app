@@ -56,13 +56,15 @@ abstract final class FeedingFormat {
   ///
   /// For Home, which puts the measure in the row's headline beside what
   /// the feed was, and these on the muted line underneath.
-  static String extras(FeedingEvent e, UnitSystem units) {
+  ///
+  /// [milk] false leaves the milk out, for a caller that says it elsewhere.
+  static String extras(FeedingEvent e, UnitSystem units, {bool milk = true}) {
     final notes = e.notes?.trim() ?? '';
     return [
       if (e.durationMinutes != null && e.amountMl != null)
         '${e.durationMinutes} min',
       if (e.side != null) sideLabel(e.side!),
-      if (e.milk != null) e.milk!.label,
+      if (milk && e.milk != null) e.milk!.label,
       if (notes.isNotEmpty) notes,
     ].join(' · ');
   }

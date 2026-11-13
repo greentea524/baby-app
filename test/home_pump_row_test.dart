@@ -196,7 +196,10 @@ void main() {
         prefs: {'pump_interval_minutes': 120},
       );
 
-      expect(find.textContaining('Next pump in 1h 30m'), findsOneWidget);
+      expect(
+        find.textContaining('Next pump in\u00a01h\u00a030m'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('and flips its wording once it has slipped', (tester) async {
@@ -208,7 +211,7 @@ void main() {
         prefs: {'pump_interval_minutes': 120},
       );
 
-      expect(find.textContaining('Pump 30m overdue'), findsOneWidget);
+      expect(find.textContaining('Pump 30m\u00a0overdue'), findsOneWidget);
       expect(find.textContaining('Next pump'), findsNothing);
     });
 

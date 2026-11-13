@@ -667,33 +667,28 @@ void main() {
         prefs: {'pump_interval_minutes': 120},
       );
 
-      expect(find.textContaining('Next pump in 1h 30m'), findsOneWidget);
+      expect(
+        find.textContaining('Next pump in\u00a01h\u00a030m'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('carries the way into the fridge', (tester) async {
-      // The same button Home's pump row has. On a propped-up tablet the
-      // fridge is often the next question, and leaving nursery mode to find
-      // it would be the long way round.
+    testWidgets('leaves the way into the fridge to the header', (tester) async {
+      // It used to sit in the pump card's title row, where it squeezed the
+      // label and pushed the card's reading out of line with its
+      // neighbours'. In the header it lines up with the medicine button and
+      // leaves all the cards the same shape.
       await pumpNursery(tester, pumps: pumped);
 
       expect(find.byType(FridgeButton), findsOneWidget);
       final card = tester.getRect(cardLabel('Last pumped'));
       final button = tester.getRect(find.byType(FridgeButton));
-      // Level with the label, at the card's top-right. The label fills the
-      // line up to the button, so the two meet rather than leave a gap.
-      expect(button.left, greaterThanOrEqualTo(card.right - 0.5));
-      expect(button.top, lessThan(card.bottom));
+      expect(button.bottom, lessThan(card.top));
     });
 
     testWidgets('but not once the fridge is switched off', (tester) async {
       await pumpNursery(tester, pumps: pumped, prefs: {'show_fridge': false});
       expect(cardLabel('Last pumped'), findsOneWidget);
-      expect(find.byType(FridgeButton), findsNothing);
-    });
-
-    testWidgets('and only the pump card does', (tester) async {
-      // Feeding and diapers lead nowhere. No pump card, no button.
-      await pumpNursery(tester);
       expect(find.byType(FridgeButton), findsNothing);
     });
 
@@ -714,6 +709,28 @@ void main() {
         amountMl: 90,
       ),
     ];
+
+    testWidgets('read their times at one size, wherever they are', (
+      tester,
+    ) async {
+      // Each card used to shrink its own "… ago" to fit, so a longer one
+      // came out smaller than its neighbours and the row read ragged.
+      for (final (size, scale) in [
+        (const Size(1194, 834), 1.0),
+        (const Size(834, 1194), 1.0),
+        (const Size(390, 844), 1.0),
+        (const Size(390, 844), 2.0),
+        (const Size(844, 390), 1.0),
+      ]) {
+        await tester.pumpWidget(const SizedBox());
+        await pumpNursery(tester, size: size, textScale: scale, pumps: pumped);
+        final heights = {
+          for (final text in ['2 hr ago', '40 min ago', '30 min ago'])
+            tester.getRect(find.text(text)).height.toStringAsFixed(1),
+        };
+        expect(heights, hasLength(1), reason: '$size at ${scale}x: $heights');
+      }
+    });
 
     testWidgets('sit in a row on a tablet with the width for it', (
       tester,

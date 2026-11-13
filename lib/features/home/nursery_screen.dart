@@ -166,8 +166,29 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                                   .watch(reminderSettingsProvider)
                                   .headsUp,
                             );
+                      // One size for every card's reading, the largest the
+                      // longest of them fits. Each used to shrink on its own
+                      // to fit its card, so "45 min ago" stood a size larger
+                      // than the "2 hr 20 min ago" beside it.
+                      final headline = _sharedHeadline(
+                        context,
+                        dense: dense,
+                        width: _contentWidth(
+                          short
+                              ? (constraints.maxWidth - 16) * 2 / 5
+                              : _cardWidth(constraints, across),
+                          compact: compact,
+                          tight: tight,
+                        ),
+                        readings: [
+                          ?lastFed?.startTime,
+                          ?ref.watch(lastDiaperProvider)?.time,
+                          if (pumping) ?ref.watch(lastPumpingProvider)?.time,
+                        ].map((t) => FeedingFormat.timeAgo(t, now: clock)),
+                      );
                       final fed = _Readout(
                         compact: compact,
+                        headlineSize: headline,
                         dense: dense,
                         tight: tight,
                         icon: Icons.local_drink_outlined,
@@ -238,6 +259,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                       );
                       final lastChanged = ref.watch(lastDiaperProvider);
                       final changed = _Readout(
+                        headlineSize: headline,
                         compact: compact,
                         icon: Icons.baby_changing_station,
                         label: lastChanged == null
@@ -308,6 +330,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                             dense: dense,
                             tight: tight,
                             footer: footers,
+                            headlineSize: headline,
                           ),
                       ];
                       final cards = _cards(
@@ -432,6 +455,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
     bool dense = false,
     bool tight = false,
     bool footer = true,
+    double? headlineSize,
   }) {
     final last = ref.watch(lastPumpingProvider)!;
     final due = ref.watch(nextPumpDueProvider);
@@ -447,6 +471,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
       compact: compact,
       dense: dense,
       tight: tight,
+      headlineSize: headlineSize,
       icon: PumpingFormat.icon,
       label: numberedLabel(
         'Last pumped',
@@ -457,10 +482,6 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
           clock,
         ),
       ),
-      // Same way in as Home's pump row. On a propped-up tablet the fridge is
-      // often the next question, and leaving nursery mode to find it would be
-      // the long way round.
-      action: ref.watch(showFridgeProvider) ? const FridgeButton() : null,
       event: last,
       timeOf: (e) => e.time,
       now: clock,
@@ -494,8 +515,8 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
         interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
       ),
       text: state == DueState.overdue
-          ? 'Pump ${countdownLabel(due, now: clock)} · due $at'
-          : 'Next pump ${countdownLabel(due, now: clock)} · $at',
+          ? dueLine('Pump', countdownLabel(due, now: clock), 'due $at')
+          : dueLine('Next pump', countdownLabel(due, now: clock), at),
     );
   }
 
@@ -568,8 +589,8 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
       remaining: remaining,
       soonFrom: soonFrom,
       text: state == DueState.overdue
-          ? 'Feed ${countdownLabel(due, now: clock)} · due $at'
-          : 'Next feed ${countdownLabel(due, now: clock)} · $at',
+          ? dueLine('Feed', countdownLabel(due, now: clock), 'due $at')
+          : dueLine('Next feed', countdownLabel(due, now: clock), at),
     );
   }
 }
@@ -611,6 +632,13 @@ class _Header extends ConsumerWidget {
         // Medicine has no card here — it is not a clock to read from the
         // doorway the way feeds are — but "can I give this yet?" gets asked
         // at the cot all the same. One tap answers it.
+        // The way into the fridge, as Home has. In the header rather than on
+        // the pump card's title line, where it cut "Last pumped" short and
+        // stood that card's reading lower than its neighbours'.
+        if (ref.watch(showFridgeProvider)) ...[
+          const FridgeButton(),
+          const SizedBox(width: 8),
+        ],
         MedicineButton(now: now),
         const SizedBox(width: 8),
         // The only way out. The navigation bar is hidden in this mode, so
@@ -639,6 +667,45 @@ const double _shortHeight = 520;
 /// Under this wide, the buttons cannot sit four across and the bottle up
 /// next takes a row of its own: a phone upright.
 const double _narrowWidth = 480;
+
+/// The width a card's reading has: the card's, less its padding and, in the
+/// roomy shape, the icon beside it.
+double _contentWidth(
+  double cardWidth, {
+  required bool compact,
+  required bool tight,
+}) => cardWidth - 2 * (tight ? 10 : 18) - (compact ? 0 : 26 + 2 * 12 + 14);
+
+/// The font size every card's reading is drawn at: its style's own, or less
+/// if the widest of [readings] would not fit [width] at that. Null for the
+/// style's own size.
+double? _sharedHeadline(
+  BuildContext context, {
+  required bool dense,
+  required double width,
+  required Iterable<String> readings,
+}) {
+  final theme = Theme.of(context);
+  final style =
+      (dense ? theme.textTheme.headlineSmall : theme.textTheme.displaySmall)
+          ?.copyWith(fontWeight: FontWeight.w600);
+  final size = style?.fontSize;
+  if (size == null || width <= 0) return null;
+  final scaler = MediaQuery.textScalerOf(context);
+  var widest = 0.0;
+  for (final text in readings) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    if (painter.width > widest) widest = painter.width;
+    painter.dispose();
+  }
+  if (widest <= width) return null;
+  return size * width / widest;
+}
 
 /// How tall the clock is drawn, given the room under the header.
 ///
@@ -763,7 +830,12 @@ class _Readout<T> extends StatelessWidget {
     this.footer,
     this.tint,
     this.action,
+    this.headlineSize,
   });
+
+  /// The reading's size, shared by every card on the screen so they match.
+  /// Null for the style's own.
+  final double? headlineSize;
 
   /// One line shorter: the clock time and the measure move up beside the
   /// label, and the reading keeps its size. For three cards down a phone,
@@ -1016,6 +1088,7 @@ class _Readout<T> extends StatelessWidget {
                     ?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: scheme.onSurface,
+                      fontSize: headlineSize,
                     ),
             maxLines: 1,
           ),

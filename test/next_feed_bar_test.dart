@@ -150,6 +150,24 @@ void main() {
       expect(widthOf(tester, band(1)), greaterThan(0));
     });
 
+    testWidgets('the words a plain line, with no pill round them', (
+      tester,
+    ) async {
+      // The bar carries the colour; a pill over it said it twice.
+      await pumpChip(tester, 0.5, soonFrom: 0.2, barBelow: true);
+      final filled = find.descendant(
+        of: find.byType(DueChip),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.decoration is BoxDecoration &&
+              (w.decoration! as BoxDecoration).color != null,
+        ),
+      );
+      expect(filled, findsNothing);
+      expect(find.byIcon(Icons.schedule), findsOneWidget);
+    });
+
     testWidgets('and nothing under it without a fraction', (tester) async {
       await pumpChip(tester, null, barBelow: true);
       expect(find.byType(BandedTrack), findsNothing);

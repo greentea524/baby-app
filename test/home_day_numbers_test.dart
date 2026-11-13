@@ -7,6 +7,7 @@ import 'package:baby_app/core/auth/auth_providers.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
+import 'package:baby_app/data/models/milk_kind.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
@@ -116,5 +117,28 @@ void main() {
     expect(numberToday(times, at(9), (t) => t, now), 2);
     expect(numberToday(times, at(12), (t) => t, now), 3);
     expect(numberToday(times, at(23, day: 25), (t) => t, now), isNull);
+  });
+
+  testWidgets('a bottle says what milk in its headline', (tester) async {
+    // It used to say "Bottle · 120 ml" with "Breast milk" on a line of its
+    // own underneath. The milk is what tells one bottle from another, and
+    // the row is a line shorter for it.
+    await pumpCard(
+      tester,
+      feeds: [
+        FeedingEvent(
+          id: 'm',
+          type: FeedingType.bottle,
+          startTime: at(12),
+          amountMl: 120,
+          milk: MilkKind.expressed,
+          notes: 'Fussy',
+        ),
+      ],
+    );
+    expect(find.text('Breast milk · 120\u00a0ml'), findsOneWidget);
+    // Said once: the notes stay underneath, the milk does not repeat there.
+    expect(find.text('Fussy'), findsOneWidget);
+    expect(find.textContaining('Breast milk'), findsOneWidget);
   });
 }

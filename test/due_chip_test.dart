@@ -128,4 +128,13 @@ void main() {
       }
     }
   });
+
+  test('the countdown and its clock time break as whole pieces', () {
+    // A wrap used to land between "1h" and "30m", or leave a line starting
+    // with a stray "·". Only the space after the lead and the one after the
+    // dot can break now.
+    final line = dueLine('Next feed', 'in 1h 30m', '2:15 PM');
+    expect(line, 'Next feed in\u00a01h\u00a030m\u00a0· 2:15\u00a0PM');
+    expect(line, isNot(contains(' ·')));
+  });
 }

@@ -126,8 +126,8 @@ class HomeStatusCard extends ConsumerWidget {
         // "Next feed 2h overdue" reads badly, so the wording flips once it
         // has slipped past.
         text: state == DueState.overdue
-            ? 'Feed ${countdownLabel(due, now: now)} · due $at'
-            : 'Next feed ${countdownLabel(due, now: now)} · $at',
+            ? dueLine('Feed', countdownLabel(due, now: now), 'due $at')
+            : dueLine('Next feed', countdownLabel(due, now: now), at),
       );
     }
 
@@ -152,15 +152,28 @@ class HomeStatusCard extends ConsumerWidget {
                 same: (e) => e.type != FeedingType.solids,
               ),
             ),
+      // A bottle says what was in it in place of the word "Bottle" —
+      // "Breast milk · 120 ml" — rather than on a line of its own under
+      // it: the volume already says it was a bottle, and the line was
+      // most of the row's height.
       headline: last == null
           ? 'No feeds yet'
           : _join(
-              FeedingFormat.eventLabel(last),
+              last.type == FeedingType.bottle && last.milk != null
+                  ? [last.milk!.label, if (last.isSnack) 'Snack'].join(' · ')
+                  : FeedingFormat.eventLabel(last),
               _keep(FeedingFormat.measure(last, units) ?? ''),
             ),
       when: last?.startTime,
       now: now,
-      detail: last == null ? null : FeedingFormat.extras(last, units),
+      detail: last == null
+          ? null
+          : FeedingFormat.extras(
+              last,
+              units,
+              // Said in the headline already, for a bottle.
+              milk: last.type != FeedingType.bottle,
+            ),
       // How much today, beside the clock time, as the diaper row has its
       // counts: what the line under the card used to say on its own.
       tally: _feedTotal(ref, units),
@@ -315,8 +328,8 @@ class HomeStatusCard extends ConsumerWidget {
         // Flipped once it has slipped past, the way the feed chip is: "Next
         // pump 40m overdue" reads as a contradiction.
         text: state == DueState.overdue
-            ? 'Pump ${countdownLabel(due, now: now)} · due $at'
-            : 'Next pump ${countdownLabel(due, now: now)} · $at',
+            ? dueLine('Pump', countdownLabel(due, now: now), 'due $at')
+            : dueLine('Next pump', countdownLabel(due, now: now), at),
       );
     }
 
@@ -531,6 +544,14 @@ class HomeStatusCard extends ConsumerWidget {
       details.isEmpty ? label : '$label · $details';
 }
 
+/// "Next feed in 1h 30m · 4:47 AM", worded to wrap well: the countdown and
+/// the time are each held together, and the dot stays at the end of the
+/// first line. Wrapped as it was, the second line began with a lone "·".
+String dueLine(String lead, String countdown, String time) {
+  String keep(String s) => s.replaceAll(' ', '\u00a0');
+  return '$lead ${keep(countdown)}\u00a0· ${keep(time)}';
+}
+
 /// A countdown to something being due, as a tinted pill.
 ///
 /// It used to be a small grey line under the last feed, which buried the one
@@ -698,15 +719,14 @@ class DueChip extends StatelessWidget {
       (from: amber ?? 0.0, to: 1.0, colour: inks.ok),
     ];
 
-    final chip = _chip(context, background, foreground, icon, left, bands);
     if (barBelow) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          chip,
+          _line(context, foreground, icon),
           if (remaining case final rest?) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             BandedTrack(
               remaining: rest,
               height: _barHeight,
@@ -719,7 +739,36 @@ class DueChip extends StatelessWidget {
         ],
       );
     }
-    return chip;
+    return _chip(context, background, foreground, icon, left, bands);
+  }
+
+  /// [barBelow]'s words: a plain line over the bar, with no pill round it.
+  ///
+  /// The pill and the bar under it said the same thing twice and took two
+  /// rows' height to do it. The bar carries the colour now, so the words
+  /// only need the state's ink, which [dueColors] picks to read on a card as
+  /// well as on its own background.
+  Widget _line(BuildContext context, Color foreground, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: foreground),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _chip(
