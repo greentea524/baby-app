@@ -426,10 +426,13 @@ class HomeStatusCard extends ConsumerWidget {
       // Beside the headline while it fits there; four or more stand on a
       // line of their own under it, where they do not squeeze the count
       // into a sliver.
-      picture: shelf.length <= _maxBeside ? _bottlePicture(shelf) : null,
+      picture: shelf.length <= _maxBeside
+          ? _bottlePicture(shelf, Theme.of(context).colorScheme.primary)
+          : null,
       chips: [
         if (shelf.length > _maxBeside)
-          if (_bottlePicture(shelf) case final picture?)
+          if (_bottlePicture(shelf, Theme.of(context).colorScheme.primary)
+              case final picture?)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Align(alignment: Alignment.centerLeft, child: picture),
@@ -439,7 +442,10 @@ class HomeStatusCard extends ConsumerWidget {
         if (upNext(shelf) != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: UpNextButton(now: now),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: UpNextButton(now: now),
+            ),
           ),
       ],
       detail: warning,
@@ -451,28 +457,57 @@ class HomeStatusCard extends ConsumerWidget {
   /// level, oldest first as on the fridge's own shelf: small bottles say
   /// "this many, and how full" at a glance. Past that a row of drawings is
   /// slower to read than the count the headline already gives, so null.
-  static Widget? _bottlePicture(List<FridgeBottle> shelf) {
+  static Widget? _bottlePicture(List<FridgeBottle> shelf, Color marker) {
     if (shelf.isEmpty || shelf.length > _maxDrawn) return null;
     const height = 40.0;
     const gap = 4.0;
     const width = height * BottleGauge.aspectRatio;
+    // The one up next stands first, as on the shelf, with a bar under it in
+    // the app's colour: which bottle the button below is about.
+    final next = upNext(shelf);
+    final shown = next == null
+        ? shelf
+        : [
+            next,
+            for (final b in shelf)
+              if (b.id != next.id) b,
+          ];
     // The headline says how many and how much; this only says it again.
     return ExcludeSemantics(
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final (i, b) in shelf.indexed) ...[
+          for (final (i, b) in shown.indexed) ...[
             if (i > 0) const SizedBox(width: gap),
-            SizedBox(
-              key: ValueKey('home-bottle-${b.id}'),
-              width: width,
-              height: height,
-              child: BottleGauge(
-                amountMl: b.amountMl,
-                kind: b.kind,
-                layers: b.layers,
-                vessel: b.vessel,
-              ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  key: ValueKey('home-bottle-${b.id}'),
+                  width: width,
+                  height: height,
+                  child: BottleGauge(
+                    amountMl: b.amountMl,
+                    kind: b.kind,
+                    layers: b.layers,
+                    vessel: b.vessel,
+                  ),
+                ),
+                // Room for the bar under every bottle, so they stand level.
+                if (next != null)
+                  Container(
+                    key: b.id == next.id
+                        ? const ValueKey('home-bottle-up-next')
+                        : null,
+                    margin: const EdgeInsets.only(top: 3),
+                    width: width,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: b.id == next.id ? marker : null,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+              ],
             ),
           ],
         ],

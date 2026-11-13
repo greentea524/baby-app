@@ -23,6 +23,7 @@ import '../pumping/pumping_quick_log.dart';
 import '../reminders/feed_prediction.dart';
 import '../common/day_time_label.dart';
 import '../reminders/reminder_providers.dart';
+import '../timeline/timeline_format.dart';
 import 'baby_age.dart';
 import 'home_prefs.dart';
 import 'home_status_card.dart';
@@ -111,12 +112,20 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
       child: Scaffold(
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            // Less of a margin where there is no height to spare.
+            padding: EdgeInsets.all(_short(context) ? 12 : 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(baby: baby, now: widget.now),
-                const SizedBox(height: 12),
+                // A phone on its side has no height for a clock of its own:
+                // it took the whole screen and left the readings a sliver.
+                // There it rides in the header, and the cards get the room.
+                _Header(
+                  baby: baby,
+                  now: widget.now,
+                  clock: _short(context) ? clock : null,
+                ),
+                SizedBox(height: _short(context) ? 8 : 12),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -131,6 +140,15 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                       final across = _across(constraints, pumping ? 3 : 2);
                       final compact =
                           _cardWidth(constraints, across) < _compactCardWidth;
+                      final short = _short(context);
+                      // A phone upright: one card to a row, and four buttons
+                      // would not fit across.
+                      final narrow = constraints.maxWidth < _narrowWidth;
+                      // Three cards down a phone do not fit at full size, so
+                      // each gives up a line; and on a short screen every
+                      // card gives up some padding.
+                      final dense = across == 1 && pumping;
+                      final tight = short || dense;
 
                       final lastFed = ref.watch(lastMilkFeedProvider);
                       final due = ref.watch(nextFeedDueProvider);
@@ -145,6 +163,8 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                             );
                       final fed = _Readout(
                         compact: compact,
+                        dense: dense,
+                        tight: tight,
                         icon: Icons.local_drink_outlined,
                         // Which of today's feeds it was, as on Home.
                         label: lastFed == null
@@ -225,6 +245,8 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                                   clock,
                                 ),
                               ),
+                        dense: dense,
+                        tight: tight,
                         event: lastChanged,
                         timeOf: (e) => e.time,
                         now: clock,
@@ -270,9 +292,21 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                       final readouts = <Widget>[
                         fed,
                         changed,
-                        if (pumping) _pumped(context, ref, clock, compact),
+                        if (pumping)
+                          _pumped(
+                            context,
+                            ref,
+                            clock,
+                            compact,
+                            dense: dense,
+                            tight: tight,
+                          ),
                       ];
-                      final cards = _cards(readouts, across);
+                      final cards = _cards(
+                        readouts,
+                        across,
+                        gap: dense ? 10 : _cardGap,
+                      );
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -288,11 +322,16 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                           // tablet the height decides, on a phone the width
                           // does, and neither lets the clock crowd out the
                           // cards it sits above.
-                          DayTimeLabel(
-                            clock: clock,
-                            timeHeight: _clockHeight(constraints),
-                          ),
-                          const SizedBox(height: 8),
+                          if (!short) ...[
+                            DayTimeLabel(
+                              clock: clock,
+                              // Smaller with three cards to fit under it.
+                              timeHeight: dense
+                                  ? _denseClockHeight
+                                  : _clockHeight(constraints),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                           Expanded(
                             // Centred in whatever is left, and scrollable if
                             // that is not enough. With the buttons pinned to
@@ -317,8 +356,12 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                                   ),
                             ),
                           ),
-                          const SizedBox(height: 16),
-                          _LogButtons(now: widget.now),
+                          SizedBox(height: short || narrow ? 12 : 16),
+                          _LogButtons(
+                            now: widget.now,
+                            slim: short || narrow,
+                            upNextAbove: narrow,
+                          ),
                         ],
                       );
                     },
@@ -347,8 +390,10 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
     BuildContext context,
     WidgetRef ref,
     DateTime clock,
-    bool compact,
-  ) {
+    bool compact, {
+    bool dense = false,
+    bool tight = false,
+  }) {
     final last = ref.watch(lastPumpingProvider)!;
     final due = ref.watch(nextPumpDueProvider);
     final state = due == null
@@ -361,6 +406,8 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
 
     return _Readout(
       compact: compact,
+      dense: dense,
+      tight: tight,
       icon: PumpingFormat.icon,
       label: numberedLabel(
         'Last pumped',
@@ -418,13 +465,13 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
   /// Rows of that many, stacked. Three cards on a tablet is one row; on a
   /// phone held upright it is three rows, which is the same widget either
   /// way.
-  Widget _cards(List<Widget> readouts, int across) {
+  Widget _cards(List<Widget> readouts, int across, {double gap = _cardGap}) {
     if (across == 1) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < readouts.length; i++) ...[
-            if (i > 0) const SizedBox(height: _cardGap),
+            if (i > 0) SizedBox(height: gap),
             readouts[i],
           ],
         ],
@@ -489,9 +536,13 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.baby, required this.now});
+  const _Header({required this.baby, required this.now, this.clock});
 
   final Baby? baby;
+
+  /// The time to show in the header itself, on a screen too short for the
+  /// big clock under it. Null where that clock is drawn.
+  final DateTime? clock;
 
   /// The screen's clock, when fixed for a test; null for the live one.
   final DateTime? now;
@@ -522,6 +573,30 @@ class _Header extends ConsumerWidget {
             ],
           ),
         ),
+        if (clock case final at?) ...[
+          Column(
+            key: const ValueKey('header-clock'),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                TimeOfDay.fromDateTime(at).format(context),
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+              ),
+              Text(
+                TimelineFormat.weekdayDate(at),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 1,
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+        ],
         // Medicine has no card here — it is not a clock to read from the
         // doorway the way feeds are — but "can I give this yet?" gets asked
         // at the cot all the same. One tap answers it.
@@ -540,6 +615,22 @@ class _Header extends ConsumerWidget {
     );
   }
 }
+
+/// Whether the screen is too short for the big clock: a phone on its side.
+/// The clock moves into the header, and the buttons slim to a line.
+bool _short(BuildContext context) =>
+    MediaQuery.sizeOf(context).height < _shortHeight;
+
+/// Under this tall, the screen is [_short]. A phone on its side is 390 to
+/// 430; the smallest tablet on its side is 744.
+const double _shortHeight = 520;
+
+/// Under this wide, the buttons cannot sit four across and the bottle up
+/// next takes a row of its own: a phone upright.
+const double _narrowWidth = 480;
+
+/// The clock's height over three stacked cards, where every line counts.
+const double _denseClockHeight = 50;
 
 /// How tall the clock is drawn, given the room under the header.
 ///
@@ -579,11 +670,21 @@ class _Readout<T> extends StatelessWidget {
     required this.timeOf,
     required this.now,
     this.compact = false,
+    this.dense = false,
+    this.tight = false,
     this.detail,
     this.footer,
     this.tint,
     this.action,
   });
+
+  /// One line shorter: the clock time and the measure move up beside the
+  /// label, and the reading keeps its size. For three cards down a phone,
+  /// which at full height pushed the third off the screen.
+  final bool dense;
+
+  /// Less padding and smaller gaps, where height is short.
+  final bool tight;
 
   /// A button at the card's top-right, level with its label, for a card that
   /// leads somewhere — the pump card, into the fridge.
@@ -637,7 +738,7 @@ class _Readout<T> extends StatelessWidget {
     final scheme = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(tight ? 12 : 18),
       decoration: BoxDecoration(
         color: tint == null
             ? scheme.surfaceContainerHigh
@@ -656,15 +757,54 @@ class _Readout<T> extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    _badge(scheme, size: 18, pad: 8),
-                    const SizedBox(width: 10),
-                    Expanded(child: _label(theme, scheme)),
-                    ?action,
-                  ],
-                ),
-                const SizedBox(height: _gapLabel),
+                if (dense && event != null)
+                  // Measured, which this shape can be: it is only ever one
+                  // to a row, outside the IntrinsicHeight that squares up a
+                  // row of cards.
+                  LayoutBuilder(
+                    builder: (context, c) => Row(
+                      children: [
+                        _badge(scheme, size: 18, pad: 6),
+                        const SizedBox(width: 10),
+                        // Its own width, up to most of the line: past that
+                        // it is cut short rather than pushing the time off
+                        // the card, as it did at a large text size.
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: (c.maxWidth - 38) * 0.6,
+                          ),
+                          child: _label(theme, scheme),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _stamp(
+                            context,
+                            theme,
+                            scheme,
+                            alignment: Alignment.centerRight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Row(
+                    children: [
+                      _badge(scheme, size: 18, pad: tight ? 6 : 8),
+                      const SizedBox(width: 10),
+                      Expanded(child: _label(theme, scheme)),
+                      // Small where height is short, so the row it shares
+                      // with the label is no taller than its neighbours'.
+                      if (action case final it?)
+                        tight
+                            ? SizedBox.square(
+                                dimension: 34,
+                                child: FittedBox(child: it),
+                              )
+                            : it,
+                    ],
+                  ),
+                SizedBox(height: tight ? 2 : _gapLabel),
                 ..._body(context, theme, scheme),
               ],
             )
@@ -710,6 +850,57 @@ class _Readout<T> extends StatelessWidget {
     overflow: TextOverflow.ellipsis,
   );
 
+  /// When it was, and the measure that goes with it: "12:59 AM · 120 ml".
+  ///
+  // One supporting line, not two. As separate lines the
+  // clock and the measurement were the same size and only a
+  // shade apart, so neither claimed the rank — they read as
+  // two labels rather than a fact and its footnote. Together
+  // the card is four things: what it is, how long ago, the
+  // detail, what happens next.
+  //
+  // Scaled down rather than clipped, like the headline. In
+  // US units a volume reads "150 ml (5.1 fl oz)", which does
+  // not fit a phone-width card at the boost this mode
+  // applies, and an amount trailing off into an ellipsis is
+  // the one thing this line exists to avoid.
+  Widget _stamp(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme scheme, {
+    Alignment alignment = Alignment.centerLeft,
+  }) {
+    final e = event as T;
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: alignment,
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: FeedingFormat.clockStamp(context, timeOf(e), now: now),
+            ),
+            if (detail case final it?)
+              TextSpan(
+                text: ' · $it',
+                // Carried at full strength: the clock says
+                // when, this says what, and what is the part
+                // being asked for.
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
+        ),
+        style: theme.textTheme.titleMedium?.copyWith(
+          color: scheme.onSurfaceVariant,
+        ),
+        maxLines: 1,
+      ),
+    );
+  }
+
   /// Everything under the label: the elapsed time, its supporting line, and
   /// the footer. The same in both shapes — only where the icon sits differs.
   List<Widget> _body(
@@ -736,50 +927,13 @@ class _Readout<T> extends StatelessWidget {
             maxLines: 1,
           ),
         ),
-        const SizedBox(height: _gapHeadline),
-        // One supporting line, not two. As separate lines the
-        // clock and the measurement were the same size and only a
-        // shade apart, so neither claimed the rank — they read as
-        // two labels rather than a fact and its footnote. Together
-        // the card is four things: what it is, how long ago, the
-        // detail, what happens next.
-        //
-        // Scaled down rather than clipped, like the headline. In
-        // US units a volume reads "150 ml (5.1 fl oz)", which does
-        // not fit a phone-width card at the boost this mode
-        // applies, and an amount trailing off into an ellipsis is
-        // the one thing this line exists to avoid.
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: FeedingFormat.clockStamp(context, timeOf(e), now: now),
-                ),
-                if (detail case final it?)
-                  TextSpan(
-                    text: ' · $it',
-                    // Carried at full strength: the clock says
-                    // when, this says what, and what is the part
-                    // being asked for.
-                    style: TextStyle(
-                      color: scheme.onSurface,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-              ],
-            ),
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
-            maxLines: 1,
-          ),
-        ),
+        if (!dense) ...[
+          const SizedBox(height: _gapHeadline),
+          _stamp(context, theme, scheme),
+        ],
       ],
       if (footer case final it?) ...[
-        const SizedBox(height: _gapFooter),
+        SizedBox(height: tight ? 8 : _gapFooter),
         Align(alignment: Alignment.centerLeft, child: it),
       ],
     ];
@@ -843,54 +997,73 @@ int _across(BoxConstraints c, int cards) {
 /// Pumping follows the same preference the Home button does, so a household
 /// that has turned it off does not meet it again here.
 class _LogButtons extends ConsumerWidget {
-  const _LogButtons({this.now});
+  const _LogButtons({this.now, this.slim = false, this.upNextAbove = false});
 
   /// A fixed clock, for tests.
   final DateTime? now;
 
+  /// One line each, icon beside label, where height or width is short.
+  final bool slim;
+
+  /// The bottle up next on a row of its own over the others: a phone
+  /// upright, where four across cut its label to "Up ne…".
+  final bool upNextAbove;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // The bottle up next, fed in one tap: first in the row, as the one most
-    // likely wanted when there is one. In the row rather than over it, so it
-    // costs the cards no height on a phone on its side.
+    // The bottle up next, fed in one tap: first, as the one most likely
+    // wanted when there is one. In the row on a wide screen, so it costs the
+    // cards no height on a phone on its side; over it on a narrow one.
     final next = ref.watch(showFridgeProvider)
         ? upNext(ref.watch(fridgeShelfProvider))
         : null;
     final units = ref.watch(unitSystemProvider);
+    final upNextButton = next == null
+        ? null
+        : _BigButton(
+            key: const ValueKey('up-next-finished'),
+            slim: slim,
+            icon: Icons.check_circle_outline,
+            label: 'Up next · ${formatVolume(next.amountMl, units)}',
+            onPressed: () =>
+                finishBottle(context, ref, next, now ?? DateTime.now()),
+          );
     final buttons = [
-      if (next != null)
-        _BigButton(
-          key: const ValueKey('up-next-finished'),
-          icon: Icons.check_circle_outline,
-          label: 'Up next · ${formatVolume(next.amountMl, units)}',
-          onPressed: () =>
-              finishBottle(context, ref, next, now ?? DateTime.now()),
-        ),
+      if (upNextButton case final it? when !upNextAbove) it,
       _BigButton(
+        slim: slim,
         icon: FeedingFormat.typeIcon(FeedingType.bottle),
         label: 'Bottle',
         onPressed: () => showFeedingQuickLog(context, type: FeedingType.bottle),
       ),
       _BigButton(
+        slim: slim,
         icon: Icons.baby_changing_station,
         label: 'Diaper',
         onPressed: () => showDiaperQuickLog(context),
       ),
       if (ref.watch(showPumpingActionProvider))
         _BigButton(
+          slim: slim,
           icon: Icons.opacity,
           label: 'Pump',
           onPressed: () => showPumpingQuickLog(context),
         ),
     ];
 
-    return Row(
+    final row = Row(
       children: [
         for (var i = 0; i < buttons.length; i++) ...[
-          if (i > 0) const SizedBox(width: 12),
+          if (i > 0) SizedBox(width: slim ? 8 : 12),
           Expanded(child: buttons[i]),
         ],
       ],
+    );
+    if (upNextButton == null || !upNextAbove) return row;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [upNextButton, const SizedBox(height: 8), row],
     );
   }
 }
@@ -901,11 +1074,15 @@ class _BigButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.slim = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
+
+  /// Icon beside the label on one line, not over it.
+  final bool slim;
 
   @override
   Widget build(BuildContext context) {
@@ -928,6 +1105,19 @@ class _BigButton extends StatelessWidget {
       ),
     );
 
+    if (slim) {
+      return FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [Icon(icon, size: 22), const SizedBox(width: 6), text],
+        ),
+      );
+    }
     return FilledButton(
       onPressed: onPressed,
       style: FilledButton.styleFrom(

@@ -144,9 +144,46 @@ void main() {
     );
   });
 
+  testWidgets('is a filled button, and marks its bottle, first in the row', (
+    tester,
+  ) async {
+    // Reported in review: in the countdowns' tint and width it read as one
+    // of them, and nothing said which bottle it meant.
+    await pumpCard(
+      tester,
+      bottles: [
+        bottle('a', 9, 60),
+        bottle('b', 2, 90).queued(now.subtract(const Duration(minutes: 5))),
+      ],
+    );
+    final button = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('up-next-finished')),
+    );
+    final scheme = Theme.of(
+      tester.element(find.byKey(const ValueKey('up-next-finished'))),
+    ).colorScheme;
+    expect(
+      button
+          .defaultStyleOf(
+            tester.element(find.byKey(const ValueKey('up-next-finished'))),
+          )
+          .backgroundColor
+          ?.resolve({}),
+      scheme.primary,
+    );
+    double x(String id) =>
+        tester.getRect(find.byKey(ValueKey('home-bottle-$id'))).left;
+    expect(x('b'), lessThan(x('a')));
+    final marker = tester.getRect(
+      find.byKey(const ValueKey('home-bottle-up-next')),
+    );
+    expect(marker.left, x('b'));
+  });
+
   testWidgets('but no such button without one up next', (tester) async {
     await pumpCard(tester, bottles: [bottle('a', 9, 60)]);
     expect(find.byKey(const ValueKey('up-next-finished')), findsNothing);
+    expect(find.byKey(const ValueKey('home-bottle-up-next')), findsNothing);
   });
 
   testWidgets('says one bottle as one', (tester) async {

@@ -210,6 +210,16 @@ void main() {
       );
     });
 
+    test('with no picture of its own shows an empty circle, not a tick', () {
+      // Reported in review: a tick in a circle, before it was done, read
+      // as done already.
+      expect(checklistIcon(ChecklistIcon.other), Icons.circle_outlined);
+      for (final icon in ChecklistIcon.values) {
+        expect(checklistIcon(icon), isNot(Icons.check_circle));
+        expect(checklistIcon(icon), isNot(Icons.check_circle_outline));
+      }
+    });
+
     test('is once a day unless it says otherwise', () {
       expect(ChecklistItem.fromMap({'id': 'x', 'label': 'X'}).perDay, 1);
       expect(

@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../data/models/daily_check.dart';
 
 /// The picture for each [ChecklistIcon].
+///
+/// "Other" is an empty circle, not a tick in one: it is what an item shows
+/// before it is done, and a tick there read as done already.
 IconData checklistIcon(ChecklistIcon icon) => switch (icon) {
   ChecklistIcon.vitamin => Icons.wb_sunny_outlined,
   ChecklistIcon.tummyTime => Icons.child_care,
@@ -10,7 +13,7 @@ IconData checklistIcon(ChecklistIcon icon) => switch (icon) {
   ChecklistIcon.probiotic => Icons.science_outlined,
   ChecklistIcon.iron => Icons.medication_outlined,
   ChecklistIcon.outside => Icons.park_outlined,
-  ChecklistIcon.other => Icons.check_circle_outline,
+  ChecklistIcon.other => Icons.circle_outlined,
 };
 
 /// Midnight at the start of [t]'s day, on this phone's clock.

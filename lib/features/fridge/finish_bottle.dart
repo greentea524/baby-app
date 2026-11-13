@@ -79,7 +79,10 @@ class UpNextButton extends ConsumerWidget {
     final next = upNext(ref.watch(fridgeShelfProvider));
     if (next == null) return const SizedBox.shrink();
     final units = ref.watch(unitSystemProvider);
-    return FilledButton.tonalIcon(
+    // Filled in the app's colour and only as wide as its words: in the
+    // countdowns' pale tint and at their full width, as it was, it read as
+    // one more of them and not as something to press.
+    return FilledButton.icon(
       key: const ValueKey('up-next-finished'),
       style: FilledButton.styleFrom(
         padding: const EdgeInsets.symmetric(horizontal: 16),

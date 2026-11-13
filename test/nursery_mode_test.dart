@@ -154,6 +154,20 @@ void main() {
       );
     });
 
+    testWidgets('on a phone upright, has a row of its own over the others', (
+      tester,
+    ) async {
+      // Reported in review: four across a phone cut it to "Up ne…".
+      await pumpNursery(tester, bottles: [next], size: const Size(390, 844));
+      final button = tester.getRect(
+        find.byKey(const ValueKey('up-next-finished')),
+      );
+      final bottle = tester.getRect(find.text('Bottle'));
+      expect(button.bottom, lessThanOrEqualTo(bottle.top));
+      expect(button.width, greaterThan(300));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('and is not there without one', (tester) async {
       await pumpNursery(tester, bottles: [next.queued(null)]);
       expect(find.byKey(const ValueKey('up-next-finished')), findsNothing);
@@ -173,6 +187,52 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       expect(find.byKey(const ValueKey('up-next-finished')), findsOneWidget);
+    });
+  });
+
+  group('where the screen is short or narrow', () {
+    final pumped = [
+      PumpingEvent(
+        id: 'p1',
+        time: now.subtract(const Duration(hours: 1)),
+        amountMl: 90,
+      ),
+    ];
+    Finder cardLabel(String name) =>
+        find.textContaining(RegExp('^$name(\u00a0#\\d+)?\$'));
+
+    testWidgets('a phone on its side has the clock in its header, and the '
+        'cards the room', (tester) async {
+      // Reported in review: the clock took the screen and the readings
+      // showed as a sliver over the buttons.
+      await pumpNursery(tester, pumps: pumped, size: const Size(844, 390));
+      expect(find.byKey(const ValueKey('header-clock')), findsOneWidget);
+      // Every card's reading is on the screen, clear of the buttons.
+      final buttons = tester.getRect(find.text('Bottle')).top;
+      for (final label in ['Last fed', 'Last changed', 'Last pumped']) {
+        final top = tester.getRect(cardLabel(label)).top;
+        expect(top, greaterThan(60));
+        expect(top + 100, lessThan(buttons));
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a tablet keeps the big clock, and no clock in the header', (
+      tester,
+    ) async {
+      await pumpNursery(tester, pumps: pumped);
+      expect(find.byKey(const ValueKey('header-clock')), findsNothing);
+    });
+
+    testWidgets('three cards down a phone all show their reading', (
+      tester,
+    ) async {
+      // Reported in review: the third was under the buttons.
+      await pumpNursery(tester, pumps: pumped, size: const Size(390, 844));
+      final buttons = tester.getRect(find.text('Bottle')).top;
+      final pump = tester.getRect(cardLabel('Last pumped'));
+      expect(pump.bottom + 60, lessThan(buttons));
+      expect(tester.takeException(), isNull);
     });
   });
 
