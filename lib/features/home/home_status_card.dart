@@ -59,6 +59,27 @@ class HomeStatusCard extends ConsumerWidget {
       ?_fridgeRow(context, ref),
     ];
 
+    // A row whose thing is overdue — a feed or a pump past due, a change
+    // three hours on, a bottle three days old — goes red behind it, not
+    // only in the dot by its label: the one state that asks for something
+    // now should be seen from across the room, not read.
+    bool overdue(Widget row) =>
+        row is _StatusRow && row.alert == DueState.overdue;
+    final surface =
+        Theme.of(context).cardTheme.color ??
+        Theme.of(context).colorScheme.surfaceContainerLow;
+    // Softer in the dark: at full strength it was a block of bright red on
+    // a black screen, which glares at a night feed. Still plainly red.
+    final red = Theme.of(context).brightness == Brightness.dark
+        ? Color.alphaBlend(
+            dueColors(
+              context,
+              DueState.overdue,
+            ).background.withValues(alpha: 0.55),
+            surface,
+          )
+        : dueTint(context, DueState.overdue, surface);
+
     if (ref.watch(homeLayoutProvider) == HomeLayout.separate) {
       return Padding(
         padding: const EdgeInsets.only(top: 16),
@@ -66,6 +87,8 @@ class HomeStatusCard extends ConsumerWidget {
           children: [
             for (final row in rows)
               Card(
+                key: overdue(row) ? const ValueKey('overdue-row') : null,
+                color: overdue(row) ? red : null,
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
@@ -87,13 +110,37 @@ class HomeStatusCard extends ConsumerWidget {
               // Indented to the text, not the icon: the icons then run down
               // the card as one column, and each rule underlines the row it
               // ends rather than cutting across the column.
-              if (i > 0)
+              // No rule against a red row: its own edge does that job.
+              if (i > 0 && !overdue(rows[i]) && !overdue(rows[i - 1]))
                 const Divider(
                   height: 1,
                   indent: _StatusRow.textInset,
                   endIndent: 16,
-                ),
-              rows[i],
+                )
+              else if (i > 0)
+                const SizedBox(height: 1),
+              if (overdue(rows[i]))
+                // Painted behind the row rather than wrapping it, so the
+                // row keeps its width and its text stays in line with the
+                // rows above and below.
+                Stack(
+                  key: const ValueKey('overdue-row'),
+                  children: [
+                    Positioned.fill(
+                      left: 8,
+                      right: 8,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: red,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                    rows[i],
+                  ],
+                )
+              else
+                rows[i],
             ],
           ],
         ),

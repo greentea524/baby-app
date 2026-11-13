@@ -21,7 +21,6 @@ import 'package:baby_app/features/common/day_time_label.dart';
 import 'package:baby_app/features/home/baby_switcher.dart';
 import 'package:baby_app/features/home/home_screen.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
-import 'package:baby_app/features/reminders/feed_prediction.dart';
 
 /// Home has to survive a small screen at a large text size (#—).
 ///
@@ -294,22 +293,67 @@ void main() {
       expect(alertDot(tester, 'FEED'), isNotNull);
     });
 
-    testWidgets('with no colour behind the row itself', (tester) async {
-      // The row used to be tinted. The dot replaced that, so the words on
-      // the row stay on the card's own surface whatever state it is in.
+    Color? rowRed(WidgetTester tester) {
+      final row = find.byKey(const ValueKey('overdue-row'));
+      if (row.evaluate().isEmpty) return null;
+      final widget = tester.widget(row);
+      if (widget is Card) return widget.color;
+      final box = tester.widget<DecoratedBox>(
+        find.descendant(of: row, matching: find.byType(DecoratedBox)).first,
+      );
+      return (box.decoration as BoxDecoration).color;
+    }
+
+    testWidgets('and goes red behind it once overdue', (tester) async {
+      // The dot alone was easy to miss. Overdue is the one state that asks
+      // for something now, so the whole row says it.
       await pumpHome(tester, feedings: [feedAt(400)]);
-      final tints = tester
-          .widgetList<ColoredBox>(
-            find.ancestor(
-              of: rowLabel('FEED'),
-              matching: find.byType(ColoredBox),
-            ),
-          )
-          .map((b) => b.color);
+      final red = rowRed(tester);
+      expect(red, isNotNull);
       final context = tester.element(rowLabel('FEED'));
+      expect(red!.r, greaterThan(red.b));
+      expect(red, isNot(Theme.of(context).colorScheme.surface));
+      // Only the feed row: the diaper row beside it is not overdue.
+      expect(find.byKey(const ValueKey('overdue-row')), findsOneWidget);
       expect(
-        tints,
-        isNot(contains(dueColors(context, DueState.overdue).background)),
+        find.descendant(
+          of: find.byKey(const ValueKey('overdue-row')),
+          matching: rowLabel('FEED'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('and keeps its text in line with the other rows', (
+      tester,
+    ) async {
+      await pumpHome(tester, feedings: [feedAt(400)]);
+      // The icons, which the dot in front of the label does not move.
+      Rect at(String tip) => tester.getRect(find.byTooltip(tip));
+      expect(at('Log bottle').left, at('Log diaper').left);
+      expect(at('Log bottle').right, at('Log diaper').right);
+    });
+
+    testWidgets('but not while it is only coming due', (tester) async {
+      // Amber stays the dot: red behind every row that is merely near would
+      // leave nothing to mark the one that is late.
+      await pumpHome(tester, feedings: [feedAt(165)]);
+      expect(alertDot(tester, 'FEED'), isNotNull);
+      expect(rowRed(tester), isNull);
+    });
+
+    testWidgets('and the whole card in the separate layout', (tester) async {
+      await pumpHome(
+        tester,
+        prefs: {'home_layout': 'separate'},
+        feedings: [feedAt(400)],
+      );
+      final card = find.byKey(const ValueKey('overdue-row'));
+      expect(tester.widget(card), isA<Card>());
+      expect(rowRed(tester), isNotNull);
+      expect(
+        find.descendant(of: card, matching: rowLabel('FEED')),
+        findsOneWidget,
       );
     });
   });
