@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/format/unit_system.dart';
+import '../../core/router/app_router.dart';
 import '../../core/format/volume_format.dart';
 import '../../data/models/fridge_bottle.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/banded_track.dart';
+import '../common/detail_pill.dart';
 import '../diaper/diaper_due.dart';
 import '../diaper/diaper_format.dart';
 import '../feeding/feeding_format.dart';
@@ -413,7 +416,14 @@ class HomeStatusCard extends ConsumerWidget {
           : aging > 0
           ? DueState.soon
           : null,
-      action: const FridgeButton(glyph: Icons.arrow_forward),
+      // The diaper row's pill, in the same place: one shape for every row
+      // that leads somewhere.
+      badge: DetailPill(
+        key: const ValueKey('fridge-open'),
+        label: 'Open',
+        semanticLabel: 'In the fridge',
+        onTap: () => context.push(AppRoutes.fridge),
+      ),
       icon: FridgeButton.icon,
       onLog: () => showBottleSheet(
         context,
@@ -865,7 +875,6 @@ class _StatusRow extends StatelessWidget {
     this.alert,
     this.alertLabel,
     this.picture,
-    this.action,
     this.onLog,
     this.logLabel,
     this.badge,
@@ -916,15 +925,6 @@ class _StatusRow extends StatelessWidget {
   /// Drawn at the trailing edge, beside the headline: the fridge's bottles.
   final Widget? picture;
 
-  /// A button at the row's trailing edge, for the rows that lead anywhere.
-  ///
-  /// A button rather than making the whole row tappable. The row used to be
-  /// one big tap target with a chevron at the end, and the chevron was all
-  /// there was to say so — easy to miss, and it did not say where. A button
-  /// is its own evidence of being pressable, and it is the only thing that
-  /// is: nothing on the row answers a tap that does not look like it would.
-  final Widget? action;
-
   /// Logs another of what this row reports — tapping its icon. The way to
   /// log from Home: the row's icon is the button, so the reading and the way
   /// to add to it are one thing, and there is no separate row of log buttons
@@ -934,15 +934,18 @@ class _StatusRow extends StatelessWidget {
   /// What [onLog] does, for its tooltip and for a screen reader: "Log feed".
   final String? logLabel;
 
-  /// Something small at the end of the label's line: the diaper row's
-  /// stock.
+  /// Something small at the end of the label's line: the way into the
+  /// row's own screen, for the rows that lead anywhere — the diaper row's
+  /// stock, the fridge. A [DetailPill] on both, so they read as one kind of
+  /// control; nothing else on a row answers a tap that does not look like
+  /// it would.
   final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final at = when;
-    final trailing = [?picture, ?action];
+    final trailing = [?picture];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

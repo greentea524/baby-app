@@ -8,6 +8,7 @@ import '../../core/router/app_router.dart';
 import '../../data/models/diaper_stock_entry.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../common/app_sheet.dart';
+import '../common/detail_pill.dart';
 import '../common/number_input.dart';
 import '../common/save_and_close.dart';
 import '../feeding/feeding_format.dart';
@@ -430,59 +431,40 @@ class _StockSheetState extends ConsumerState<_StockSheet> {
 /// running low and red when out, and the way into the stock. "Stock" before
 /// anything has been counted.
 class DiaperStockBadge extends ConsumerWidget {
-  const DiaperStockBadge({super.key});
+  const DiaperStockBadge({super.key, this.onlyWhenLow = false});
 
   static const icon = Icons.inventory_2_outlined;
+
+  /// Nothing at all until stock runs low: for the nursery's diaper card,
+  /// which is read from across a room and should not carry a number that
+  /// asks for nothing.
+  final bool onlyWhenLow;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stock = ref.watch(diaperStockProvider);
-    final theme = Theme.of(context);
+    if (onlyWhenLow && (stock == null || stock.level == StockLevel.ok)) {
+      return const SizedBox.shrink();
+    }
     final colours = switch (stock?.level) {
       StockLevel.out => dueColors(context, DueState.overdue),
       StockLevel.low => dueColors(context, DueState.soon),
       _ => null,
     };
-    final background =
-        colours?.background ?? theme.colorScheme.secondaryContainer;
-    final foreground =
-        colours?.foreground ?? theme.colorScheme.onSecondaryContainer;
     final label = switch (stock) {
       null => 'Stock',
       final s when s.left <= 0 => 'None left',
       final s => '${s.left} left',
     };
 
-    return Semantics(
-      button: true,
-      label: stock == null ? 'Diaper stock' : 'Diaper stock: $label',
-      excludeSemantics: true,
-      child: Material(
-        color: background,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          key: const ValueKey('diaper-stock'),
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => context.push(AppRoutes.diaperStock),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 16, color: foreground),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: foreground,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return DetailPill(
+      key: const ValueKey('diaper-stock'),
+      icon: icon,
+      label: label,
+      semanticLabel: stock == null ? 'Diaper stock' : 'Diaper stock: $label',
+      background: colours?.background,
+      foreground: colours?.foreground,
+      onTap: () => context.push(AppRoutes.diaperStock),
     );
   }
 }

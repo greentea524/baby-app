@@ -10,6 +10,7 @@ import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/common/banded_track.dart';
+import 'package:baby_app/features/common/detail_pill.dart';
 import 'package:baby_app/features/fridge/fridge_button.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
@@ -137,20 +138,21 @@ void main() {
     // now has its own row underneath — see home_fridge_row_test.
     await pumpCard(tester, pumping: pumps);
 
-    final button = tester.getRect(find.byType(FridgeButton));
+    final open = tester.getRect(find.byKey(const ValueKey('fridge-open')));
     final pumped = tester.getRect(rowLabel('PUMP'));
-    final fridge = tester.getRect(find.text('FRIDGE'));
-    expect(button.top, greaterThan(pumped.bottom));
-    expect(button.top, lessThan(fridge.bottom + 40));
+    expect(open.top, greaterThan(pumped.bottom));
   });
 
-  testWidgets('and no other row has one, or a chevron', (tester) async {
-    // Feeding and diapers only report. A row that looks like it goes
-    // somewhere and does not is worse than one that plainly does not.
+  testWidgets('and the rows that lead anywhere share one shape', (
+    tester,
+  ) async {
+    // The fridge row had a round arrow button and the diaper row a pill:
+    // the same job, two kinds of control. Both are the pill now, and
+    // feeding and pumping only report.
     await pumpCard(tester, pumping: pumps);
 
-    expect(find.byType(FridgeButton), findsOneWidget);
-    expect(find.byIcon(Icons.chevron_right), findsNothing);
+    expect(find.byType(DetailPill), findsNWidgets(2));
+    expect(find.byType(FridgeButton), findsNothing);
   });
 
   testWidgets('gets its own card in the separate layout', (tester) async {

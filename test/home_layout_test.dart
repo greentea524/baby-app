@@ -750,4 +750,52 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('the activity list', () {
+    testWidgets('heads each day, and gives rows only their time', (
+      tester,
+    ) async {
+      // It mixed "1:44 AM" with "Nov 12, 11:29 PM", leaving midnight to be
+      // worked out. A heading says where each day starts instead.
+      final yesterday = midnight.subtract(const Duration(hours: 2));
+      await pumpHome(
+        tester,
+        size: const Size(390, 2400),
+        diapers: [
+          ...fixtureDiapers,
+          DiaperEvent(id: 'y', type: DiaperType.wet, time: yesterday),
+        ],
+      );
+
+      final today = find.text('Today').last;
+      final before = find.text('Yesterday');
+      expect(before, findsOneWidget);
+      expect(
+        tester.getRect(before).top,
+        greaterThan(tester.getRect(today).bottom),
+      );
+      final clock = TimeOfDay.fromDateTime(
+        yesterday,
+      ).format(tester.element(before));
+      expect(find.text(clock), findsOneWidget);
+      // No date on the row: the heading says it.
+      expect(find.textContaining(RegExp(r'^[A-Z][a-z]{2} \d+,')), findsNothing);
+    });
+  });
+
+  group('the links beside Recent / Today', () {
+    testWidgets('say what they are, not only show it', (tester) async {
+      await pumpHome(tester, size: const Size(390, 1600));
+      expect(find.text('Timeline'), findsOneWidget);
+      expect(find.text('Nursery'), findsOneWidget);
+      expect(find.byTooltip('Full timeline'), findsOneWidget);
+      expect(find.byTooltip('Nursery mode'), findsOneWidget);
+    });
+
+    testWidgets('and still fit the pinned header at 200% text', (tester) async {
+      await pumpHome(tester, size: const Size(390, 4000), textScale: 2.0);
+      expect(tester.takeException(), isNull);
+      expect(find.text('Nursery'), findsOneWidget);
+    });
+  });
 }

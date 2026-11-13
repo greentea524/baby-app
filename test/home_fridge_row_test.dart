@@ -8,6 +8,7 @@ import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/fridge_bottle.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/common/banded_track.dart';
+import 'package:baby_app/features/common/detail_pill.dart';
 import 'package:baby_app/features/fridge/bottle_gauge.dart';
 import 'package:baby_app/features/fridge/fridge_button.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
@@ -76,11 +77,18 @@ void main() {
     // Drawn as well as counted, up to three: one small bottle each.
     expect(find.byKey(const ValueKey('home-bottle-a')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-bottle-b')), findsOneWidget);
-    expect(find.byType(FridgeButton), findsOneWidget);
-    // An arrow, not a second fridge beside the row's own.
-    expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
+    // The way in is the diaper row's pill shape, at the label's end: no
+    // second fridge beside the row's own icon.
+    final open = find.byKey(const ValueKey('fridge-open'));
+    expect(open, findsOneWidget);
+    expect(find.descendant(of: open, matching: find.text('Open')), findsOne);
+    expect(find.byType(DetailPill), findsNWidgets(2));
     expect(find.byIcon(FridgeButton.icon), findsOneWidget);
-    expect(find.byTooltip('In the fridge'), findsOneWidget);
+    expect(find.bySemanticsLabel('In the fridge'), findsOneWidget);
+    expect(
+      tester.getRect(open).center.dy,
+      closeTo(tester.getRect(find.text('FRIDGE')).center.dy, 8),
+    );
     expect(dot(tester), isNull);
   });
 
@@ -91,7 +99,7 @@ void main() {
     // never pumps still has one — and "Empty" is an answer.
     await pumpCard(tester);
     expect(find.text('Empty'), findsOneWidget);
-    expect(find.byType(FridgeButton), findsOneWidget);
+    expect(find.byKey(const ValueKey('fridge-open')), findsOneWidget);
   });
 
   testWidgets('and is gone with the fridge switched off', (tester) async {
@@ -101,7 +109,7 @@ void main() {
       prefs: {'show_fridge': false},
     );
     expect(find.text('FRIDGE'), findsNothing);
-    expect(find.byType(FridgeButton), findsNothing);
+    expect(find.byKey(const ValueKey('fridge-open')), findsNothing);
   });
 
   testWidgets('names the most pressing bottle, and turns amber then red', (

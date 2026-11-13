@@ -248,7 +248,7 @@ class _RecentHeader extends ConsumerWidget {
               ),
             ),
           ),
-          IconButton(
+          _HeaderLink(
             // Today, not wherever the day was left. selectedDayProvider is
             // global and sticky, and Insights can now push it to a day weeks
             // back (#32); inheriting that here would open Home's drill-down
@@ -257,7 +257,8 @@ class _RecentHeader extends ConsumerWidget {
               ref.read(selectedDayProvider.notifier).setDay(DateTime.now());
               context.push(AppRoutes.timeline);
             },
-            icon: const Icon(Icons.timeline),
+            icon: Icons.timeline,
+            label: 'Timeline',
             tooltip: 'Full timeline',
           ),
           // Beside the timeline link rather than buried in Settings. Both are
@@ -268,14 +269,69 @@ class _RecentHeader extends ConsumerWidget {
           // is pinned, and a pinned header has to be told its height before it
           // lays anything out. An IconButton is 48 high at every text size,
           // which is what [headerHeight] already assumes.
-          IconButton(
+          _HeaderLink(
             onPressed: () => ref
                 .read(displayModeProvider.notifier)
                 .setMode(DisplayMode.nursery),
-            icon: const Icon(Icons.crib_outlined),
+            icon: Icons.crib_outlined,
+            label: 'Nursery',
             tooltip: 'Nursery mode',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// An icon with its name under it, for the two links beside the scope
+/// toggle.
+///
+/// They were bare icons, a line chart and a cot, and neither said what it
+/// did until it was long-pressed. A caption under the icon rather than
+/// beside it, so the pair fits beside the toggle on a phone, and the row
+/// stays one line high — the pinned header's height is fixed in advance
+/// (see [_RecentHeader.headerHeight]), and the caption scales inside it.
+class _HeaderLink extends StatelessWidget {
+  const _HeaderLink({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colour = theme.colorScheme.onSurfaceVariant;
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 56, minHeight: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 22, color: colour),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(color: colour),
+                  maxLines: 1,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

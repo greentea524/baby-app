@@ -11,6 +11,8 @@ import '../../data/repositories/repository_providers.dart';
 import '../diaper/diaper_due.dart';
 import '../diaper/diaper_format.dart';
 import '../diaper/diaper_quick_log.dart';
+import '../diaper/diaper_stock.dart';
+import '../diaper/diaper_stock_screen.dart';
 import '../feeding/feeding_format.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../../data/models/fridge_bottle.dart';
@@ -290,16 +292,34 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         // feed card has its next-feed chip: "has there been a
                         // dirty one today?" is asked at the cot as often as
                         // "when was the last?". Not before the first change.
-                        footer: lastChanged == null || !footers
+                        // With the stock beside them once it runs low, as
+                        // Home's diaper row has it; nothing while it is fine.
+                        footer:
+                            !footers ||
+                                (lastChanged == null &&
+                                    (ref.watch(diaperStockProvider)?.level ??
+                                            StockLevel.ok) ==
+                                        StockLevel.ok)
                             ? null
-                            : DiaperTally(
-                                mix: watchTodaysDiaperMix(ref, clock),
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
+                            : Wrap(
+                                spacing: 12,
+                                runSpacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  if (lastChanged != null)
+                                    DiaperTally(
+                                      mix: watchTodaysDiaperMix(ref, clock),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
                                     ),
+                                  const DiaperStockBadge(onlyWhenLow: true),
+                                ],
                               ),
                         // The feed card's escalation, on its own clock: amber
                         // at two hours since the last change, red at three.
@@ -1271,10 +1291,21 @@ class _BigButton extends StatelessWidget {
       ),
     );
 
+    // Dark, the deep container colour rather than the bright primary. Four
+    // of these are the largest things on the screen, and at full primary
+    // they lit a dark room; the container keeps them plainly buttons, in
+    // the app's colour, at a fraction of the glow.
+    final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final background = dark ? scheme.primaryContainer : null;
+    final foreground = dark ? scheme.onPrimaryContainer : null;
+
     if (slim) {
       return FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
+          backgroundColor: background,
+          foregroundColor: foreground,
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         ),
         child: Row(
@@ -1287,6 +1318,8 @@ class _BigButton extends StatelessWidget {
     return FilledButton(
       onPressed: onPressed,
       style: FilledButton.styleFrom(
+        backgroundColor: background,
+        foregroundColor: foreground,
         padding: const EdgeInsets.symmetric(vertical: 20),
       ),
       child: Column(

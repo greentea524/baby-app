@@ -5,6 +5,7 @@ import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_filter.dart';
 import '../activity/activity_tile.dart';
+import '../timeline/timeline_format.dart';
 
 /// How far back Home's recent list reaches.
 ///
@@ -111,16 +112,63 @@ class RecentActivityList extends ConsumerWidget {
       );
     }
 
-    return SliverList.separated(
-      itemCount: visible.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, i) => ActivityTile(
-        entry: visible[i],
-        now: now,
-        // A timestamp rather than "2 hr ago". This list spans days, so the
-        // stamp carries a short date once a row is older than today —
-        // a bare "9:30 PM" could otherwise be any night.
-        timeDisplay: ActivityTimeDisplay.stamp,
+    // Under a heading for each day — "Today", "Yesterday", "Wed, Nov 11" —
+    // so each row needs only its clock time. Every row older than today
+    // used to carry its own date, so the list mixed "1:44 AM" with "Nov 12,
+    // 11:29 PM" and midnight was something to work out rather than see.
+    final rows = <Object>[];
+    DateTime? day;
+    for (final e in visible) {
+      final d = DateTime(e.time.year, e.time.month, e.time.day);
+      if (d != day) {
+        rows.add(d);
+        day = d;
+      }
+      rows.add(e);
+    }
+    return SliverList.builder(
+      itemCount: rows.length,
+      itemBuilder: (context, i) => switch (rows[i]) {
+        final DateTime d => _DayHeading(day: d, now: now),
+        final e as ActivityEntry => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ActivityTile(
+              entry: e,
+              now: now,
+              timeDisplay: ActivityTimeDisplay.clock,
+            ),
+            // Between rows of one day; the next heading separates days.
+            if (i + 1 < rows.length && rows[i + 1] is ActivityEntry)
+              const Divider(height: 1),
+          ],
+        ),
+      },
+    );
+  }
+}
+
+/// A day's heading in the list, as the fridge's history has them.
+class _DayHeading extends StatelessWidget {
+  const _DayHeading({required this.day, this.now});
+
+  final DateTime day;
+  final DateTime? now;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Semantics(
+        header: true,
+        child: Text(
+          TimelineFormat.dayLabel(day, now: now),
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
       ),
     );
   }
