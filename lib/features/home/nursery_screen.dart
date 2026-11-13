@@ -21,7 +21,6 @@ import '../pumping/pump_schedule.dart';
 import '../pumping/pumping_format.dart';
 import '../pumping/pumping_quick_log.dart';
 import '../reminders/feed_prediction.dart';
-import '../common/day_time_label.dart';
 import '../reminders/reminder_providers.dart';
 import '../timeline/timeline_format.dart';
 import 'baby_age.dart';
@@ -117,15 +116,12 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // A phone on its side has no height for a clock of its own:
-                // it took the whole screen and left the readings a sliver.
-                // There it rides in the header, and the cards get the room.
-                _Header(
-                  baby: baby,
-                  now: widget.now,
-                  clock: _short(context) ? clock : null,
-                ),
-                SizedBox(height: _short(context) ? 8 : 12),
+                // On a phone on its side the header sits over the clock's
+                // own half of the screen instead: see below.
+                if (!_short(context)) ...[
+                  _Header(baby: baby, now: widget.now),
+                  const SizedBox(height: 12),
+                ],
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -137,18 +133,27 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                       final pumping =
                           ref.watch(showPumpingActionProvider) &&
                           ref.watch(lastPumpingProvider) != null;
-                      final across = _across(constraints, pumping ? 3 : 2);
-                      final compact =
-                          _cardWidth(constraints, across) < _compactCardWidth;
+                      // A phone on its side: the clock has the left of the
+                      // screen and the cards stand in a column on the right.
                       final short = _short(context);
+                      final across = short
+                          ? 1
+                          : _across(constraints, pumping ? 3 : 2);
+                      final compact =
+                          short ||
+                          _cardWidth(constraints, across) < _compactCardWidth;
                       // A phone upright: one card to a row, and four buttons
                       // would not fit across.
                       final narrow = constraints.maxWidth < _narrowWidth;
-                      // Three cards down a phone do not fit at full size, so
-                      // each gives up a line; and on a short screen every
-                      // card gives up some padding.
-                      final dense = across == 1 && pumping;
-                      final tight = short || dense;
+                      // Beside or under a clock this size the cards cannot
+                      // be full height, so each gives up a line and its
+                      // reading a size: in the column beside the clock, and
+                      // three down a phone.
+                      final dense = short || (across == 1 && pumping);
+                      final tight = dense;
+                      // Three in the column beside the clock leave no room
+                      // for the countdowns; the cards' colour still warns.
+                      final footers = !(short && pumping);
 
                       final lastFed = ref.watch(lastMilkFeedProvider);
                       final due = ref.watch(nextFeedDueProvider);
@@ -197,31 +202,33 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         // saying which one it was about — and it is about
                         // this one: when they last ate, when they next need
                         // to, one thing to read.
-                        footer: _nextFeed(
-                          context,
-                          clock,
-                          due,
-                          dueState,
-                          feedRemaining(
-                            due: due,
-                            interval: Duration(
-                              minutes: ref
-                                  .watch(reminderSettingsProvider)
-                                  .intervalMinutes,
-                            ),
-                            now: clock,
-                          ),
-                          dueSoonShare(
-                            headsUp: ref
-                                .watch(reminderSettingsProvider)
-                                .headsUp,
-                            interval: Duration(
-                              minutes: ref
-                                  .watch(reminderSettingsProvider)
-                                  .intervalMinutes,
-                            ),
-                          ),
-                        ),
+                        footer: !footers
+                            ? null
+                            : _nextFeed(
+                                context,
+                                clock,
+                                due,
+                                dueState,
+                                feedRemaining(
+                                  due: due,
+                                  interval: Duration(
+                                    minutes: ref
+                                        .watch(reminderSettingsProvider)
+                                        .intervalMinutes,
+                                  ),
+                                  now: clock,
+                                ),
+                                dueSoonShare(
+                                  headsUp: ref
+                                      .watch(reminderSettingsProvider)
+                                      .headsUp,
+                                  interval: Duration(
+                                    minutes: ref
+                                        .watch(reminderSettingsProvider)
+                                        .intervalMinutes,
+                                  ),
+                                ),
+                              ),
                         // The same escalation the chip carries, on the whole
                         // card. From a doorway the colour arrives before any
                         // of the words do, which is the point of this screen.
@@ -261,7 +268,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         // feed card has its next-feed chip: "has there been a
                         // dirty one today?" is asked at the cot as often as
                         // "when was the last?". Not before the first change.
-                        footer: lastChanged == null
+                        footer: lastChanged == null || !footers
                             ? null
                             : DiaperTally(
                                 mix: watchTodaysDiaperMix(ref, clock),
@@ -300,68 +307,99 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                             compact,
                             dense: dense,
                             tight: tight,
+                            footer: footers,
                           ),
                       ];
                       final cards = _cards(
                         readouts,
                         across,
-                        gap: dense ? 10 : _cardGap,
+                        gap: dense ? 8 : _cardGap,
                       );
 
+                      // Centred in whatever is left, and scrollable if
+                      // that is not enough. With the buttons pinned to the
+                      // bottom, top-aligned cards leave a hole in the
+                      // middle of the screen.
+                      final cardArea = LayoutBuilder(
+                        builder: (context, space) => SingleChildScrollView(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: space.maxHeight,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [cards],
+                            ),
+                          ),
+                        ),
+                      );
+                      final day = Text(
+                        TimelineFormat.weekdayDate(clock),
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                      );
+                      final buttons = _LogButtons(
+                        now: widget.now,
+                        slim: short || narrow,
+                        upNextAbove: narrow,
+                      );
+
+                      // The clock is what this screen is for from across a
+                      // room: a tablet on a shelf, or a phone propped by the
+                      // bed, is the nearest clock at 3am. So it is drawn as
+                      // large as the screen allows and the cards take what
+                      // is left, not the other way round.
+                      if (short) {
+                        // A bedside clock: the time fills the left of the
+                        // screen, under the header, and the readings stand
+                        // in a column on the right.
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    flex: 3,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        _Header(baby: baby, now: widget.now),
+                                        Expanded(
+                                          child: _BigClock(clock: clock),
+                                        ),
+                                        day,
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(flex: 2, child: cardArea),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            buttons,
+                          ],
+                        );
+                      }
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // A tablet on a nursery shelf is the nearest clock
-                          // at 3am, and the screen ticks anyway to keep the
-                          // elapsed times honest — so it may as well be
-                          // readable from the doorway rather than from arm's
-                          // length.
-                          //
-                          // Sized off both dimensions so it is large where
-                          // there is room and modest where there is not: on a
-                          // tablet the height decides, on a phone the width
-                          // does, and neither lets the clock crowd out the
-                          // cards it sits above.
-                          if (!short) ...[
-                            DayTimeLabel(
-                              clock: clock,
-                              // Smaller with three cards to fit under it.
-                              timeHeight: dense
-                                  ? _denseClockHeight
-                                  : _clockHeight(constraints),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                          Expanded(
-                            // Centred in whatever is left, and scrollable if
-                            // that is not enough. With the buttons pinned to
-                            // the bottom, top-aligned cards leave a hole in
-                            // the middle of a landscape screen — which is the
-                            // shape this mode is most often seen in.
-                            child: LayoutBuilder(
-                              builder: (context, space) =>
-                                  SingleChildScrollView(
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        minHeight: space.maxHeight,
-                                      ),
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [cards],
-                                      ),
-                                    ),
-                                  ),
-                            ),
+                          SizedBox(
+                            height: _clockHeight(constraints),
+                            child: _BigClock(clock: clock),
                           ),
-                          SizedBox(height: short || narrow ? 12 : 16),
-                          _LogButtons(
-                            now: widget.now,
-                            slim: short || narrow,
-                            upNextAbove: narrow,
-                          ),
+                          day,
+                          const SizedBox(height: 8),
+                          Expanded(child: cardArea),
+                          SizedBox(height: narrow ? 12 : 16),
+                          buttons,
                         ],
                       );
                     },
@@ -393,6 +431,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
     bool compact, {
     bool dense = false,
     bool tight = false,
+    bool footer = true,
   }) {
     final last = ref.watch(lastPumpingProvider)!;
     final due = ref.watch(nextPumpDueProvider);
@@ -428,7 +467,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
       // The measure, not the full detail: notes are sentences, and this line
       // is read from a doorway.
       detail: PumpingFormat.measure(last, ref.watch(unitSystemProvider)),
-      footer: _nextPump(context, clock, due, state, ref),
+      footer: footer ? _nextPump(context, clock, due, state, ref) : null,
       tint: state == null ? null : dueColors(context, state).background,
     );
   }
@@ -536,13 +575,9 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.baby, required this.now, this.clock});
+  const _Header({required this.baby, required this.now});
 
   final Baby? baby;
-
-  /// The time to show in the header itself, on a screen too short for the
-  /// big clock under it. Null where that clock is drawn.
-  final DateTime? clock;
 
   /// The screen's clock, when fixed for a test; null for the live one.
   final DateTime? now;
@@ -573,30 +608,6 @@ class _Header extends ConsumerWidget {
             ],
           ),
         ),
-        if (clock case final at?) ...[
-          Column(
-            key: const ValueKey('header-clock'),
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                TimeOfDay.fromDateTime(at).format(context),
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-                maxLines: 1,
-              ),
-              Text(
-                TimelineFormat.weekdayDate(at),
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 1,
-              ),
-            ],
-          ),
-          const SizedBox(width: 12),
-        ],
         // Medicine has no card here — it is not a clock to read from the
         // doorway the way feeds are — but "can I give this yet?" gets asked
         // at the cot all the same. One tap answers it.
@@ -616,8 +627,8 @@ class _Header extends ConsumerWidget {
   }
 }
 
-/// Whether the screen is too short for the big clock: a phone on its side.
-/// The clock moves into the header, and the buttons slim to a line.
+/// Whether the screen is short: a phone on its side. The clock takes the
+/// left of it and the cards the right, and the buttons slim to a line.
 bool _short(BuildContext context) =>
     MediaQuery.sizeOf(context).height < _shortHeight;
 
@@ -629,20 +640,96 @@ const double _shortHeight = 520;
 /// next takes a row of its own: a phone upright.
 const double _narrowWidth = 480;
 
-/// The clock's height over three stacked cards, where every line counts.
-const double _denseClockHeight = 50;
-
 /// How tall the clock is drawn, given the room under the header.
 ///
-/// A share of the height, but never more than a share of the width, so the
-/// same rule suits a propped-up tablet and a phone held in one hand. Clamped
-/// at both ends: below 72 it stops being a clock you can read across a room,
-/// and above 240 it starts taking the cards' space on a landscape screen.
+/// As tall as the width lets its digits be, up to a good share of the
+/// height: on a phone upright and a tablet upright the width decides, on a
+/// tablet on its side the height does. Never under 72, where it stops being
+/// a clock to read across a room.
 double _clockHeight(BoxConstraints space) {
-  final fromHeight = space.maxHeight * 0.30;
-  final fromWidth = space.maxWidth * 0.22;
+  final fromHeight = space.maxHeight * 0.42;
+  final fromWidth = space.maxWidth * _BigClock.aspect;
   final smaller = fromHeight < fromWidth ? fromHeight : fromWidth;
-  return smaller.clamp(72.0, 240.0);
+  return smaller < 72 ? 72 : smaller;
+}
+
+/// The time, as large as the box it is given allows.
+///
+/// The digits are the clock; "AM" or "PM" rides small beside them, since at
+/// the digits' size it took a third of the width, and the width is what
+/// limits how tall the digits can be on anything held upright.
+///
+/// Sized against the widest time there is, not the time it is: a clock
+/// fitted to its own digits would jump in size at 9:59, when "9:59" becomes
+/// "10:00". Figures are tabular for the same reason.
+class _BigClock extends StatelessWidget {
+  const _BigClock({required this.clock});
+
+  final DateTime clock;
+
+  /// Height over width of the widest time, "00:00 AM": how tall the clock
+  /// can be drawn in a given width.
+  static const aspect = 0.33;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final said = TimeOfDay.fromDateTime(clock).format(context);
+    // "2:00 PM" is digits and a period; "14:00" is digits alone.
+    final parts = said.split(RegExp(r'\s+'));
+    final digits = parts.firstWhere(
+      (p) => p.contains(RegExp(r'\d')),
+      orElse: () => said,
+    );
+    final period = parts.where((p) => p != digits).join(' ');
+
+    Widget face(String time, {Key? key}) => Text.rich(
+      key: key,
+      TextSpan(
+        children: [
+          TextSpan(text: time),
+          if (period.isNotEmpty)
+            TextSpan(
+              text: ' $period',
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+        ],
+      ),
+      style: TextStyle(
+        fontSize: 100,
+        height: 1,
+        fontWeight: FontWeight.w700,
+        color: scheme.onSurface,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+      maxLines: 1,
+      // The screen's text boost is for reading, not for this: it is
+      // already as large as its box.
+      textScaler: TextScaler.noScaling,
+    );
+
+    return Semantics(
+      label: said,
+      excludeSemantics: true,
+      child: FittedBox(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // The widest it gets, unseen, so the box never changes size.
+            Opacity(
+              opacity: 0,
+              child: face(digits.length > 4 ? digits : '00:00'),
+            ),
+            face(digits, key: const ValueKey('nursery-clock')),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// The card's vertical rhythm: related lines close together, the footer
@@ -738,7 +825,7 @@ class _Readout<T> extends StatelessWidget {
     final scheme = theme.colorScheme;
 
     return Container(
-      padding: EdgeInsets.all(tight ? 12 : 18),
+      padding: EdgeInsets.all(tight ? 10 : 18),
       decoration: BoxDecoration(
         color: tint == null
             ? scheme.surfaceContainerHigh
@@ -920,10 +1007,16 @@ class _Readout<T> extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: Text(
             FeedingFormat.timeAgo(timeOf(e), now: now),
-            style: theme.textTheme.displaySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: scheme.onSurface,
-            ),
+            // A size down where the card has given up height to the
+            // clock: still the largest thing on it.
+            style:
+                (dense
+                        ? theme.textTheme.headlineSmall
+                        : theme.textTheme.displaySmall)
+                    ?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
+                    ),
             maxLines: 1,
           ),
         ),
@@ -933,7 +1026,7 @@ class _Readout<T> extends StatelessWidget {
         ],
       ],
       if (footer case final it?) ...[
-        SizedBox(height: tight ? 8 : _gapFooter),
+        SizedBox(height: tight ? 6 : _gapFooter),
         Align(alignment: Alignment.centerLeft, child: it),
       ],
     ];

@@ -201,27 +201,35 @@ void main() {
     Finder cardLabel(String name) =>
         find.textContaining(RegExp('^$name(\u00a0#\\d+)?\$'));
 
-    testWidgets('a phone on its side has the clock in its header, and the '
-        'cards the room', (tester) async {
-      // Reported in review: the clock took the screen and the readings
-      // showed as a sliver over the buttons.
+    testWidgets('a phone on its side is a bedside clock: the time huge on '
+        'the left, the readings beside it', (tester) async {
+      // Asked for: the time huge, to read across a bedroom. And reported in
+      // review: the readings showed as a sliver over the buttons.
       await pumpNursery(tester, pumps: pumped, size: const Size(844, 390));
-      expect(find.byKey(const ValueKey('header-clock')), findsOneWidget);
-      // Every card's reading is on the screen, clear of the buttons.
+      final clock = tester.getRect(find.byKey(const ValueKey('nursery-clock')));
+      // As wide as its side of the screen, which is what limits it; by the
+      // width, since how tall that makes it depends on the font. A little
+      // under the full side, which is sized for a time a digit longer.
+      expect(clock.width, greaterThan(380));
+      // Every card is on the screen, right of the clock and clear of the
+      // buttons.
       final buttons = tester.getRect(find.text('Bottle')).top;
       for (final label in ['Last fed', 'Last changed', 'Last pumped']) {
-        final top = tester.getRect(cardLabel(label)).top;
-        expect(top, greaterThan(60));
-        expect(top + 100, lessThan(buttons));
+        final card = tester.getRect(cardLabel(label));
+        expect(card.left, greaterThan(clock.right));
+        expect(card.top, greaterThanOrEqualTo(0));
+        expect(card.bottom + 40, lessThan(buttons));
       }
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a tablet keeps the big clock, and no clock in the header', (
+    testWidgets('upright, the clock is as wide as the phone allows', (
       tester,
     ) async {
-      await pumpNursery(tester, pumps: pumped);
-      expect(find.byKey(const ValueKey('header-clock')), findsNothing);
+      await pumpNursery(tester, pumps: pumped, size: const Size(390, 844));
+      final clock = tester.getRect(find.byKey(const ValueKey('nursery-clock')));
+      // Of the 350 there is, less the digit a longer time would have.
+      expect(clock.width, greaterThan(280));
     });
 
     testWidgets('three cards down a phone all show their reading', (
@@ -750,8 +758,9 @@ void main() {
       tester,
     ) async {
       // Below three columns' worth of width the row wraps rather than
-      // shaving every card thinner. Two and one beats three slivers.
-      await pumpNursery(tester, pumps: pumped, size: const Size(700, 500));
+      // shaving every card thinner. Two and one beats three slivers. Tall
+      // enough not to be the short screen that stands them beside the clock.
+      await pumpNursery(tester, pumps: pumped, size: const Size(700, 900));
 
       final fed = tester.getRect(cardLabel('Last fed'));
       final changed = tester.getRect(cardLabel('Last changed'));
@@ -1008,7 +1017,10 @@ void main() {
       // A tablet on a nursery shelf is the nearest clock at 3am.
       await pumpNursery(tester);
 
-      expect(find.text('2:00 PM'), findsOneWidget);
+      final face = tester.widget<Text>(
+        find.byKey(const ValueKey('nursery-clock')),
+      );
+      expect(face.textSpan!.toPlainText(), '2:00 PM');
       expect(find.text('Mon, Aug 24'), findsOneWidget);
       // Never "Today", which a clock has no use for.
       expect(find.text('Today'), findsNothing);
@@ -1019,14 +1031,14 @@ void main() {
       // can push it off centre.
       await pumpNursery(tester, size: const Size(834, 1194));
 
-      final time = tester.getRect(find.text('2:00 PM'));
+      final time = tester.getRect(find.byKey(const ValueKey('nursery-clock')));
       expect(time.center.dx, moreOrLessEquals(834 / 2, epsilon: 1));
     });
 
     testWidgets('and stays centred on a narrow screen too', (tester) async {
       await pumpNursery(tester, size: const Size(390, 844));
 
-      final time = tester.getRect(find.text('2:00 PM'));
+      final time = tester.getRect(find.byKey(const ValueKey('nursery-clock')));
       expect(time.center.dx, moreOrLessEquals(390 / 2, epsilon: 1));
     });
 
@@ -1046,27 +1058,29 @@ void main() {
       // the day under it, which is set at ordinary label size.
       await pumpNursery(tester, size: const Size(1194, 834));
 
-      final time = tester.getRect(find.text('2:00 PM'));
+      final time = tester.getRect(find.byKey(const ValueKey('nursery-clock')));
       final day = tester.getRect(find.text('Mon, Aug 24'));
       expect(time.height, greaterThan(100));
       expect(time.height, greaterThan(day.height * 4));
     });
 
-    testWidgets('and takes what the screen can spare, no more', (tester) async {
-      // Sized off both dimensions, so a phone gets a clock rather than a
-      // wall of digits with the cards pushed off the bottom.
+    testWidgets('and is as large as each screen allows', (tester) async {
+      // As wide as a phone lets its digits be, with the cards still under
+      // it; larger again on a tablet.
       await pumpNursery(tester, size: const Size(390, 844));
 
-      final phone = tester.getRect(find.text('2:00 PM')).height;
-      expect(phone, greaterThan(40), reason: 'still a clock');
-      expect(phone, lessThan(100), reason: 'and still leaves room');
+      final phone = tester
+          .getRect(find.byKey(const ValueKey('nursery-clock')))
+          .height;
+      expect(phone, greaterThan(50), reason: 'a clock, in any font');
+      expect(phone, lessThan(200), reason: 'and still leaves room');
       // The cards it sits above are still on screen.
       expect(cardLabel('Last fed'), findsOneWidget);
       expect(cardLabel('Last changed'), findsOneWidget);
 
       await pumpNursery(tester, size: const Size(1194, 834));
       expect(
-        tester.getRect(find.text('2:00 PM')).height,
+        tester.getRect(find.byKey(const ValueKey('nursery-clock'))).height,
         greaterThan(phone),
         reason: 'a tablet has room for more of it',
       );
@@ -1121,7 +1135,7 @@ void main() {
       // What keeps every other test in this file free of pending timers.
       await pumpNursery(tester);
       await tester.pump(const Duration(minutes: 5));
-      expect(find.text('2:00 PM'), findsOneWidget);
+      expect(find.byKey(const ValueKey('nursery-clock')), findsOneWidget);
     });
   });
 }
