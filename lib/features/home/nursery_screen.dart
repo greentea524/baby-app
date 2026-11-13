@@ -431,18 +431,30 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                           ],
                         );
                       }
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                      // The cards whole before the clock at full size. The
+                      // clock used to take its share first, and on an iPad
+                      // on its side in a browser — whose bars take a slice
+                      // of the height — the cards were left too little and
+                      // lost their countdowns and bars off the bottom.
+                      return CustomMultiChildLayout(
+                        delegate: _TallLayout(
+                          clockCap: _clockHeight(constraints),
+                          gapAboveButtons: narrow ? 12 : 16,
+                        ),
                         children: [
-                          SizedBox(
-                            height: _clockHeight(constraints),
+                          LayoutId(
+                            id: _TallSlot.clock,
                             child: _BigClock(clock: clock),
                           ),
-                          day,
-                          const SizedBox(height: 8),
-                          Expanded(child: cardArea),
-                          SizedBox(height: narrow ? 12 : 16),
-                          buttons,
+                          LayoutId(id: _TallSlot.day, child: day),
+                          LayoutId(
+                            id: _TallSlot.cards,
+                            // Scrolls only if even a small clock leaves
+                            // too little: very large text on a small
+                            // screen.
+                            child: SingleChildScrollView(child: cards),
+                          ),
+                          LayoutId(id: _TallSlot.buttons, child: buttons),
                         ],
                       );
                     },
@@ -726,6 +738,69 @@ double? _sharedHeadline(
   if (widest <= width) return null;
   return size * width / widest;
 }
+
+enum _TallSlot { clock, day, cards, buttons }
+
+/// The clock over the cards over the buttons, on any screen but a phone on
+/// its side.
+///
+/// The buttons and the date are laid out first, then the cards at their
+/// own height, and the clock gets what is left — up to [clockCap], its
+/// size when nothing else is short of room, and never under
+/// [_minClock]. Any height still over is split above and below the cards,
+/// so they sit centred between the date and the buttons.
+class _TallLayout extends MultiChildLayoutDelegate {
+  _TallLayout({required this.clockCap, required this.gapAboveButtons});
+
+  final double clockCap;
+  final double gapAboveButtons;
+
+  static const double _gapUnderDay = 8;
+
+  @override
+  void performLayout(Size size) {
+    final w = size.width;
+    BoxConstraints across({double max = double.infinity}) =>
+        BoxConstraints(minWidth: w, maxWidth: w, maxHeight: max);
+
+    final buttons = layoutChild(_TallSlot.buttons, across(max: size.height));
+    final day = layoutChild(_TallSlot.day, across(max: size.height));
+    final fixed = buttons.height + gapAboveButtons + day.height + _gapUnderDay;
+    final forCards = size.height - fixed - _minClock;
+    final cards = layoutChild(
+      _TallSlot.cards,
+      across(max: forCards < 0 ? 0 : forCards),
+    );
+    final left = size.height - fixed - cards.height;
+    final clock = left < clockCap
+        ? (left < _minClock ? _minClock : left)
+        : clockCap;
+    layoutChild(
+      _TallSlot.clock,
+      BoxConstraints.tightFor(width: w, height: clock),
+    );
+
+    final slack = left - clock;
+    positionChild(_TallSlot.clock, Offset.zero);
+    positionChild(_TallSlot.day, Offset(0, clock));
+    positionChild(
+      _TallSlot.cards,
+      Offset(
+        0,
+        clock + day.height + _gapUnderDay + (slack > 0 ? slack / 2 : 0),
+      ),
+    );
+    positionChild(_TallSlot.buttons, Offset(0, size.height - buttons.height));
+  }
+
+  @override
+  bool shouldRelayout(_TallLayout old) =>
+      old.clockCap != clockCap || old.gapAboveButtons != gapAboveButtons;
+}
+
+/// The smallest the clock is drawn, where it stops being a clock to read
+/// across a room.
+const double _minClock = 72;
 
 /// How tall the clock is drawn, given the room under the header.
 ///

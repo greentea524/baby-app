@@ -16,6 +16,7 @@ import 'package:baby_app/features/fridge/fridge_button.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 import 'package:baby_app/features/home/home_screen.dart';
+import 'package:baby_app/features/common/banded_track.dart';
 import 'package:baby_app/features/diaper/diaper_stock.dart';
 import 'package:baby_app/features/home/nursery_screen.dart';
 
@@ -714,6 +715,54 @@ void main() {
         amountMl: 90,
       ),
     ];
+
+    testWidgets('fit whole, bars and all, on an iPad on its side in Safari', (
+      tester,
+    ) async {
+      // The browser's bars take a slice of the height. The clock used to
+      // take its share first, and the cards lost their countdowns and bars
+      // off the bottom, under the buttons.
+      for (final size in const [
+        Size(1180, 740),
+        Size(1133, 700),
+        Size(1024, 690),
+        Size(1366, 950),
+      ]) {
+        await tester.pumpWidget(const SizedBox());
+        await pumpNursery(
+          tester,
+          size: size,
+          pumps: pumped,
+          prefs: {
+            'pump_interval_minutes': 120,
+            'reminder_mode': 'fixedInterval',
+            'unit_system': 'imperial',
+          },
+        );
+        final buttons = tester.getRect(
+          find.ancestor(
+            of: find.text('Diaper'),
+            matching: find.byType(FilledButton),
+          ),
+        );
+        final bars = find.byType(BandedTrack);
+        expect(bars, findsNWidgets(2), reason: '$size');
+        for (final bar in bars.evaluate()) {
+          final rect = tester.getRect(find.byWidget(bar.widget));
+          expect(
+            rect.bottom,
+            lessThanOrEqualTo(buttons.top),
+            reason: 'a bar under the buttons at $size',
+          );
+        }
+        // And the clock is still a clock.
+        expect(
+          tester.getRect(find.byKey(const ValueKey('nursery-clock'))).height,
+          greaterThan(150),
+          reason: '$size',
+        );
+      }
+    });
 
     testWidgets('read their times at one size, wherever they are', (
       tester,
