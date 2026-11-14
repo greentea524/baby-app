@@ -268,7 +268,7 @@ void main() {
       // than re-resolving the overridden streams — without this the second
       // pump quietly measures the first feed again.
       await tester.pumpWidget(const SizedBox());
-      await pumpHome(tester, feedings: [feedAt(400)]);
+      await pumpHome(tester, feedings: [feedAt(200)]);
       expect(
         alertDot(tester, 'FEED'),
         warningInks(tester.element(rowLabel('FEED'))).overdue,
@@ -280,7 +280,7 @@ void main() {
       final calm = alertDot(tester, 'DIAPER');
 
       await tester.pumpWidget(const SizedBox());
-      await pumpHome(tester, feedings: [feedAt(400)]);
+      await pumpHome(tester, feedings: [feedAt(200)]);
       expect(alertDot(tester, 'DIAPER'), calm);
     });
 
@@ -288,7 +288,7 @@ void main() {
       await pumpHome(
         tester,
         prefs: {'home_layout': 'separate'},
-        feedings: [feedAt(400)],
+        feedings: [feedAt(200)],
       );
       expect(alertDot(tester, 'FEED'), isNotNull);
     });
@@ -307,7 +307,7 @@ void main() {
     testWidgets('and goes red behind it once overdue', (tester) async {
       // The dot alone was easy to miss. Overdue is the one state that asks
       // for something now, so the whole row says it.
-      await pumpHome(tester, feedings: [feedAt(400)]);
+      await pumpHome(tester, feedings: [feedAt(200)]);
       final red = rowRed(tester);
       expect(red, isNotNull);
       final context = tester.element(rowLabel('FEED'));
@@ -327,11 +327,29 @@ void main() {
     testWidgets('and keeps its text in line with the other rows', (
       tester,
     ) async {
-      await pumpHome(tester, feedings: [feedAt(400)]);
+      await pumpHome(tester, feedings: [feedAt(200)]);
       // The icons, which the dot in front of the label does not move.
       Rect at(String tip) => tester.getRect(find.byTooltip(tip));
       expect(at('Log bottle').left, at('Log diaper').left);
       expect(at('Log bottle').right, at('Log diaper').right);
+    });
+
+    testWidgets('and purple once it is an hour or more late', (tester) async {
+      // Twenty minutes late and two hours late used to look the same.
+      await pumpHome(tester, feedings: [feedAt(400)]);
+      expect(find.byKey(const ValueKey('overdue-row')), findsNothing);
+      final row = find.byKey(const ValueKey('late-row'));
+      expect(row, findsOneWidget);
+      final box = tester.widget<DecoratedBox>(
+        find.descendant(of: row, matching: find.byType(DecoratedBox)).first,
+      );
+      final purple = (box.decoration as BoxDecoration).color!;
+      expect(purple.b, greaterThan(purple.g));
+      expect(purple.r, greaterThan(purple.g));
+      final context = tester.element(rowLabel('FEED'));
+      expect(alertDot(tester, 'FEED'), warningInks(context).late);
+      // Still "overdue" in words.
+      expect(find.textContaining('overdue'), findsWidgets);
     });
 
     testWidgets('and amber behind it while it is coming due', (tester) async {
@@ -365,7 +383,7 @@ void main() {
       await pumpHome(
         tester,
         prefs: {'home_layout': 'separate'},
-        feedings: [feedAt(400)],
+        feedings: [feedAt(200)],
       );
       final card = find.byKey(const ValueKey('overdue-row'));
       expect(tester.widget(card), isA<Card>());

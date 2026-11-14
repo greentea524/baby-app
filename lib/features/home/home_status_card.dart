@@ -82,6 +82,7 @@ class HomeStatusCard extends ConsumerWidget {
     }
 
     Key? keyFor(Widget row) => switch (row) {
+      _StatusRow(alert: DueState.late) => const ValueKey('late-row'),
       _StatusRow(alert: DueState.overdue) => const ValueKey('overdue-row'),
       _StatusRow(alert: DueState.soon) => const ValueKey('soon-row'),
       _ => null,
@@ -182,7 +183,7 @@ class HomeStatusCard extends ConsumerWidget {
         ),
         // "Next feed 2h overdue" reads badly, so the wording flips once it
         // has slipped past.
-        text: state == DueState.overdue
+        text: state.isPast
             ? dueLine('Feed', countdownLabel(due, now: now), 'due $at')
             : dueLine('Next feed', countdownLabel(due, now: now), at),
       );
@@ -300,6 +301,7 @@ class HomeStatusCard extends ConsumerWidget {
       // so on this row, so it is said to a screen reader too.
       alert: state,
       alertLabel: switch (state) {
+        DueState.late => 'Change well overdue',
         DueState.overdue => 'Change overdue',
         DueState.soon => 'Change due soon',
         _ => null,
@@ -384,7 +386,7 @@ class HomeStatusCard extends ConsumerWidget {
         ),
         // Flipped once it has slipped past, the way the feed chip is: "Next
         // pump 40m overdue" reads as a contradiction.
-        text: state == DueState.overdue
+        text: state.isPast
             ? dueLine('Pump', countdownLabel(due, now: now), 'due $at')
             : dueLine('Next pump', countdownLabel(due, now: now), at),
       );
@@ -442,7 +444,7 @@ class HomeStatusCard extends ConsumerWidget {
   /// how a first bottle gets added.
   ///
   /// Marked by its oldest bottle, the way the fridge's own cards are: amber
-  /// from two days, red from three.
+  /// from two days, red from three, purple once one is past its drink-by.
   Widget? _fridgeRow(BuildContext context, WidgetRef ref) {
     if (!ref.watch(showFridgeProvider)) return null;
     final shelf = ref.watch(fridgeShelfProvider);
@@ -465,7 +467,10 @@ class HomeStatusCard extends ConsumerWidget {
         : '';
 
     return _StatusRow(
-      alert: old > 0
+      // Purple once a bottle is past its drink-by: the fridge's own "late".
+      alert: past > 0
+          ? DueState.late
+          : old > 0
           ? DueState.overdue
           : aging > 0
           ? DueState.soon
@@ -613,7 +618,13 @@ class HomeStatusCard extends ConsumerWidget {
 /// first line. Wrapped as it was, the second line began with a lone "·".
 String dueLine(String lead, String countdown, String time) {
   String keep(String s) => s.replaceAll(' ', '\u00a0');
-  return '$lead ${keep(countdown)}\u00a0· ${keep(time)}';
+  // "due 8:06 AM" may break after "due": kept whole, it was too long to
+  // follow "20m overdue ·" on a nursery card's second line, and was cut
+  // to "due…".
+  final clock = time.startsWith('due ')
+      ? 'due ${keep(time.substring(4))}'
+      : keep(time);
+  return '$lead ${keep(countdown)}\u00a0· $clock';
 }
 
 /// A countdown to something being due, as a tinted pill.
@@ -658,6 +669,18 @@ const _overdueLight = (
   foreground: Color(0xFF5F1412),
 );
 
+/// An hour or more late, in purple: past red, as weather and air-quality
+/// scales go, and far enough from it in hue to tell apart on a dim screen
+/// at 3am, which a darker red was not.
+const _lateLight = (
+  background: Color(0xFFE6D3F8),
+  foreground: Color(0xFF3B1260),
+);
+const _lateDark = (
+  background: Color(0xFF55287F),
+  foreground: Color(0xFFF0E1FF),
+);
+
 /// How a feed-due state is coloured, for anything that wants to show it.
 ///
 /// Shared rather than private to [DueChip] because nursery mode tints
@@ -671,7 +694,14 @@ const _overdueLight = (
   final scheme = theme.colorScheme;
   final soon = theme.brightness == Brightness.dark ? _soonDark : _soonLight;
 
+  final late = theme.brightness == Brightness.dark ? _lateDark : _lateLight;
+
   return switch (state) {
+    DueState.late => (
+      background: late.background,
+      foreground: late.foreground,
+      icon: Icons.notification_important,
+    ),
     DueState.overdue => (
       background: theme.brightness == Brightness.dark
           ? scheme.errorContainer
@@ -711,6 +741,7 @@ double _tintStrength(DueState state) => switch (state) {
   DueState.upcoming => 0.35,
   DueState.soon => 0.55,
   DueState.overdue => 0.85,
+  DueState.late => 0.9,
 };
 
 Color dueTint(BuildContext context, DueState state, Color on) =>
@@ -885,10 +916,12 @@ class DueChip extends StatelessWidget {
                       color: foreground,
                       fontWeight: FontWeight.w600,
                     ),
-                    // Two lines before an ellipsis: at a large text size the
+                    // Three lines before an ellipsis: at a large text size the
                     // clock time is the end of the line, and the first thing
-                    // a single line would lose.
-                    maxLines: 2,
+                    // a short limit would lose. On a nursery card "Pump / 20m
+                    // overdue · due / 8:06 AM" takes all three, and two cut
+                    // it to "due…".
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -1082,6 +1115,7 @@ class _Eyebrow extends StatelessWidget {
     final theme = Theme.of(context);
     final inks = warningInks(context);
     final dot = switch (alert) {
+      DueState.late => inks.late,
       DueState.overdue => inks.overdue,
       DueState.soon => inks.soon,
       _ => null,

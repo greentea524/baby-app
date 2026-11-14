@@ -112,7 +112,7 @@ void main() {
     expect(find.byKey(const ValueKey('fridge-open')), findsNothing);
   });
 
-  testWidgets('names the most pressing bottle, and turns amber then red', (
+  testWidgets('names the most pressing bottle, and turns amber then purple', (
     tester,
   ) async {
     await pumpCard(tester, bottles: [bottle('a', 50, 90), bottle('b', 2, 60)]);
@@ -125,10 +125,10 @@ void main() {
       tester,
       bottles: [bottle('a', 100, 90), bottle('b', 80, 60)],
     );
-    // Past drink-by outranks merely old.
+    // Past drink-by outranks merely old, and is the fridge's "late".
     expect(find.text('1 is past drink-by'), findsOneWidget);
     final again = tester.element(find.text('FRIDGE'));
-    expect(dot(tester), warningInks(again).overdue);
+    expect(dot(tester), warningInks(again).late);
   });
 
   testWidgets('has the bottle up next, to feed in one tap', (tester) async {

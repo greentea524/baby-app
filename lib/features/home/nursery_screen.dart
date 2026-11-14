@@ -546,7 +546,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
         headsUp: ref.watch(reminderSettingsProvider).headsUp,
         interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
       ),
-      text: state == DueState.overdue
+      text: state.isPast
           ? dueLine('Pump', countdownLabel(due, now: clock), 'due $at')
           : dueLine('Next pump', countdownLabel(due, now: clock), at),
     );
@@ -620,7 +620,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
       state: state,
       remaining: remaining,
       soonFrom: soonFrom,
-      text: state == DueState.overdue
+      text: state.isPast
           ? dueLine('Feed', countdownLabel(due, now: clock), 'due $at')
           : dueLine('Next feed', countdownLabel(due, now: clock), at),
     );

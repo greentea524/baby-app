@@ -20,9 +20,12 @@ void main() {
     expect(at(const Duration(hours: 2, minutes: 59)), DueState.soon);
   });
 
-  test('three hours is overdue, and stays overdue', () {
+  test('three hours is overdue, and four is late', () {
     expect(at(const Duration(hours: 3)), DueState.overdue);
-    expect(at(const Duration(hours: 9)), DueState.overdue);
+    expect(at(const Duration(hours: 3, minutes: 59)), DueState.overdue);
+    // An hour past red, purple: the feed clock's rule, so the same here.
+    expect(at(const Duration(hours: 4)), DueState.late);
+    expect(at(const Duration(hours: 9)), DueState.late);
   });
 
   test('nothing logged is not overdue, it is empty', () {

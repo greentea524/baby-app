@@ -758,7 +758,8 @@ void main() {
         // And the clock is still a clock.
         expect(
           tester.getRect(find.byKey(const ValueKey('nursery-clock'))).height,
-          greaterThan(150),
+          // Room for the countdown's third line comes out of the clock.
+          greaterThanOrEqualTo(140),
           reason: '$size',
         );
       }

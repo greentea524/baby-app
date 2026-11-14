@@ -51,7 +51,7 @@ void main() {
     }
     expect(
       seen.values.toSet(),
-      hasLength(3),
+      hasLength(DueState.values.length),
       reason: 'a shared colour would make a state invisible',
     );
   });
@@ -136,5 +136,33 @@ void main() {
     final line = dueLine('Next feed', 'in 1h 30m', '2:15 PM');
     expect(line, 'Next feed in\u00a01h\u00a030m\u00a0· 2:15\u00a0PM');
     expect(line, isNot(contains(' ·')));
+  });
+
+  test('an hour past due is late, not merely overdue', () {
+    final due = DateTime(2026, 11, 14, 9);
+    DueState at(int minutesPast) =>
+        feedDueState(due, now: due.add(Duration(minutes: minutesPast)));
+    expect(at(0), DueState.overdue);
+    expect(at(59), DueState.overdue);
+    expect(at(60), DueState.late);
+    expect(at(300), DueState.late);
+    expect(DueState.late.isPast, isTrue);
+    expect(DueState.overdue.isPast, isTrue);
+    expect(DueState.soon.isPast, isFalse);
+  });
+
+  testWidgets('late is purple, in both themes', (tester) async {
+    for (final brightness in Brightness.values) {
+      await pumpChip(tester, DueState.late, brightness: brightness);
+      final purple = background(tester);
+      // Blue and red both over green: purple, not the red before it.
+      expect(purple.b, greaterThan(purple.g), reason: '$brightness');
+      expect(purple.r, greaterThan(purple.g), reason: '$brightness');
+    }
+  });
+
+  test('an overdue line can break after "due", not inside the time', () {
+    final line = dueLine('Pump', '20m overdue', 'due 8:06 AM');
+    expect(line, 'Pump 20m\u00a0overdue\u00a0· due 8:06\u00a0AM');
   });
 }

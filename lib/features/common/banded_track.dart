@@ -4,18 +4,22 @@ import 'package:flutter/material.dart';
 /// left end and 1 at the right, in [colour].
 typedef TrackBand = ({double from, double to, Color colour});
 
-/// The three inks a warning goes through, for bands: the app's own colour,
-/// then amber, then red.
+/// The inks a warning goes through: the app's own colour, then amber, then
+/// red, then purple once it is an hour or more late.
 ///
 /// Saturated rather than the card and chip tints, which a bar this thin
 /// would lose against a background already that colour.
-({Color ok, Color soon, Color overdue}) warningInks(BuildContext context) {
+({Color ok, Color soon, Color overdue, Color late}) warningInks(
+  BuildContext context,
+) {
   final theme = Theme.of(context);
   final dark = theme.brightness == Brightness.dark;
   return (
     ok: theme.colorScheme.primary,
     soon: dark ? const Color(0xFFFFC94D) : const Color(0xFFD99A00),
     overdue: theme.colorScheme.error,
+    // Past red, as weather and air-quality scales go: an hour or more late.
+    late: dark ? const Color(0xFFC79BFF) : const Color(0xFF7B2FBF),
   );
 }
 

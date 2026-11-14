@@ -141,7 +141,17 @@ enum DueState {
 
   /// Due, or past it.
   overdue,
+
+  /// Well past it: an hour or more over. Its own colour, purple, so a feed
+  /// twenty minutes late and one two hours late do not look the same.
+  late;
+
+  /// Due or past it, however long ago: what reads "overdue" in words.
+  bool get isPast => this == overdue || this == late;
 }
+
+/// How long past due before overdue becomes [DueState.late].
+const Duration lateAfter = Duration(hours: 1);
 
 /// The default heads-up, in minutes, before a feed reads as imminent.
 ///
@@ -163,6 +173,7 @@ DueState feedDueState(
   required DateTime now,
   Duration within = feedDueSoonWindow,
 }) {
+  if (now.difference(due) >= lateAfter) return DueState.late;
   if (!due.isAfter(now)) return DueState.overdue;
   return due.difference(now) <= within ? DueState.soon : DueState.upcoming;
 }
