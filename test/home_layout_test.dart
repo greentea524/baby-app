@@ -9,6 +9,7 @@ import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
 import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/pumping_event.dart';
+import 'package:baby_app/features/reminders/feed_prediction.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/activity/activity_filter.dart';
 import 'package:baby_app/features/home/home_prefs.dart';
@@ -38,6 +39,10 @@ Color? alertDot(WidgetTester tester, String label) {
   final box = tester.widget<Container>(found).decoration! as BoxDecoration;
   return box.color;
 }
+
+/// A Home row coloured for [state].
+Finder markedRow(DueState state) =>
+    find.byWidgetPredicate((w) => w is AlertRowMark && w.state == state);
 
 /// A row's label on Home — "PUMP" — with or without today's number after
 /// it ("PUMP #2").
@@ -294,10 +299,10 @@ void main() {
     });
 
     Color? rowRed(WidgetTester tester) {
-      final row = find.byKey(const ValueKey('overdue-row'));
+      final row = markedRow(DueState.overdue);
       if (row.evaluate().isEmpty) return null;
-      final widget = tester.widget(row);
-      if (widget is Card) return widget.color;
+      final card = find.descendant(of: row, matching: find.byType(Card));
+      if (card.evaluate().isNotEmpty) return tester.widget<Card>(card).color;
       final box = tester.widget<DecoratedBox>(
         find.descendant(of: row, matching: find.byType(DecoratedBox)).first,
       );
@@ -314,10 +319,10 @@ void main() {
       expect(red!.r, greaterThan(red.b));
       expect(red, isNot(Theme.of(context).colorScheme.surface));
       // Only the feed row: the diaper row beside it is not overdue.
-      expect(find.byKey(const ValueKey('overdue-row')), findsOneWidget);
+      expect(markedRow(DueState.overdue), findsOneWidget);
       expect(
         find.descendant(
-          of: find.byKey(const ValueKey('overdue-row')),
+          of: markedRow(DueState.overdue),
           matching: rowLabel('FEED'),
         ),
         findsOneWidget,
@@ -337,8 +342,8 @@ void main() {
     testWidgets('and purple once it is an hour or more late', (tester) async {
       // Twenty minutes late and two hours late used to look the same.
       await pumpHome(tester, feedings: [feedAt(400)]);
-      expect(find.byKey(const ValueKey('overdue-row')), findsNothing);
-      final row = find.byKey(const ValueKey('late-row'));
+      expect(markedRow(DueState.overdue), findsNothing);
+      final row = markedRow(DueState.late);
       expect(row, findsOneWidget);
       final box = tester.widget<DecoratedBox>(
         find.descendant(of: row, matching: find.byType(DecoratedBox)).first,
@@ -357,8 +362,8 @@ void main() {
       // which is kept for late.
       await pumpHome(tester, feedings: [feedAt(165)]);
       expect(alertDot(tester, 'FEED'), isNotNull);
-      expect(find.byKey(const ValueKey('overdue-row')), findsNothing);
-      final row = find.byKey(const ValueKey('soon-row'));
+      expect(markedRow(DueState.overdue), findsNothing);
+      final row = markedRow(DueState.soon);
       expect(row, findsOneWidget);
       expect(
         find.descendant(of: row, matching: rowLabel('FEED')),
@@ -375,8 +380,8 @@ void main() {
 
     testWidgets('and nothing behind it while there is time', (tester) async {
       await pumpHome(tester, feedings: [feedAt(15)]);
-      expect(find.byKey(const ValueKey('overdue-row')), findsNothing);
-      expect(find.byKey(const ValueKey('soon-row')), findsNothing);
+      expect(markedRow(DueState.overdue), findsNothing);
+      expect(markedRow(DueState.soon), findsNothing);
     });
 
     testWidgets('and the whole card in the separate layout', (tester) async {
@@ -385,14 +390,68 @@ void main() {
         prefs: {'home_layout': 'separate'},
         feedings: [feedAt(200)],
       );
-      final card = find.byKey(const ValueKey('overdue-row'));
-      expect(tester.widget(card), isA<Card>());
+      final card = markedRow(DueState.overdue);
+      expect(
+        find.descendant(of: card, matching: find.byType(Card)),
+        findsOneWidget,
+      );
       expect(rowRed(tester), isNotNull);
       expect(
         find.descendant(of: card, matching: rowLabel('FEED')),
         findsOneWidget,
       );
     });
+  });
+
+  group('two rows in the same state at once', () {
+    // Each coloured row used to carry the same key for its state, and two in
+    // one column threw: a feed and a pump both overdue took Home down to an
+    // error screen.
+    for (final layout in ['combined', 'separate']) {
+      testWidgets('both coloured, in the $layout layout', (tester) async {
+        final pumped = DateTime.now().subtract(const Duration(hours: 4));
+        SharedPreferences.setMockInitialValues({
+          'reminder_mode': 'fixedInterval',
+          'pump_interval_minutes': 220,
+          'home_layout': layout,
+        });
+        final stored = await SharedPreferences.getInstance();
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(stored),
+              authStateProvider.overrideWith((ref) => Stream.value(null)),
+              babiesStreamProvider.overrideWith((ref) => Stream.value([baby])),
+              recentFeedingsProvider.overrideWith(
+                (ref) => Stream.value([
+                  FeedingEvent(
+                    id: 'f1',
+                    type: FeedingType.bottle,
+                    startTime: DateTime.now().subtract(
+                      const Duration(minutes: 200),
+                    ),
+                    amountMl: 120,
+                  ),
+                ]),
+              ),
+              recentDiapersProvider.overrideWith(
+                (ref) => Stream.value(fixtureDiapers),
+              ),
+              recentPumpingProvider.overrideWith(
+                (ref) => Stream.value([
+                  PumpingEvent(id: 'p1', time: pumped, amountMl: 90),
+                ]),
+              ),
+            ],
+            child: const MaterialApp(home: HomeScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(markedRow(DueState.overdue), findsNWidgets(2));
+      });
+    }
   });
 
   group('the next-feed track', () {

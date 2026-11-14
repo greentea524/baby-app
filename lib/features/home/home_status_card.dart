@@ -32,6 +32,19 @@ import '../fridge/bottle_sheet.dart';
 import '../fridge/finish_bottle.dart';
 import 'home_prefs.dart';
 
+/// Wraps a Home row coloured for its [state] — amber, red or purple — so
+/// tests and screen code can find it. Draws nothing of its own.
+class AlertRowMark extends StatelessWidget {
+  const AlertRowMark({super.key, required this.state, required this.child});
+
+  /// Null for a row left plain.
+  final DueState? state;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
 /// The Home status card (KAN-179): where feeding, diapers and pumping stand.
 ///
 /// The next appointment used to sit here too, but it is the one thing on Home
@@ -81,12 +94,12 @@ class HomeStatusCard extends ConsumerWidget {
           : dueTint(context, state, surface);
     }
 
-    Key? keyFor(Widget row) => switch (row) {
-      _StatusRow(alert: DueState.late) => const ValueKey('late-row'),
-      _StatusRow(alert: DueState.overdue) => const ValueKey('overdue-row'),
-      _StatusRow(alert: DueState.soon) => const ValueKey('soon-row'),
-      _ => null,
-    };
+    // Which state a coloured row is in, for [AlertRowMark]. Not a key: two
+    // rows can be in the same state at once — a feed and a pump both
+    // overdue — and two identical keys in one column throw, which took Home
+    // down to an error screen.
+    DueState? markFor(Widget row) =>
+        tint(row) == null ? null : (row as _StatusRow).alert;
 
     if (ref.watch(homeLayoutProvider) == HomeLayout.separate) {
       return Padding(
@@ -94,13 +107,15 @@ class HomeStatusCard extends ConsumerWidget {
         child: Column(
           children: [
             for (final row in rows)
-              Card(
-                key: keyFor(row),
-                color: tint(row),
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: row,
+              AlertRowMark(
+                state: markFor(row),
+                child: Card(
+                  color: tint(row),
+                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: row,
+                  ),
                 ),
               ),
           ],
@@ -131,21 +146,23 @@ class HomeStatusCard extends ConsumerWidget {
                 // Painted behind the row rather than wrapping it, so the
                 // row keeps its width and its text stays in line with the
                 // rows above and below.
-                Stack(
-                  key: keyFor(rows[i]),
-                  children: [
-                    Positioned.fill(
-                      left: 8,
-                      right: 8,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: colour,
-                          borderRadius: BorderRadius.circular(16),
+                AlertRowMark(
+                  state: markFor(rows[i]),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        left: 8,
+                        right: 8,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: colour,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
-                    ),
-                    rows[i],
-                  ],
+                      rows[i],
+                    ],
+                  ),
                 )
               else
                 rows[i],
