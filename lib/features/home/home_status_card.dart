@@ -59,26 +59,33 @@ class HomeStatusCard extends ConsumerWidget {
       ?_fridgeRow(context, ref),
     ];
 
-    // A row whose thing is overdue — a feed or a pump past due, a change
-    // three hours on, a bottle three days old — goes red behind it, not
-    // only in the dot by its label: the one state that asks for something
-    // now should be seen from across the room, not read.
-    bool overdue(Widget row) =>
-        row is _StatusRow && row.alert == DueState.overdue;
+    // A row that is coming due or overdue is coloured behind it, not only
+    // in the dot by its label: amber as a feed or pump nears its time, a
+    // change reaches two hours or a bottle two days; red once it is past.
+    // Seen from across the room rather than read.
     final surface =
         Theme.of(context).cardTheme.color ??
         Theme.of(context).colorScheme.surfaceContainerLow;
-    // Softer in the dark: at full strength it was a block of bright red on
-    // a black screen, which glares at a night feed. Still plainly red.
-    final red = Theme.of(context).brightness == Brightness.dark
-        ? Color.alphaBlend(
-            dueColors(
-              context,
-              DueState.overdue,
-            ).background.withValues(alpha: 0.55),
-            surface,
-          )
-        : dueTint(context, DueState.overdue, surface);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    Color? tint(Widget row) {
+      if (row is! _StatusRow) return null;
+      final state = row.alert;
+      if (state == null || state == DueState.upcoming) return null;
+      // Softer in the dark: at full strength it was a block of bright
+      // colour on a black screen, which glares at a night feed.
+      return dark
+          ? Color.alphaBlend(
+              dueColors(context, state).background.withValues(alpha: 0.55),
+              surface,
+            )
+          : dueTint(context, state, surface);
+    }
+
+    Key? keyFor(Widget row) => switch (row) {
+      _StatusRow(alert: DueState.overdue) => const ValueKey('overdue-row'),
+      _StatusRow(alert: DueState.soon) => const ValueKey('soon-row'),
+      _ => null,
+    };
 
     if (ref.watch(homeLayoutProvider) == HomeLayout.separate) {
       return Padding(
@@ -87,8 +94,8 @@ class HomeStatusCard extends ConsumerWidget {
           children: [
             for (final row in rows)
               Card(
-                key: overdue(row) ? const ValueKey('overdue-row') : null,
-                color: overdue(row) ? red : null,
+                key: keyFor(row),
+                color: tint(row),
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
@@ -110,8 +117,8 @@ class HomeStatusCard extends ConsumerWidget {
               // Indented to the text, not the icon: the icons then run down
               // the card as one column, and each rule underlines the row it
               // ends rather than cutting across the column.
-              // No rule against a red row: its own edge does that job.
-              if (i > 0 && !overdue(rows[i]) && !overdue(rows[i - 1]))
+              // No rule against a coloured row: its own edge does that job.
+              if (i > 0 && tint(rows[i]) == null && tint(rows[i - 1]) == null)
                 const Divider(
                   height: 1,
                   indent: _StatusRow.textInset,
@@ -119,19 +126,19 @@ class HomeStatusCard extends ConsumerWidget {
                 )
               else if (i > 0)
                 const SizedBox(height: 1),
-              if (overdue(rows[i]))
+              if (tint(rows[i]) case final colour?)
                 // Painted behind the row rather than wrapping it, so the
                 // row keeps its width and its text stays in line with the
                 // rows above and below.
                 Stack(
-                  key: const ValueKey('overdue-row'),
+                  key: keyFor(rows[i]),
                   children: [
                     Positioned.fill(
                       left: 8,
                       right: 8,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: red,
+                          color: colour,
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),

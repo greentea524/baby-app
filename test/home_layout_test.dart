@@ -334,12 +334,31 @@ void main() {
       expect(at('Log bottle').right, at('Log diaper').right);
     });
 
-    testWidgets('but not while it is only coming due', (tester) async {
-      // Amber stays the dot: red behind every row that is merely near would
-      // leave nothing to mark the one that is late.
+    testWidgets('and amber behind it while it is coming due', (tester) async {
+      // The heads-up stretch gets its colour too, the bar's amber: not red,
+      // which is kept for late.
       await pumpHome(tester, feedings: [feedAt(165)]);
       expect(alertDot(tester, 'FEED'), isNotNull);
-      expect(rowRed(tester), isNull);
+      expect(find.byKey(const ValueKey('overdue-row')), findsNothing);
+      final row = find.byKey(const ValueKey('soon-row'));
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: rowLabel('FEED')),
+        findsOneWidget,
+      );
+      final box = tester.widget<DecoratedBox>(
+        find.descendant(of: row, matching: find.byType(DecoratedBox)).first,
+      );
+      final amber = (box.decoration as BoxDecoration).color!;
+      // Yellow: red and green both well over blue.
+      expect(amber.r, greaterThan(amber.b));
+      expect(amber.g, greaterThan(amber.b));
+    });
+
+    testWidgets('and nothing behind it while there is time', (tester) async {
+      await pumpHome(tester, feedings: [feedAt(15)]);
+      expect(find.byKey(const ValueKey('overdue-row')), findsNothing);
+      expect(find.byKey(const ValueKey('soon-row')), findsNothing);
     });
 
     testWidgets('and the whole card in the separate layout', (tester) async {
