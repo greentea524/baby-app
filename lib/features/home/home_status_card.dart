@@ -198,6 +198,12 @@ class HomeStatusCard extends ConsumerWidget {
           headsUp: settings.headsUp,
           interval: Duration(minutes: settings.intervalMinutes),
         ),
+        overdueFrom: dueOverdueShare(
+          interval: Duration(minutes: settings.intervalMinutes),
+        ),
+        lateFrom: dueLateShare(
+          interval: Duration(minutes: settings.intervalMinutes),
+        ),
         // "Next feed 2h overdue" reads badly, so the wording flips once it
         // has slipped past.
         text: state.isPast
@@ -399,6 +405,12 @@ class HomeStatusCard extends ConsumerWidget {
         ),
         soonFrom: dueSoonShare(
           headsUp: headsUp,
+          interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
+        ),
+        overdueFrom: dueOverdueShare(
+          interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
+        ),
+        lateFrom: dueLateShare(
           interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
         ),
         // Flipped once it has slipped past, the way the feed chip is: "Next
@@ -777,9 +789,17 @@ class DueChip extends StatelessWidget {
     required this.state,
     this.remaining,
     this.soonFrom,
+    this.overdueFrom,
+    this.lateFrom,
     this.icon,
     this.barBelow = false,
   });
+
+  /// Where along the track the due time falls, and an hour past it — see
+  /// [dueOverdueShare] and [dueLateShare]. Red between the two, purple to
+  /// the left of the second. Null leaves the bar ending at the due time.
+  final double? overdueFrom;
+  final double? lateFrom;
 
   final String text;
   final DueState state;
@@ -826,9 +846,14 @@ class DueChip extends StatelessWidget {
     // With the bar below, the chip itself carries no underline.
     final left = barBelow ? null : remaining;
     final amber = soonFrom;
+    final red = overdueFrom ?? 0.0;
+    final purple = lateFrom ?? 0.0;
     final bands = <TrackBand>[
-      if (amber != null && amber > 0) (from: 0.0, to: amber, colour: inks.soon),
-      (from: amber ?? 0.0, to: 1.0, colour: inks.ok),
+      if (purple > 0) (from: 0.0, to: purple, colour: inks.late),
+      if (red > purple) (from: purple, to: red, colour: inks.overdue),
+      if (amber != null && amber > red)
+        (from: red, to: amber, colour: inks.soon),
+      (from: amber ?? red, to: 1.0, colour: inks.ok),
     ];
 
     if (barBelow) {

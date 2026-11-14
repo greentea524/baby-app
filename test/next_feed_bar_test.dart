@@ -105,13 +105,22 @@ void main() {
   });
 
   group('where the heads-up starts', () {
-    test('is the heads-up as a share of the gap', () {
+    test('is the heads-up past the red and purple, as a share of the bar', () {
+      // 3h gap + 1h red + 30m purple = 270m; amber ends 90m + 15m in.
       expect(
         dueSoonShare(
           headsUp: const Duration(minutes: 15),
           interval: const Duration(hours: 3),
         ),
-        closeTo(15 / 180, 1e-9),
+        closeTo(105 / 270, 1e-9),
+      );
+      expect(
+        dueOverdueShare(interval: const Duration(hours: 3)),
+        closeTo(90 / 270, 1e-9),
+      );
+      expect(
+        dueLateShare(interval: const Duration(hours: 3)),
+        closeTo(30 / 270, 1e-9),
       );
     });
 
@@ -172,6 +181,51 @@ void main() {
       await pumpChip(tester, null, barBelow: true);
       expect(find.byType(BandedTrack), findsNothing);
       expect(find.text('Next feed in 1h · 5:00 PM'), findsOneWidget);
+    });
+  });
+
+  group('past due', () {
+    Future<void> pumpBar(WidgetTester tester, double remaining) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 300,
+                child: DueChip(
+                  state: DueState.overdue,
+                  text: 'Feed 20m overdue',
+                  barBelow: true,
+                  remaining: remaining,
+                  soonFrom: 105 / 270,
+                  overdueFrom: 90 / 270,
+                  lateFrom: 30 / 270,
+                ),
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('the bar is banded purple, red, amber, then the app colour', (
+      tester,
+    ) async {
+      await pumpBar(tester, 1);
+      final track = tester.widget<BandedTrack>(find.byType(BandedTrack));
+      final context = tester.element(find.byType(BandedTrack));
+      final inks = warningInks(context);
+      expect(track.bands.map((b) => b.colour), [
+        inks.late,
+        inks.overdue,
+        inks.soon,
+        inks.ok,
+      ]);
+    });
+
+    testWidgets('and overdue still has red left on it', (tester) async {
+      // 20 minutes past due: into the red, not empty as it used to be.
+      await pumpBar(tester, 70 / 270);
+      expect(widthOf(tester, band(0)), greaterThan(0));
+      expect(widthOf(tester, band(1)), greaterThan(0));
+      expect(widthOf(tester, band(2)), 0);
     });
   });
 }

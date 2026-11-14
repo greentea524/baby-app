@@ -9,20 +9,40 @@ void main() {
   double? at(Duration untilDue) =>
       feedRemaining(due: now.add(untilDue), interval: interval, now: now);
 
-  test('full just after a feed, empty when due', () {
+  // The bar runs on past the due time: an hour of red, then half an hour
+  // of purple. 3h + 1h + 30m.
+  const span = 270.0;
+
+  test('full just after a feed, a third left when due', () {
     expect(at(interval), 1.0);
-    expect(at(Duration.zero), 0.0);
+    expect(at(Duration.zero), closeTo(90 / span, 1e-9));
+    expect(
+      at(Duration.zero),
+      closeTo(dueOverdueShare(interval: interval)!, 1e-9),
+      reason: 'the due time is where the red starts',
+    );
   });
 
-  test('halfway through the gap is half left', () {
-    expect(at(const Duration(hours: 1, minutes: 30)), closeTo(0.5, 0.001));
-    expect(at(const Duration(minutes: 45)), closeTo(0.25, 0.001));
+  test('halfway through the gap', () {
+    expect(
+      at(const Duration(hours: 1, minutes: 30)),
+      closeTo(180 / span, 1e-9),
+    );
   });
 
-  test('overdue reads as empty, not as negative', () {
-    // A bar has no room past zero; how far past is the countdown's job.
-    expect(at(const Duration(hours: -2)), 0.0);
-    expect(at(const Duration(hours: -40)), 0.0);
+  test('an hour overdue is where purple starts', () {
+    expect(
+      at(const Duration(hours: -1)),
+      closeTo(dueLateShare(interval: interval)!, 1e-9),
+    );
+  });
+
+  test('hours late keeps a sliver of purple, never negative', () {
+    // An empty bar would say nothing about a feed that is hours late.
+    final sliver = at(const Duration(hours: -40))!;
+    expect(sliver, greaterThan(0));
+    expect(sliver, lessThan(dueLateShare(interval: interval)!));
+    expect(at(const Duration(hours: -2)), sliver);
   });
 
   test('nothing to count towards draws nothing', () {

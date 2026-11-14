@@ -251,6 +251,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                                         .intervalMinutes,
                                   ),
                                 ),
+                                ref,
                               ),
                         // The same escalation the chip carries, on the whole
                         // card. From a doorway the colour arrives before any
@@ -546,6 +547,12 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
         headsUp: ref.watch(reminderSettingsProvider).headsUp,
         interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
       ),
+      overdueFrom: dueOverdueShare(
+        interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
+      ),
+      lateFrom: dueLateShare(
+        interval: Duration(minutes: ref.watch(pumpIntervalProvider)),
+      ),
       text: state.isPast
           ? dueLine('Pump', countdownLabel(due, now: clock), 'due $at')
           : dueLine('Next pump', countdownLabel(due, now: clock), at),
@@ -613,13 +620,19 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
     DueState? state,
     double? remaining,
     double? soonFrom,
+    WidgetRef ref,
   ) {
     if (due == null || state == null) return null;
     final at = TimeOfDay.fromDateTime(due).format(context);
+    final interval = Duration(
+      minutes: ref.watch(reminderSettingsProvider).intervalMinutes,
+    );
     return DueChip(
       state: state,
       remaining: remaining,
       soonFrom: soonFrom,
+      overdueFrom: dueOverdueShare(interval: interval),
+      lateFrom: dueLateShare(interval: interval),
       text: state.isPast
           ? dueLine('Feed', countdownLabel(due, now: clock), 'due $at')
           : dueLine('Next feed', countdownLabel(due, now: clock), at),

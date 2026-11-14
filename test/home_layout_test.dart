@@ -475,7 +475,7 @@ void main() {
         );
         // Filled across however many bands it reaches.
         var filled = 0.0;
-        for (var i = 0; i < 3; i++) {
+        for (var i = 0; i < 5; i++) {
           final band = find.descendant(
             of: find.byType(DueChip),
             matching: find.byKey(ValueKey('band-$i')),

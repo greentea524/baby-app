@@ -178,8 +178,18 @@ DueState feedDueState(
   return due.difference(now) <= within ? DueState.soon : DueState.upcoming;
 }
 
-/// How much of the gap to the next feed is left, from 1 just after a feed to
-/// 0 when it is due. Null when there is no next feed to count towards.
+/// How far past due the bar runs: the hour of red to [lateAfter], then this
+/// much purple. Purple has no end of its own, so its stretch on the bar is
+/// only long enough to be seen.
+const Duration lateShown = Duration(minutes: 30);
+
+/// The whole stretch the bar covers: the gap to the next feed, then red, then
+/// purple.
+Duration _barSpan(Duration interval) => interval + lateAfter + lateShown;
+
+/// How much of the bar is left, from 1 just after a feed down through the
+/// heads-up, the due time, the hour overdue and on into purple. Null when
+/// there is no next feed to count towards.
 ///
 /// The start is derived as `due - interval` rather than looked up from the
 /// feeds. That is not a shortcut: it makes the bar and the countdown beside
@@ -188,24 +198,45 @@ DueState feedDueState(
 /// separate lookup out — a snack does not move the clock, so the feed the
 /// gap is measured from is not always the most recent one.
 ///
-/// Clamped, so an overdue feed reads as empty rather than negative. How long
-/// it has been overdue is the countdown's job; a bar has no room past zero.
+/// It used to end at the due time, so a feed overdue — the moment the bar
+/// mattered most — showed an empty one. It now runs on past it, through red
+/// and into purple, and never quite empties: a sliver of purple stays, so a
+/// feed hours late still says so on the bar.
 double? feedRemaining({
   required DateTime? due,
   required Duration interval,
   required DateTime now,
 }) {
   if (due == null || interval <= Duration.zero) return null;
-  final left = due.difference(now).inSeconds / interval.inSeconds;
-  return left.clamp(0.0, 1.0);
+  final span = _barSpan(interval);
+  final end = due.add(lateAfter + lateShown);
+  final left = end.difference(now).inSeconds / span.inSeconds;
+  final sliver = lateShown.inSeconds / span.inSeconds * 0.15;
+  return left.clamp(sliver, 1.0);
 }
 
-/// Where on the [feedRemaining] bar the heads-up starts: the share of the
-/// gap that is left once the next feed is [headsUp] away, and the chip turns
-/// amber. Null with no gap to measure against.
+/// Where on the [feedRemaining] bar the heads-up starts: the amber stretch's
+/// right-hand end. Null with no gap to measure against.
 double? dueSoonShare({required Duration headsUp, required Duration interval}) {
   if (interval <= Duration.zero) return null;
-  return (headsUp.inSeconds / interval.inSeconds).clamp(0.0, 1.0);
+  final span = _barSpan(interval);
+  return ((lateAfter + lateShown + headsUp).inSeconds / span.inSeconds).clamp(
+    0.0,
+    1.0,
+  );
+}
+
+/// Where on the bar the due time falls: amber to its right, red to its left.
+double? dueOverdueShare({required Duration interval}) {
+  if (interval <= Duration.zero) return null;
+  return (lateAfter + lateShown).inSeconds / _barSpan(interval).inSeconds;
+}
+
+/// Where on the bar an hour past due falls: red to its right, purple to its
+/// left.
+double? dueLateShare({required Duration interval}) {
+  if (interval <= Duration.zero) return null;
+  return lateShown.inSeconds / _barSpan(interval).inSeconds;
 }
 
 /// Human countdown to [due]: "in 1h 20m", "due now", "25m overdue".
