@@ -214,6 +214,33 @@ whose `activate` handler calls `self.registration.unregister()`. Browsers
 always fetch the worker script itself from the network, so the replacement
 reaches every device the next time it opens online.
 
+## Installing on iPhone, and the privacy policy
+
+**Add to Home Screen.** iOS never offers to install a web app, and web push
+only reaches one opened from the Home Screen (iOS 16.4+), so the app explains
+it itself (`lib/features/install/`). In an iPhone or iPad browser tab — and
+nowhere else — it shows:
+
+- on the login screen, a banner saying to add it *before* signing in (the
+  Home Screen app has its own storage, so signing in first means doing it
+  twice);
+- on Home, the same banner, which **Not now** puts away on that device;
+- in Settings, an **Add to Home Screen** row, and the Background reminders
+  switch replaced by a pointer to the guide.
+
+The guide's steps follow the browser: Safari, Chrome/Edge/Firefox, or an
+in-app browser (Gmail, Instagram…) that has to hand over to Safari first.
+Detection is `lib/core/web/install_hint.dart`, tested in
+`test/install_hint_test.dart`.
+
+**Privacy policy.** `web/privacy.html` is a static page served at
+`/privacy.html`, linked from the login screen and Settings. Before deploying,
+**replace both `CONTACT_EMAIL` placeholders** with a real address. Use the
+URL for Google Cloud → OAuth consent screen → *Privacy policy link*, and
+`/privacy.html#delete-account` wherever a store asks for an account-deletion
+page. The service worker serves it like the rest of the app, so it opens
+offline; it loads nothing external.
+
 ## Native mobile builds (Android / iOS)
 
 The `android/` and `ios/` projects are scaffolded and the auth code already

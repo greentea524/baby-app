@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy · Baby App</title>
+  <meta name="description" content="What Baby App stores, who can see it, and how to delete it.">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <!--
+    A page of its own, not part of the Flutter app: it has to be readable
+    without signing in, without JavaScript, and by Google's sign-in consent
+    screen, which links here. No external resources, so the service worker
+    can serve it offline from the app's own cache (web/app_sw.js).
+
+    Before publishing: replace both CONTACT_EMAIL placeholders below.
+  -->
+  <style>
+    :root {
+      --bg: #f7f8fc;
+      --surface: #ffffff;
+      --text: #1b1d23;
+      --muted: #5a5f6b;
+      --accent: #4f6fae;
+      --border: #dde1ea;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121418;
+        --surface: #1b1e24;
+        --text: #e5e7ec;
+        --muted: #a2a8b4;
+        --accent: #9fb6e6;
+        --border: #2c3039;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-text-size-adjust: 100%;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 32px 16px 64px;
+    }
+    header { margin-bottom: 24px; }
+    h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 4px; }
+    h2 {
+      font-size: 1.2rem;
+      margin: 36px 0 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    h3 { font-size: 1rem; margin: 20px 0 4px; }
+    p, li { margin: 0 0 10px; }
+    ul { padding-left: 22px; margin: 0 0 12px; }
+    a { color: var(--accent); }
+    .muted { color: var(--muted); }
+    .summary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+    }
+    .summary ul { margin: 0; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 0.95rem; }
+    th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; }
+    @media (max-width: 520px) {
+      table, thead, tbody, tr, th, td { display: block; }
+      thead { display: none; }
+      tr { padding: 8px 0; border-bottom: 1px solid var(--border); }
+      td { border: 0; padding: 2px 0; }
+      td:first-child { font-weight: 600; }
+    }
+    footer { margin-top: 48px; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Privacy Policy</h1>
+    <p class="muted">Baby App · Effective 20 November 2026</p>
+  </header>
+
+  <div class="summary">
+    <p><strong>In short</strong></p>
+    <ul>
+      <li>We store what you log about your baby so you and the caregivers you invite can see it on any device.</li>
+      <li>No ads, no analytics, no tracking. We never sell or share your data for marketing.</li>
+      <li>Only you and the people you invite can see a baby's records.</li>
+      <li>You can export everything, and delete everything, from inside the app.</li>
+    </ul>
+  </div>
+
+  <h2>Who we are</h2>
+  <p>
+    Baby App is a small, independently run app for tracking a baby's feeds,
+    diapers, growth and care. In this policy "we" means the people who run it.
+    Questions or requests about your data:
+    <a href="mailto:CONTACT_EMAIL">CONTACT_EMAIL</a>.
+  </p>
+
+  <h2>What we collect</h2>
+
+  <h3>Your account</h3>
+  <p>
+    You sign in with Google. We receive your name, email address, profile
+    picture link and a Google account identifier. We never see your Google
+    password.
+  </p>
+
+  <h3>What you log</h3>
+  <p>Everything is entered by you or a caregiver you invite:</p>
+  <table>
+    <thead><tr><th>Kind</th><th>What it includes</th></tr></thead>
+    <tbody>
+      <tr><td>Baby profile</td><td>Name, date of birth, sex (optional), the picture you choose, and who the caregivers are</td></tr>
+      <tr><td>Feeds and pumping</td><td>Times, amounts, type of milk or food, notes</td></tr>
+      <tr><td>Diapers</td><td>Times, wet or dirty, notes, and diaper supplies on hand</td></tr>
+      <tr><td>Growth</td><td>Weight, length and head measurements, with dates</td></tr>
+      <tr><td>Medication</td><td>Medicine names, doses, times, notes</td></tr>
+      <tr><td>Appointments</td><td>Dates, type, provider, location, notes</td></tr>
+      <tr><td>Fridge and checklist</td><td>Stored bottles, and the daily checklist items you tick</td></tr>
+      <tr><td>Invitations</td><td>The email address of anyone you invite, and their role</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Some of this is health information about your child. It is used only to
+    show it back to you and your caregivers, and nothing in the app is
+    medical advice.
+  </p>
+
+  <h3>Reminders</h3>
+  <p>
+    If you turn on background reminders, we store a notification token for
+    that device, along with your quiet hours and time zone offset, so a
+    reminder can be sent at the right time. Notifications are delivered
+    through Google's and Apple's push services.
+  </p>
+
+  <h3>On your device</h3>
+  <p>
+    The app keeps a copy of your data in your browser so it works offline,
+    and remembers settings such as theme and units there. This is not
+    advertising or tracking storage, and it is cleared when you delete your
+    account in the app.
+  </p>
+
+  <h3>What we don't collect</h3>
+  <p>
+    No location, contacts, photos, advertising identifiers or analytics. We
+    don't track you across other sites or apps.
+  </p>
+
+  <h2>How we use it</h2>
+  <ul>
+    <li>To show your records to you and your caregivers, on every device you sign in on.</li>
+    <li>To work out when the next feed is likely due, and to send reminders if you ask for them.</li>
+    <li>To produce the CSV and PDF exports you request.</li>
+    <li>To keep the app secure, for example checking who has been invited.</li>
+  </ul>
+  <p>We don't use your data for advertising or profiling, and we don't sell it.</p>
+
+  <h2>Who can see it</h2>
+  <ul>
+    <li><strong>You and your caregivers.</strong> A baby's records are visible only to the people its owner has invited. Security rules on the database enforce this.</li>
+    <li>
+      <strong>Our service providers.</strong> The app runs on Google Firebase
+      (sign-in, database, hosting, notifications), which stores and processes
+      the data for us under
+      <a href="https://firebase.google.com/terms/data-processing-terms">Google's data processing terms</a>.
+      The app also loads fonts and code libraries from Google's servers, which
+      see your device's IP address as part of serving them.
+    </li>
+    <li><strong>If required by law.</strong> We would disclose data only if legally required to, and would tell you unless we were prevented from doing so.</li>
+  </ul>
+  <p>
+    We look at the data ourselves only when you ask us to, for example to
+    help with a problem, or when we must to keep the service running.
+  </p>
+
+  <h2>Where it is kept and how it is protected</h2>
+  <p>
+    Data is stored in Google Cloud data centres, which may be outside your
+    country. It is encrypted in transit and at rest. Access is limited to
+    signed-in, invited caregivers.
+  </p>
+
+  <h2>How long we keep it</h2>
+  <p>
+    Until you delete it. Deleting a baby, or your account, removes it from
+    the live database straight away. Copies inside our providers' systems
+    are erased on their own schedules.
+  </p>
+
+  <h2 id="delete-account">Deleting your data and account</h2>
+  <p>In the app, go to <strong>Settings → Delete data or account</strong>:</p>
+  <ul>
+    <li><strong>Delete data</strong> removes a baby you own and every entry logged for it, for all of its caregivers.</li>
+    <li><strong>Delete account</strong> removes every baby you own and all of their records, and any invitations sent for them. It also removes you from babies other people own, deletes your reminder settings, notification tokens and your entry on the access list, and closes your sign-in.</li>
+  </ul>
+  <p>
+    If you can't get into the app, email
+    <a href="mailto:CONTACT_EMAIL?subject=Delete%20my%20Baby%20App%20account">CONTACT_EMAIL</a>
+    from the address you sign in with, and we will delete your account and
+    data within 30 days.
+  </p>
+
+  <h2>Your choices and rights</h2>
+  <ul>
+    <li><strong>See and take your data:</strong> Settings → Export data gives you a CSV of every entry or a PDF summary.</li>
+    <li><strong>Correct it:</strong> edit or delete any entry in the app.</li>
+    <li><strong>Delete it:</strong> as described above.</li>
+    <li><strong>Turn reminders off:</strong> in Settings, or in your device's notification settings.</li>
+  </ul>
+  <p>
+    Depending on where you live (for example under the GDPR in the UK and EU,
+    or the CCPA in California), you may have further rights, such as to
+    object or to complain to a data protection authority. Contact us to use
+    any of them.
+  </p>
+
+  <h2>Children</h2>
+  <p>
+    Baby App is for parents and caregivers. It is not meant to be used by
+    children, and we don't knowingly collect information from anyone under
+    13. Information about a baby is entered by their parent or a caregiver
+    the parent has invited.
+  </p>
+
+  <h2>Changes to this policy</h2>
+  <p>
+    If we change this policy, we will update the date at the top. If a change
+    is significant, we will say so in the app before it applies.
+  </p>
+
+  <footer class="muted">
+    <p><a href="./">Open Baby App</a></p>
+  </footer>
+</main>
+</body>
+</html>

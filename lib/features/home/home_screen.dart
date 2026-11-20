@@ -19,6 +19,7 @@ import '../diaper/diaper_quick_log.dart';
 import '../insights/day_timeline_strip.dart';
 import '../insights/day_view_data.dart';
 import '../insights/diaper_mix_bar.dart';
+import '../install/install_guide.dart';
 import 'add_baby_dialog.dart';
 import 'baby_switcher.dart';
 import 'home_access.dart';
@@ -158,7 +159,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Something went wrong: $e')),
         data: (_) => baby == null
-            ? ListView(children: const [IncomingInvitesBanner(), _EmptyHome()])
+            ? ListView(
+                children: const [
+                  IncomingInvitesBanner(),
+                  InstallBanner(),
+                  _EmptyHome(),
+                ],
+              )
             // One scroll view for the whole screen. The status card and the
             // activity list used to be a fixed block above a list with its
             // own scroll area, so on a short screen — or at a large text
@@ -168,6 +175,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : CustomScrollView(
                 slivers: [
                   const SliverToBoxAdapter(child: IncomingInvitesBanner()),
+                  // Only in an iPhone or iPad browser tab, until put away.
+                  const SliverToBoxAdapter(child: InstallBanner()),
                   // Logging is what the app is opened for, and it starts
                   // here: each row's icon is its log button.
                   SliverToBoxAdapter(child: HomeStatusCard(now: _now)),
