@@ -95,12 +95,15 @@ self.addEventListener('fetch', (event) => {
     // They have to come from the server.
     if (url.pathname.startsWith('/__/')) return;
 
+    const path = url.pathname.replace(/^\//, '');
     if (request.mode === 'navigate') {
-      // Any page of the app is index.html; the router does the rest.
-      event.respondWith(fromShell('index.html', request));
+      // A page of its own beside the app — privacy.html — is itself.
+      // Anything else is a page of the app, which is index.html; the router
+      // does the rest.
+      const page = path.endsWith('.html') && SHELL.includes(path) ? path : 'index.html';
+      event.respondWith(fromShell(page, request));
       return;
     }
-    const path = url.pathname.replace(/^\//, '');
     if (SHELL.includes(path)) {
       event.respondWith(fromShell(path, request));
     }

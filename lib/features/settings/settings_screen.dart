@@ -16,6 +16,8 @@ import 'delete_baby_screen.dart';
 import '../../data/models/feeding_event.dart';
 import '../feeding/feeding_format.dart';
 import '../home/home_prefs.dart';
+import '../install/install_guide.dart';
+import '../legal/privacy_link.dart';
 import '../notifications/push_service.dart';
 import '../pumping/pump_schedule.dart';
 import '../medication/medication_format.dart';
@@ -93,6 +95,16 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(),
+          const _InstallTile(),
+          if (privacyPolicyAvailable)
+            const ListTile(
+              leading: Icon(Icons.privacy_tip_outlined),
+              title: Text('Privacy policy'),
+              subtitle: Text('What is stored, who can see it, and deleting it'),
+              trailing: Icon(Icons.open_in_new),
+              onTap: openPrivacyPolicy,
+            ),
+          const Divider(),
           const _DangerZone(),
           const Divider(),
           ListTile(
@@ -120,6 +132,26 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The way back to the install guide once Home's banner is put away. Only
+/// where there is something to install: an iPhone or iPad browser tab.
+class _InstallTile extends ConsumerWidget {
+  const _InstallTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(iosInstallHintProvider) == null) {
+      return const SizedBox.shrink();
+    }
+    return ListTile(
+      leading: const Icon(Icons.add_to_home_screen),
+      title: const Text('Add to Home Screen'),
+      subtitle: const Text('Full screen, offline, and feed reminders'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => openInstallGuide(context),
     );
   }
 }
@@ -652,6 +684,21 @@ class _PushToggle extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final enabled = ref.watch(pushEnabledProvider);
     final uid = ref.watch(authStateProvider).value?.uid;
+    // In an iPhone or iPad browser tab, iOS gives web push no way in at all:
+    // only an app opened from the Home Screen can ask. A switch here would
+    // ask, fail, and say "permission or setup" — so say what is needed.
+    if (ref.watch(iosInstallHintProvider) != null) {
+      return ListTile(
+        leading: const Icon(Icons.notifications_active_outlined),
+        title: const Text('Background reminders'),
+        subtitle: const Text(
+          'On iPhone and iPad, add Baby App to your Home Screen first, then '
+          'turn this on there.',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => openInstallGuide(context),
+      );
+    }
     return SwitchListTile(
       secondary: const Icon(Icons.notifications_active_outlined),
       title: const Text('Background reminders'),
