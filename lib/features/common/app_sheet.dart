@@ -77,11 +77,55 @@ Future<T?> showAppSheet<T>(
       child: SafeArea(
         child: SingleChildScrollView(
           padding: padding,
-          child: builder(sheetContext),
+          child: TabletSheetButtons(child: Builder(builder: builder)),
         ),
       ),
     ),
   );
+}
+
+/// Whether a screen is tablet-sized: its shorter side at least this wide.
+/// An iPad in either orientation, browser bars and all; no phone.
+const double tabletShortestSide = 600;
+
+/// The sheet's filled buttons — Save above all — made tall on a tablet.
+///
+/// At the phone height of 40 the Save button was a thin strip across an iPad
+/// sheet, an easy target to miss, propped on a stand or held one-handed with
+/// a baby in the other arm. On a tablet it is 60 high with larger text;
+/// phones keep the standard size, where 40 is already most of a thumb.
+class TabletSheetButtons extends StatelessWidget {
+  const TabletSheetButtons({super.key, required this.child});
+
+  final Widget child;
+
+  static const double height = 60;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).shortestSide < tabletShortestSide) {
+      return child;
+    }
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(120, height),
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            textStyle: theme.textTheme.titleMedium?.copyWith(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(height / 2),
+            ),
+          ).merge(theme.filledButtonTheme.style),
+        ),
+      ),
+      child: child,
+    );
+  }
 }
 
 /// Lifts [child] clear of the keyboard, by [sheetBottomInset].
