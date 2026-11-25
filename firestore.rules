@@ -416,22 +416,12 @@ service cloud.firestore {
         }
       }
 
-      // The diaper stock: packs added and counts made. The stock itself is
-      // worked out from these and the changes logged, never stored. A line
-      // is added or deleted, not edited: a wrong one is taken back.
+      // The diaper stock, taken out of the app: the household stopped keeping
+      // count. Nothing new is written; what is left can still be read and
+      // deleted, which is how the app clears it (BabyData.clearRetired) and
+      // how deleting a baby sweeps it.
       match /diaperStock/{docId} {
         allow read, delete: if isMember(babyId);
-        allow create: if isMember(babyId) && authored() && stockShape();
-
-        function stockShape() {
-          let d = request.resource.data;
-          return d.action in ['added', 'counted']
-            && d.at is timestamp
-            && d.count is int && d.count >= 0 && d.count <= 10000
-            // A pack of nothing is not a pack; a count of nothing is.
-            && (d.action == 'counted' || d.count > 0)
-            && text(d.get('notes', null));
-        }
       }
 
       // --- Shared field checks ---------------------------------------------

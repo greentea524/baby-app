@@ -1293,7 +1293,7 @@ describe("the daily checklist", () => {
   });
 });
 
-describe("the diaper stock", () => {
+describe("the diaper stock, retired", () => {
   const line = (over = {}) => ({
     action: "added",
     at: AT,
@@ -1304,28 +1304,18 @@ describe("the diaper stock", () => {
   });
   const stockRef = (db, id) => doc(db, "babies", BABY, "diaperStock", id);
 
-  it("accepts a pack added and a count made", async () => {
-    await assertSucceeds(setDoc(stockRef(asAlice(), "s1"), line()));
-    await assertSucceeds(
+  it("takes nothing new, however well formed", async () => {
+    await assertFails(setDoc(stockRef(asAlice(), "s1"), line()));
+    await assertFails(
       setDoc(stockRef(asAlice(), "s2"), line({ action: "counted", count: 0 })),
     );
-    await assertSucceeds(
-      setDoc(stockRef(asAlice(), "s3"), line({ notes: "Size 2" })),
-    );
   });
 
-  it("refuses a pack of nothing, a fraction, or an action it does not have", async () => {
-    await assertFails(setDoc(stockRef(asAlice(), "b1"), line({ count: 0 })));
-    await assertFails(setDoc(stockRef(asAlice(), "b2"), line({ count: 2.5 })));
-    await assertFails(setDoc(stockRef(asAlice(), "b3"), line({ count: -4 })));
-    await assertFails(setDoc(stockRef(asAlice(), "b4"), line({ count: 20000 })));
-    await assertFails(setDoc(stockRef(asAlice(), "b5"), line({ action: "used" })));
-  });
-
-  it("is taken back, not edited", async () => {
+  it("lets a member read and delete what is left, not edit it", async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(stockRef(ctx.firestore(), "e1"), line());
     });
+    await assertSucceeds(getDoc(stockRef(asAlice(), "e1")));
     await assertFails(
       updateDoc(stockRef(asAlice(), "e1"), { count: 99, ...edited() }),
     );
@@ -1333,8 +1323,11 @@ describe("the diaper stock", () => {
   });
 
   it("keeps a non-member out", async () => {
-    await assertFails(setDoc(stockRef(asMallory(), "m"), line({ ...stamped("mallory") })));
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(stockRef(ctx.firestore(), "m"), line());
+    });
     await assertFails(getDoc(stockRef(asMallory(), "m")));
+    await assertFails(deleteDoc(stockRef(asMallory(), "m")));
   });
 });
 

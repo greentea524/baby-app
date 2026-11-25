@@ -91,6 +91,24 @@ class BabyData {
     return '${parts.sublist(0, parts.length - 1).join(', ')} and ${parts.last}';
   }
 
+  /// Collections the app no longer uses, emptied by [clearRetired].
+  ///
+  /// The diaper stock was taken out of the app: the household stopped
+  /// keeping count once the baby spent days with a sitter. Its lines stay in
+  /// [collections] too, so deleting a baby still sweeps any left behind.
+  static const retired = <String>['diaperStock'];
+
+  /// Deletes everything in the [retired] collections under [babyId], and
+  /// returns how many documents went. Nothing at all once they are empty,
+  /// which after the first run is one small read each.
+  Future<int> clearRetired(String babyId) async {
+    var done = 0;
+    for (final name in retired) {
+      done = await _drain(_baby(babyId).collection(name), done, null);
+    }
+    return done;
+  }
+
   /// Deletes every document under [babyId], then the baby itself.
   ///
   /// [onProgress] receives the running total, for a screen that would

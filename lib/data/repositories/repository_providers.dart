@@ -395,6 +395,27 @@ final babyDataProvider = Provider<BabyData>(
   (ref) => BabyData(ref.watch(firestoreProvider)),
 );
 
+/// Empties collections the app no longer uses — see [BabyData.retired] —
+/// for every baby the signed-in caregiver can reach. Run once a session from
+/// the app's root.
+///
+/// Best effort: offline, or for a baby whose rules refuse, it gives up
+/// quietly and tries again next time the app opens. Nothing on screen
+/// depends on it.
+final retiredDataCleanupProvider = FutureProvider<void>((ref) async {
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return;
+  final babies = await ref.watch(babiesStreamProvider.future);
+  final data = ref.read(babyDataProvider);
+  for (final baby in babies) {
+    try {
+      await data.clearRetired(baby.id);
+    } catch (_) {
+      // Next session.
+    }
+  }
+});
+
 /// Deleting the account itself, and everything under it (#28, scope B).
 final accountDataProvider = Provider<AccountData>(
   (ref) =>

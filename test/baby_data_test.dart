@@ -67,6 +67,20 @@ void main() {
     );
   });
 
+  group('retired collections', () {
+    test('are the diaper stock, taken out of the app', () {
+      expect(BabyData.retired, ['diaperStock']);
+    });
+
+    test('are still swept when a baby is deleted', () {
+      // Entries a device never cleared, offline since the stock went, must
+      // not outlive the baby: once it is gone nobody can reach them.
+      for (final name in BabyData.retired) {
+        expect(BabyData.collections, contains(name));
+      }
+    });
+  });
+
   group('what gets swept', () {
     test('is every subcollection the rules name, and invites', () {
       // Named rather than discovered: a wildcard sweep would be the same
