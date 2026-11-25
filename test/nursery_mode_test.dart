@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:baby_app/core/auth/auth_providers.dart';
+import 'package:baby_app/core/theme/app_theme.dart';
 import 'package:baby_app/core/theme/theme_mode_provider.dart';
 import 'package:baby_app/data/models/baby.dart';
 import 'package:baby_app/data/models/diaper_event.dart';
@@ -18,6 +19,7 @@ import 'package:baby_app/features/home/home_status_card.dart';
 import 'package:baby_app/features/home/home_screen.dart';
 import 'package:baby_app/features/common/banded_track.dart';
 import 'package:baby_app/features/home/nursery_screen.dart';
+import 'package:baby_app/features/reminders/feed_prediction.dart';
 
 /// The screen for a tablet propped on a shelf (#29).
 ///
@@ -45,6 +47,7 @@ void main() {
     WidgetTester tester, {
     double textScale = 1.0,
     Size size = const Size(834, 1194),
+    ThemeData? theme,
     bool withData = true,
     List<FeedingEvent>? feeds,
     List<DiaperEvent>? diapers,
@@ -107,7 +110,7 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: MaterialApp(
-          theme: ThemeData(brightness: brightness),
+          theme: theme ?? ThemeData(brightness: brightness),
           home: Builder(
             // copyWith, not a fresh MediaQueryData: building one from scratch
             // throws away `size`, and anything that lays out from the screen
@@ -1242,5 +1245,134 @@ void main() {
       );
       expect(button.style?.backgroundColor, isNull);
     });
+  });
+
+  group('all three cards share the same tint curve (#39)', () {
+    Color cardColour(WidgetTester tester, String label) {
+      final box = tester.widget<Container>(
+        find
+            .ancestor(of: cardLabel(label), matching: find.byType(Container))
+            .first,
+      );
+      return (box.decoration! as BoxDecoration).color!;
+    }
+
+    double loudness(Color calm, Color c) =>
+        (c.r - calm.r).abs() + (c.g - calm.g).abs() + (c.b - calm.b).abs();
+
+    for (final (themeName, theme) in [
+      ('light', AppTheme.light()),
+      ('dark', AppTheme.dark()),
+    ]) {
+      testWidgets(
+        '$themeName theme applies dueTint once across feed, diaper, and pump',
+        (tester) async {
+          final cases = [
+            (
+              state: DueState.upcoming,
+              feedAgo: const Duration(minutes: 30),
+              diaperAgo: const Duration(minutes: 30),
+              pumpAgo: const Duration(minutes: 30),
+            ),
+            (
+              state: DueState.soon,
+              feedAgo: const Duration(hours: 2, minutes: 50),
+              diaperAgo: const Duration(hours: 2, minutes: 30),
+              pumpAgo: const Duration(hours: 2, minutes: 50),
+            ),
+            (
+              state: DueState.overdue,
+              feedAgo: const Duration(hours: 3, minutes: 30),
+              diaperAgo: const Duration(hours: 3, minutes: 30),
+              pumpAgo: const Duration(hours: 3, minutes: 30),
+            ),
+            (
+              state: DueState.late,
+              feedAgo: const Duration(hours: 4, minutes: 30),
+              diaperAgo: const Duration(hours: 4, minutes: 30),
+              pumpAgo: const Duration(hours: 4, minutes: 30),
+            ),
+          ];
+
+          final feedColours = <DueState, Color>{};
+
+          for (final c in cases) {
+            await pumpNursery(
+              tester,
+              theme: theme,
+              prefs: const {
+                'reminder_mode': 'fixedInterval',
+                'pump_interval_minutes': 180,
+              },
+              feeds: [
+                FeedingEvent(
+                  id: 'f1',
+                  type: FeedingType.bottle,
+                  startTime: now.subtract(c.feedAgo),
+                  amountMl: 150,
+                ),
+              ],
+              diapers: [
+                DiaperEvent(
+                  id: 'd1',
+                  type: DiaperType.wet,
+                  time: now.subtract(c.diaperAgo),
+                ),
+              ],
+              pumps: [
+                PumpingEvent(
+                  id: 'p1',
+                  time: now.subtract(c.pumpAgo),
+                  amountMl: 90,
+                ),
+              ],
+            );
+
+            final cardContext = tester.element(cardLabel('Last fed'));
+            final expected = dueTint(
+              cardContext,
+              c.state,
+              Theme.of(cardContext).colorScheme.surfaceContainerHigh,
+            );
+
+            final fed = cardColour(tester, 'Last fed');
+            final changed = cardColour(tester, 'Last changed');
+            final pumped = cardColour(tester, 'Last pumped');
+
+            expect(fed, expected, reason: '$themeName ${c.state} feed');
+            expect(changed, expected, reason: '$themeName ${c.state} diaper');
+            expect(pumped, expected, reason: '$themeName ${c.state} pump');
+
+            feedColours[c.state] = fed;
+          }
+
+          expect(
+            loudness(
+              feedColours[DueState.upcoming]!,
+              feedColours[DueState.overdue]!,
+            ),
+            greaterThan(
+              loudness(
+                feedColours[DueState.upcoming]!,
+                feedColours[DueState.soon]!,
+              ),
+            ),
+            reason: '$themeName overdue must read louder than soon',
+          );
+        },
+      );
+
+      testWidgets('$themeName theme leaves empty cards untinted', (
+        tester,
+      ) async {
+        await pumpNursery(tester, theme: theme, withData: false);
+
+        final cardContext = tester.element(cardLabel('Last fed'));
+        final surface = Theme.of(cardContext).colorScheme.surfaceContainerHigh;
+
+        expect(cardColour(tester, 'Last fed'), surface);
+        expect(cardColour(tester, 'Last changed'), surface);
+      });
+    }
   });
 }

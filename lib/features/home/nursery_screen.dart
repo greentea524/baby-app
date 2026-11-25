@@ -254,9 +254,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         // The same escalation the chip carries, on the whole
                         // card. From a doorway the colour arrives before any
                         // of the words do, which is the point of this screen.
-                        tint: dueState == null
-                            ? null
-                            : dueColors(context, dueState).background,
+                        dueState: dueState,
                       );
                       final lastChanged = ref.watch(lastDiaperProvider);
                       final changed = _Readout(
@@ -306,17 +304,10 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         // at two hours since the last change, red at three.
                         // Written when the feed card got its colour that this
                         // one had no state of its own — it has one now.
-                        tint: switch (diaperDueState(
+                        dueState: diaperDueState(
                           lastChanged?.time,
                           now: clock,
-                        )) {
-                          null => null,
-                          final state => dueTint(
-                            context,
-                            state,
-                            Theme.of(context).colorScheme.surfaceContainerHigh,
-                          ),
-                        },
+                        ),
                       );
 
                       final readouts = <Widget>[
@@ -502,7 +493,7 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
       // is read from a doorway.
       detail: PumpingFormat.measure(last, ref.watch(unitSystemProvider)),
       footer: footer ? _nextPump(context, clock, due, state, ref) : null,
-      tint: state == null ? null : dueColors(context, state).background,
+      dueState: state,
     );
   }
 
@@ -916,7 +907,7 @@ class _Readout<T> extends StatelessWidget {
     this.tight = false,
     this.detail,
     this.footer,
-    this.tint,
+    this.dueState,
     this.action,
     this.headlineSize,
   });
@@ -969,15 +960,12 @@ class _Readout<T> extends StatelessWidget {
   /// feed card rather than floating between the two.
   final Widget? footer;
 
-  /// Colours the card with a state the reading carries — for the feed card,
-  /// how close the next feed is.
+  /// Colours the card with the reading's due state (upcoming, soon, or overdue).
   ///
-  /// Blended into the surface rather than used neat, for two reasons. The
-  /// chip sits on top of it and would disappear into a card of its own exact
-  /// colour; and the card's text is `onSurface`, which is only guaranteed to
-  /// read against something surface-shaped. Half-strength keeps the hue
-  /// obvious and the contrast intact, in both themes.
-  final Color? tint;
+  /// Softened once via [dueTint] onto `scheme.surfaceContainerHigh` with
+  /// graduated strength per state, so `DueChip` remains distinct on top of it
+  /// and `onSurface` text stays legible in both themes.
+  final DueState? dueState;
 
   @override
   Widget build(BuildContext context) {
@@ -987,12 +975,9 @@ class _Readout<T> extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(tight ? 10 : 18),
       decoration: BoxDecoration(
-        color: tint == null
+        color: dueState == null
             ? scheme.surfaceContainerHigh
-            : Color.alphaBlend(
-                tint!.withValues(alpha: 0.5),
-                scheme.surfaceContainerHigh,
-              ),
+            : dueTint(context, dueState!, scheme.surfaceContainerHigh),
         borderRadius: BorderRadius.circular(24),
       ),
       // Narrow, the icon moves onto the label's line and the reading gets
