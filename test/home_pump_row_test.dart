@@ -143,15 +143,12 @@ void main() {
     expect(open.top, greaterThan(pumped.bottom));
   });
 
-  testWidgets('and the rows that lead anywhere share one shape', (
-    tester,
-  ) async {
-    // The fridge row had a round arrow button and the diaper row a pill:
-    // the same job, two kinds of control. Both are the pill now, and
-    // feeding and pumping only report.
+  testWidgets('and only the fridge row leads anywhere', (tester) async {
+    // Its pill is the one way into another screen on the card; feeding,
+    // diapers and pumping only report.
     await pumpCard(tester, pumping: pumps);
 
-    expect(find.byType(DetailPill), findsNWidgets(2));
+    expect(find.byType(DetailPill), findsOneWidget);
     expect(find.byType(FridgeButton), findsNothing);
   });
 

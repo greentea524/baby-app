@@ -77,14 +77,14 @@ void main() {
     // Drawn as well as counted, up to three: one small bottle each.
     expect(find.byKey(const ValueKey('home-bottle-a')), findsOneWidget);
     expect(find.byKey(const ValueKey('home-bottle-b')), findsOneWidget);
-    // The way in is the diaper row's pill shape, at the label's end: no
-    // second fridge beside the row's own icon.
+    // The way in is a pill at the label's end: no second fridge beside the
+    // row's own icon.
     final open = find.byKey(const ValueKey('fridge-open'));
     expect(open, findsOneWidget);
     expect(find.descendant(of: open, matching: find.text('Open')), findsOne);
-    expect(find.byType(DetailPill), findsNWidgets(2));
+    expect(find.byType(DetailPill), findsOneWidget);
     expect(find.byIcon(FridgeButton.icon), findsOneWidget);
-    expect(find.bySemanticsLabel('In the fridge'), findsOneWidget);
+    expect(tester.widget<DetailPill>(open).semanticLabel, 'In the fridge');
     expect(
       tester.getRect(open).center.dy,
       closeTo(tester.getRect(find.text('FRIDGE')).center.dy, 8),

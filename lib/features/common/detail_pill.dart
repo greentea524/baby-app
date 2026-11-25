@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 /// The way from a Home row into its own screen: a small rounded pill at the
 /// row's top-right, saying what is there, with a chevron after it.
 ///
-/// One shape for every row that leads somewhere. The fridge row had a round
-/// arrow button and the diaper row a pill with the stock count, so the same
-/// job looked like two different kinds of control.
+/// One shape for any row that leads somewhere, so a way into another screen
+/// always looks like the same kind of control. The fridge row has one.
 class DetailPill extends StatelessWidget {
   const DetailPill({
     super.key,
@@ -17,7 +16,7 @@ class DetailPill extends StatelessWidget {
     this.foreground,
   });
 
-  /// What is behind it, in a word or two: "25 left", "Open".
+  /// What is behind it, in a word or two: "Open".
   final String label;
 
   /// What a screen reader announces: where the pill goes, not only what it
@@ -28,8 +27,8 @@ class DetailPill extends StatelessWidget {
 
   final IconData? icon;
 
-  /// A state's colours, for a pill that is also a warning — stock running
-  /// low. The calm tonal ones otherwise.
+  /// A state's colours, for a pill that is also a warning. The calm tonal
+  /// ones otherwise.
   final Color? background;
   final Color? foreground;
 

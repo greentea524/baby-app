@@ -20,7 +20,6 @@ import '../pumping/pumping_format.dart';
 import '../reminders/feed_prediction.dart';
 import '../reminders/reminder_providers.dart';
 import '../diaper/diaper_quick_log.dart';
-import '../diaper/diaper_stock_screen.dart';
 import '../feeding/feeding_quick_log.dart';
 import '../pumping/pumping_quick_log.dart';
 import '../fridge/bottle_gauge.dart';
@@ -349,10 +348,6 @@ class HomeStatusCard extends ConsumerWidget {
       when: last?.time,
       now: now,
       detail: notes,
-      // How many diapers are left, and the way into the stock: at the end of
-      // the label's line, which the row otherwise leaves empty, rather than
-      // beside the headline, where it would squeeze the times.
-      badge: const DiaperStockBadge(),
       // Today's changes by what was in them, on the line beside the clock
       // time, which this row otherwise leaves empty — so it costs no height.
       // The Insights day view's bar said the same at three lines' height.
@@ -504,8 +499,7 @@ class HomeStatusCard extends ConsumerWidget {
           : aging > 0
           ? DueState.soon
           : null,
-      // The diaper row's pill, in the same place: one shape for every row
-      // that leads somewhere.
+      // The way into the fridge, at the end of the label's line.
       badge: DetailPill(
         key: const ValueKey('fridge-open'),
         label: 'Open',
@@ -1064,10 +1058,9 @@ class _StatusRow extends StatelessWidget {
   final String? logLabel;
 
   /// Something small at the end of the label's line: the way into the
-  /// row's own screen, for the rows that lead anywhere — the diaper row's
-  /// stock, the fridge. A [DetailPill] on both, so they read as one kind of
-  /// control; nothing else on a row answers a tap that does not look like
-  /// it would.
+  /// row's own screen, for a row that leads anywhere — the fridge's
+  /// [DetailPill]. Nothing else on a row answers a tap that does not look
+  /// like it would.
   final Widget? badge;
 
   @override

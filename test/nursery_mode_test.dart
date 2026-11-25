@@ -17,7 +17,6 @@ import 'package:baby_app/features/home/home_prefs.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 import 'package:baby_app/features/home/home_screen.dart';
 import 'package:baby_app/features/common/banded_track.dart';
-import 'package:baby_app/features/diaper/diaper_stock.dart';
 import 'package:baby_app/features/home/nursery_screen.dart';
 
 /// The screen for a tablet propped on a shelf (#29).
@@ -52,7 +51,6 @@ void main() {
     List<PumpingEvent> pumps = const [],
     Map<String, Object> prefs = const {},
     List<FridgeBottle> bottles = const [],
-    DiaperStock? stock,
     Brightness brightness = Brightness.light,
   }) async {
     SharedPreferences.setMockInitialValues({
@@ -101,7 +99,6 @@ void main() {
         ),
         recentPumpingProvider.overrideWith((ref) => Stream.value(pumps)),
         fridgeBottlesProvider.overrideWith((ref) => Stream.value(bottles)),
-        diaperStockProvider.overrideWithValue(stock),
       ],
     );
     addTearDown(container.dispose);
@@ -1208,32 +1205,6 @@ void main() {
       await pumpNursery(tester);
       await tester.pump(const Duration(minutes: 5));
       expect(find.byKey(const ValueKey('nursery-clock')), findsOneWidget);
-    });
-  });
-
-  group('the diaper stock', () {
-    DiaperStock left(int n) =>
-        DiaperStock(left: n, since: now, used: 0, lowAt: 20);
-
-    testWidgets('says nothing while there is plenty', (tester) async {
-      await pumpNursery(tester, stock: left(60));
-      expect(find.byKey(const ValueKey('diaper-stock')), findsNothing);
-    });
-
-    testWidgets('and is on the diaper card once it runs low', (tester) async {
-      await pumpNursery(tester, stock: left(11));
-      final note = find.byKey(const ValueKey('diaper-stock'));
-      expect(note, findsOneWidget);
-      expect(find.text('11 left'), findsOneWidget);
-      final changed = tester.getRect(cardLabel('Last changed'));
-      final at = tester.getRect(note);
-      expect(at.top, greaterThan(changed.bottom));
-      expect(at.left, closeTo(changed.left, 60));
-    });
-
-    testWidgets('and says when there are none', (tester) async {
-      await pumpNursery(tester, stock: left(0));
-      expect(find.text('None left'), findsOneWidget);
     });
   });
 
