@@ -22,30 +22,40 @@ typedef TodayEvents = ({
   List<PumpingEvent> pumps,
 });
 
-/// Everything logged today, from the streams Home is already subscribed to.
-final todayEventsProvider = Provider<TodayEvents>((ref) {
-  final now = DateTime.now();
-  bool isToday(DateTime t) =>
-      t.year == now.year && t.month == now.month && t.day == now.day;
+/// Midnight at the start of [time]'s local calendar day.
+///
+/// Used as the family key for [todayEventsProvider] so 30-second ticks within
+/// the same day reuse one provider instance, while crossing midnight switches
+/// immediately to the new day without waiting for a stream write.
+DateTime calendarDay(DateTime time) => DateTime(time.year, time.month, time.day);
 
-  return (
-    feedings: [
-      for (final f in ref.watch(recentFeedingsProvider).value ?? const [])
-        if (isToday(f.startTime)) f,
-    ],
-    diapers: [
-      for (final d in ref.watch(recentDiapersProvider).value ?? const [])
-        if (isToday(d.time)) d,
-    ],
-    pumps: [
-      for (final p in ref.watch(recentPumpingProvider).value ?? const [])
-        if (isToday(p.time)) p,
-    ],
-  );
-});
+/// Everything logged on [day], from the streams Home is already subscribed to.
+final todayEventsProvider =
+    Provider.autoDispose.family<TodayEvents, DateTime>((ref, day) {
+      bool isSameDay(DateTime t) =>
+          t.year == day.year && t.month == day.month && t.day == day.day;
 
-/// Today's totals, from the same events.
-final todayStatsProvider = Provider<DayStats>((ref) {
-  final today = ref.watch(todayEventsProvider);
+      return (
+        feedings: [
+          for (final f in ref.watch(recentFeedingsProvider).value ?? const [])
+            if (isSameDay(f.startTime)) f,
+        ],
+        diapers: [
+          for (final d in ref.watch(recentDiapersProvider).value ?? const [])
+            if (isSameDay(d.time)) d,
+        ],
+        pumps: [
+          for (final p in ref.watch(recentPumpingProvider).value ?? const [])
+            if (isSameDay(p.time)) p,
+        ],
+      );
+    });
+
+/// Totals for [day], from the same events.
+final todayStatsProvider = Provider.autoDispose.family<DayStats, DateTime>((
+  ref,
+  day,
+) {
+  final today = ref.watch(todayEventsProvider(day));
   return DayStats.from(today.feedings, today.diapers, pumps: today.pumps);
 });

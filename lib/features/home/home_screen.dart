@@ -41,10 +41,11 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   // Ticks so relative "time ago" labels stay fresh without a stream write.
   Timer? _ticker;
-  late DateTime _now = widget.now ?? DateTime.now();
+  DateTime _now = DateTime.now();
   bool _launchHandled = false;
 
   /// Opens the quick-log sheet requested by a PWA shortcut (KAN-166), once
@@ -69,6 +70,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     if (widget.now != null) return;
+    WidgetsBinding.instance.addObserver(this);
     _ticker = Timer.periodic(
       const Duration(seconds: 30),
       (_) => setState(() => _now = DateTime.now()),
@@ -76,13 +78,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (widget.now == null && state == AppLifecycleState.resumed) {
+      setState(() => _now = DateTime.now());
+    }
+  }
+
+  @override
   void dispose() {
+    if (widget.now == null) {
+      WidgetsBinding.instance.removeObserver(this);
+    }
     _ticker?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final now = widget.now ?? _now;
     final babiesAsync = ref.watch(babiesStreamProvider);
     final baby = ref.watch(currentBabyProvider);
     final showList =
@@ -94,7 +107,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // The medicine button, while medicine is being given: in the corner
     // rather than a row of the status card, so a course that has ended
     // leaves nothing behind once the button goes.
-    final medicine = baby != null && watchMedicineButtonShown(ref, _now);
+    final medicine = baby != null && watchMedicineButtonShown(ref, now);
     final room = AppBarRoom.of(context, medicine: medicine);
     final showClock = baby != null && room.showsClock;
     final double corner =
@@ -131,7 +144,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           fit: BoxFit.scaleDown,
                           alignment: Alignment.centerLeft,
                           child: DayTimeLabel(
-                            clock: _now,
+                            clock: now,
                             timeStyle: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w600),
                             dayStyle: Theme.of(context).textTheme.labelSmall
@@ -152,7 +165,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // be visible without taking a row from the things you can.
         actions: [
           if (baby != null)
-            NextAppointmentButton(now: _now, maxWidth: room.appointmentWidth),
+            NextAppointmentButton(now: now, maxWidth: room.appointmentWidth),
         ],
       ),
       body: babiesAsync.when(
@@ -179,10 +192,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SliverToBoxAdapter(child: InstallBanner()),
                   // Logging is what the app is opened for, and it starts
                   // here: each row's icon is its log button.
-                  SliverToBoxAdapter(child: HomeStatusCard(now: _now)),
+                  SliverToBoxAdapter(child: HomeStatusCard(now: now)),
                   // Today's checklist, when the household keeps one: under
                   // the readings, since it is ticked rather than logged.
-                  SliverToBoxAdapter(child: DailyChecklistCard(now: _now)),
+                  SliverToBoxAdapter(child: DailyChecklistCard(now: now)),
                   // Today is the same day the Insights day view draws, shown
                   // here so the glance does not cost a tab change. Recent is
                   // the running log, which needs its kind filter; the charts
@@ -198,9 +211,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                   if (showList)
-                    RecentActivityList(now: _now)
+                    RecentActivityList(now: now)
                   else
-                    SliverToBoxAdapter(child: _TodayCharts(now: _now)),
+                    SliverToBoxAdapter(child: _TodayCharts(now: now)),
                 ],
               ),
       ),
@@ -410,7 +423,7 @@ class _TodayCharts extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final today = ref.watch(todayEventsProvider);
+    final today = ref.watch(todayEventsProvider(calendarDay(now)));
     // Not limited to today: "none yet" means something different at six in
     // the morning than at six in the evening, and what separates them is
     // when the last one actually was.
