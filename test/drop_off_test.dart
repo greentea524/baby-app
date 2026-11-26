@@ -12,6 +12,7 @@ import 'package:baby_app/data/models/feeding_event.dart';
 import 'package:baby_app/data/models/milk_kind.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/common/banded_track.dart';
+import 'package:baby_app/features/home/baby_switcher.dart';
 import 'package:baby_app/features/home/home_screen.dart';
 import 'package:baby_app/features/home/home_status_card.dart';
 import 'package:baby_app/features/home/nursery_screen.dart';
@@ -117,6 +118,12 @@ void main() {
       expect(find.byKey(const ValueKey('drop-off')), findsOneWidget);
       expect(find.text('Drop off'), findsOneWidget);
       expect(find.byKey(const ValueKey('away-banner')), findsNothing);
+      // In the row under the bar, not beside the name: the bar was too
+      // crowded for it.
+      expect(
+        tester.getRect(find.byKey(const ValueKey('drop-off'))).top,
+        greaterThanOrEqualTo(tester.getRect(find.byType(BabySwitcher)).bottom),
+      );
     });
 
     testWidgets('the drop-off form starts from the usual bottle', (

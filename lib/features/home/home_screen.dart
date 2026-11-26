@@ -9,6 +9,7 @@ import '../../core/launch_action.dart';
 import '../../core/router/app_router.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../activity/activity_filter.dart';
+import '../appointments/appointment_format.dart';
 import '../appointments/next_appointment_button.dart';
 import '../medication/medicine_sheet.dart';
 import '../caregivers/incoming_invites.dart';
@@ -109,10 +110,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // rather than a row of the status card, so a course that has ended
     // leaves nothing behind once the button goes.
     final medicine = baby != null && watchMedicineButtonShown(ref, now);
-    // The drop-off, while the baby is at home: away, the banner over the
-    // status card has the pick-up instead.
+    // The drop-off and the next appointment go in a row of their own under
+    // the bar: with the name, the medicine button and the clock, the bar
+    // was too crowded for them as well. The drop-off only while the baby is
+    // at home — away, the banner over the status card has the pick-up.
     final dropOff = baby != null && ref.watch(activeStayProvider) == null;
-    final room = AppBarRoom.of(context, medicine: medicine, dropOff: dropOff);
+    final appointment =
+        baby != null &&
+        splitAppointments(
+          ref.watch(appointmentsProvider).value ?? const [],
+          now,
+        ).upcoming.isNotEmpty;
+    // Measured as if the appointment were still in the bar, so the clock
+    // keeps to the same screens it did: a tablet, not a phone, which shows
+    // the time just above anyway.
+    final room = AppBarRoom.of(context, medicine: medicine);
     final showClock = baby != null && room.showsClock;
     final double corner =
         (medicine ? AppBarRoom.medicineWidth : 0) +
@@ -167,11 +179,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         // The next visit lives in the corner rather than in the status card:
         // it is the one thing on Home you cannot act on today, so it wants to
         // be visible without taking a row from the things you can.
-        actions: [
-          if (baby != null)
-            NextAppointmentButton(now: now, maxWidth: room.appointmentWidth),
-          if (dropOff) const DropOffButton(),
-        ],
+        bottom: dropOff || appointment
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(_HomeActions.height),
+                child: _HomeActions(now: now, dropOff: dropOff),
+              )
+            : null,
       ),
       body: babiesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -223,6 +236,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     SliverToBoxAdapter(child: _TodayCharts(now: now)),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+/// The row under Home's bar: the next appointment, and the drop-off.
+class _HomeActions extends StatelessWidget {
+  const _HomeActions({required this.now, required this.dropOff});
+
+  final DateTime now;
+  final bool dropOff;
+
+  static const double height = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+        child: LayoutBuilder(
+          builder: (context, c) => Row(
+            children: [
+              NextAppointmentButton(
+                now: now,
+                maxWidth: c.maxWidth - (dropOff ? AppBarRoom.dropOffWidth : 0),
+              ),
+              const Spacer(),
+              if (dropOff) const DropOffButton(),
+            ],
+          ),
+        ),
       ),
     );
   }

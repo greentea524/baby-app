@@ -12,7 +12,7 @@ import 'content_width.dart';
 /// on a 390pt phone it was left with 10pt and the name rendered as "J…".
 /// This is the arithmetic that stops that.
 class AppBarRoom {
-  const AppBarRoom._(this.width, this.medicine, this.dropOff);
+  const AppBarRoom._(this.width, this.medicine, this.dropOff, this.appointment);
 
   /// The bar's own width, which is the screen's until the content cap bites.
   ///
@@ -22,11 +22,17 @@ class AppBarRoom {
     BuildContext context, {
     bool medicine = false,
     bool dropOff = false,
+    bool appointment = true,
   }) => AppBarRoom._(
     math.min(MediaQuery.sizeOf(context).width, maxContentWidth),
     medicine,
     dropOff,
+    appointment,
   );
+
+  /// Whether the next appointment is in the bar. Home puts it in the row
+  /// under the bar instead, so the bar keeps its width for the name.
+  final bool appointment;
 
   final double width;
 
@@ -79,7 +85,7 @@ class AppBarRoom {
           clockWidth -
           (medicine ? medicineWidth : 0) -
           _dropOff -
-          appointmentWidth -
+          (appointment ? appointmentWidth : 0) -
           barPadding >=
       nameFloor;
 
