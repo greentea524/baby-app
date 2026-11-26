@@ -335,13 +335,86 @@ Future<void> pickUp(
 Future<void> showStaySheet(BuildContext context, CareStay stay) =>
     showAppSheet<void>(context, builder: (_) => _StaySheet(stay: stay));
 
-class _StaySheet extends ConsumerWidget {
+class _StaySheet extends ConsumerStatefulWidget {
   const _StaySheet({required this.stay});
 
   final CareStay stay;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_StaySheet> createState() => _StaySheetState();
+}
+
+/// What was logged while away, put right in as few taps as the carer's
+/// account takes: one amount for every feed ("they all had 150"), a nudge
+/// on one ("the last was only 90"), a feed that did not happen removed, and
+/// one given between due times added.
+class _StaySheetState extends ConsumerState<_StaySheet> {
+  final _all = TextEditingController();
+  late VolumeUnit _unit;
+
+  CareStay get stay => widget.stay;
+
+  @override
+  void initState() {
+    super.initState();
+    _unit = VolumeUnit.initial;
+    if (stay.amountMl case final ml?) _all.text = _unit.fieldText(ml);
+  }
+
+  @override
+  void dispose() {
+    _all.dispose();
+    super.dispose();
+  }
+
+  void _write(FeedingEvent feed) {
+    final repo = ref.read(feedingRepositoryProvider);
+    if (repo == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    unawaited(
+      repo.update(feed).catchError((Object e) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Could not change the feed: $e')),
+        );
+      }),
+    );
+  }
+
+  void _setAll(List<FeedingEvent> feeds) {
+    final ml = resolveAmountMl(
+      typed: double.tryParse(_all.text.trim()),
+      unit: _unit,
+      storedMl: null,
+      edited: true,
+    );
+    if (ml == null || ml <= 0) return;
+    for (final f in feeds) {
+      if (f.amountMl != ml) _write(withAmount(f, ml));
+    }
+    FocusScope.of(context).unfocus();
+  }
+
+  /// Feeds taken out from this sheet, kept on it with an undo. A snack bar
+  /// would sit behind the sheet, out of reach.
+  final _removed = <FeedingEvent>[];
+
+  void _remove(FeedingEvent feed) {
+    final repo = ref.read(feedingRepositoryProvider);
+    if (repo == null) return;
+    unawaited(repo.delete(feed.id));
+    setState(() => _removed.add(feed));
+  }
+
+  void _undoRemove(FeedingEvent feed) {
+    final repo = ref.read(feedingRepositoryProvider);
+    if (repo == null) return;
+    // Put back under its own id, so the stay still knows it.
+    unawaited(repo.putBack(feed));
+    setState(() => _removed.remove(feed));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final units = ref.watch(unitSystemProvider);
     final feeds =
@@ -350,6 +423,7 @@ class _StaySheet extends ConsumerWidget {
             .toList()
           ..sort((a, b) => a.startTime.compareTo(b.startTime));
     final who = stay.carer.trim();
+    final step = autoFeedStepMl(units);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -366,25 +440,98 @@ class _StaySheet extends ConsumerWidget {
               : '${feeds.length} ${feeds.length == 1 ? 'feed' : 'feeds'} '
                     '${stay.isActive ? 'logged so far' : 'logged automatically'}'
                     '${who.isEmpty ? '' : ' while with $who'}. '
-                    'Tap one to change it.',
+                    'Put them right if the day went differently.',
           style: theme.textTheme.bodyMedium,
         ),
+        if (feeds.length > 1) ...[
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: VolumeField(
+                  key: const ValueKey('set-all-amount'),
+                  controller: _all,
+                  unit: _unit,
+                  label: 'Every feed',
+                  onUnitChanged: (unit, text) => setState(() {
+                    _unit = unit;
+                    _all.text = text;
+                  }),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          FilledButton.tonal(
+            key: const ValueKey('set-all'),
+            onPressed: () => _setAll(feeds),
+            child: Text('Set all ${feeds.length} feeds'),
+          ),
+        ],
         const SizedBox(height: 8),
+        for (final f in _removed)
+          if (!feeds.any((g) => g.id == f.id))
+            ListTile(
+              key: ValueKey('removed-${f.id}'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                TimeOfDay.fromDateTime(f.startTime).format(context),
+                style: const TextStyle(decoration: TextDecoration.lineThrough),
+              ),
+              subtitle: const Text('Removed'),
+              trailing: TextButton(
+                onPressed: () => _undoRemove(f),
+                child: const Text('Undo'),
+              ),
+            ),
         for (final f in feeds)
           ListTile(
+            key: ValueKey('auto-${f.id}'),
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.local_drink_outlined),
             title: Text(TimeOfDay.fromDateTime(f.startTime).format(context)),
             subtitle: Text(
               [
                 if (f.milk != null) f.milk!.label,
-                if (f.amountMl != null) formatVolume(f.amountMl!, units),
+                f.amountMl == null
+                    ? 'No amount'
+                    : formatVolume(f.amountMl!, units),
               ].join(' · '),
             ),
-            trailing: const Icon(Icons.edit_outlined),
             onTap: () => showFeedingQuickLog(context, existing: f),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Less',
+                  icon: const Icon(Icons.remove_circle_outline),
+                  onPressed: (f.amountMl ?? 0) - step <= 0
+                      ? null
+                      : () => _write(withAmount(f, f.amountMl! - step)),
+                ),
+                IconButton(
+                  tooltip: 'More',
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: () =>
+                      _write(withAmount(f, (f.amountMl ?? 0) + step)),
+                ),
+                IconButton(
+                  tooltip: 'Did not happen',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => _remove(f),
+                ),
+              ],
+            ),
           ),
-        const SizedBox(height: 16),
+        TextButton.icon(
+          key: const ValueKey('add-away-feed'),
+          onPressed: () =>
+              showFeedingQuickLog(context, type: FeedingType.bottle),
+          icon: const Icon(Icons.add),
+          label: const Text('Add a feed they gave'),
+        ),
+        const SizedBox(height: 8),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Done'),

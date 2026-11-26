@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../core/format/unit_system.dart';
 import '../../data/models/care_stay.dart';
 import '../../data/models/feeding_event.dart';
 import '../../data/repositories/repository_providers.dart';
@@ -214,3 +215,21 @@ DueState? diaperStateWhileAway(DueState? state, CareStay? stay) =>
 String autoFeedLine(DateTime due, DateTime now, String at) => due.isAfter(now)
     ? dueLine('Next auto feed', countdownLabel(due, now: now), at)
     : dueLine('Auto feed', 'logging now', at);
+
+/// [feed] with [ml] in place of its amount, and nothing else changed: the
+/// same id and time, so an automatic feed stays one.
+FeedingEvent withAmount(FeedingEvent feed, double ml) => FeedingEvent(
+  id: feed.id,
+  type: feed.type,
+  startTime: feed.startTime,
+  durationMinutes: feed.durationMinutes,
+  amountMl: ml,
+  side: feed.side,
+  notes: feed.notes,
+  isSnack: feed.isSnack,
+  milk: feed.milk,
+);
+
+/// How far one tap of − or + moves an automatic feed's amount: 10 ml, or
+/// half an ounce in US units.
+double autoFeedStepMl(UnitSystem units) => units.isMetric ? 10 : 14.78676478125;

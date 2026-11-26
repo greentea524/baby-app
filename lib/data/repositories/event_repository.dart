@@ -87,6 +87,14 @@ abstract class EventRepository<T extends BabyEvent> {
   });
 
   Future<void> delete(String id) => col.doc(id).delete();
+
+  /// Puts back a deleted [event] under its own id, for an undo. A new
+  /// document as far as the rules are concerned, stamped as such.
+  Future<void> putBack(T event) => col.doc(event.id).set({
+    ...event.toMap(),
+    'createdBy': uid,
+    'createdAt': FieldValue.serverTimestamp(),
+  });
 }
 
 /// An [EventRepository] whose events are also read back as a timeline: most
