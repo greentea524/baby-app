@@ -815,6 +815,15 @@ void main() {
 
     testWidgets('Today pins the toggle without a filter bar', (tester) async {
       await pumpHome(tester, prefs: {'home_activity_scope': 'today'});
+      // Late in the day Today's charts are full enough to push the toggle
+      // below a phone's fold, which is fine: it is reached by scrolling and
+      // then stays. This is about what the pinned header holds, so scroll
+      // to it first rather than depend on the hour the test runs at.
+      await tester.scrollUntilVisible(
+        find.byType(SegmentedButton<HomeActivityScope>),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.byType(SegmentedButton<HomeActivityScope>), findsOneWidget);
       expect(find.byType(ActivityFilterBar), findsNothing);
       expect(tester.takeException(), isNull);
