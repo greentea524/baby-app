@@ -127,11 +127,32 @@ service cloud.firestore {
       // invited caregiver evict the owner or rewrite ownerUid to themselves —
       // and the owner-only delete below would then be theirs too.
       allow update: if checklistShape()
-        && (isAcceptingInvite(babyId)
+        && namesShape()
+        && ((isAcceptingInvite(babyId) && ownNameOnly())
           || (isMemberOf(resource.data)
               && ownerUnchanged()
-              && (rosterUnchanged() || isLeaving()))
+              && (rosterUnchanged() || isLeaving())
+              && ownNameOnly())
           || (isOwnerOf(resource.data) && ownerUnchanged()));
+
+      // What each caregiver is called, as their own app saved it. A
+      // caregiver may set or clear only their own; the owner, who manages
+      // the roster, may clear one with the person it belongs to.
+      function ownNameOnly() {
+        return request.resource.data.get('memberNames', {})
+          .diff(resource.data.get('memberNames', {}))
+          .affectedKeys().hasOnly([request.auth.uid]);
+      }
+
+      // A map of names, not an essay: a cap on how many, and the caller's
+      // own one a short string. Rules cannot loop over the rest.
+      function namesShape() {
+        let names = request.resource.data.get('memberNames', {});
+        return names is map && names.size() <= 20
+          && (!(request.auth.uid in names)
+            || (names[request.auth.uid] is string
+              && names[request.auth.uid].size() <= 100));
+      }
 
       // Only the owner may delete the profile.
       allow delete: if signedIn()

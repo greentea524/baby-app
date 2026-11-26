@@ -113,8 +113,14 @@ class BabiesRepository {
     return _baby(babyId).update({
       'members.$uid': FieldValue.delete(),
       'memberUids': FieldValue.arrayRemove([uid]),
+      'memberNames.$uid': FieldValue.delete(),
     });
   }
+
+  /// Saves what the other caregivers see this one called, on [babyId]. Only
+  /// one's own: the rules refuse anyone else's.
+  Future<void> setMyName(String babyId, String name) =>
+      _baby(babyId).update({'memberNames.$_uid': name});
 
   Future<void> leaveBaby(String babyId) => removeMember(babyId, _uid);
 

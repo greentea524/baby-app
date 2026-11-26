@@ -53,6 +53,7 @@ class Baby {
     this.sex,
     this.avatar = BabyAvatar.baby,
     this.checklist = const [],
+    this.memberNames = const {},
   });
 
   final String id;
@@ -69,6 +70,19 @@ class Baby {
   /// Not part of [toProfileMap]: it is saved on its own, so an edit to the
   /// name cannot put back a list someone else has just changed.
   final List<ChecklistItem> checklist;
+
+  /// Each caregiver's name as their own app last saved it — their account's
+  /// display name, or failing that their email. Missing for anyone whose app
+  /// has not opened since names were kept.
+  final Map<String, String> memberNames;
+
+  /// What to call the caregiver [uid]: their name, or a plain "Caregiver"
+  /// until their app has saved one. Never part of their account id, which
+  /// means nothing to anyone.
+  String memberName(String uid) {
+    final name = memberNames[uid]?.trim() ?? '';
+    return name.isEmpty ? 'Caregiver' : name;
+  }
 
   List<String> get memberUids => members.keys.toList();
 
@@ -95,6 +109,12 @@ class Baby {
         for (final raw in (data['checklist'] as List<dynamic>?) ?? const [])
           if (raw is Map<String, dynamic>) ChecklistItem.fromMap(raw),
       ],
+      memberNames: {
+        for (final entry
+            in ((data['memberNames'] as Map<String, dynamic>?) ?? const {})
+                .entries)
+          if (entry.value is String) entry.key: entry.value as String,
+      },
     );
   }
 
@@ -121,5 +141,6 @@ class Baby {
     ownerUid: ownerUid,
     members: members,
     checklist: checklist,
+    memberNames: memberNames,
   );
 }

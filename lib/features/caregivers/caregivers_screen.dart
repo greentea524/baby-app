@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,10 +42,12 @@ class CaregiversScreen extends ConsumerWidget {
                 for (final entry in baby.members.entries)
                   ListTile(
                     leading: const CircleAvatar(child: Icon(Icons.person)),
+                    // A name, not an account id: "User a1b2c3" told nobody
+                    // who it was.
                     title: Text(
-                      entry.key == myUid ? 'You' : _shortUid(entry.key),
+                      entry.key == myUid ? 'You' : baby.memberName(entry.key),
                     ),
-                    subtitle: Text(entry.value.name),
+                    subtitle: Text(_roleLabel(entry.value)),
                     trailing: _memberAction(
                       context,
                       ref,
@@ -82,9 +86,8 @@ class CaregiversScreen extends ConsumerWidget {
                                   babyName: baby.name,
                                   email: invite.email,
                                 ),
-                                onRevoke: () => ref
-                                    .read(babiesRepositoryProvider)
-                                    ?.revokeInvite(baby.id, invite.email),
+                                onRevoke: () =>
+                                    _revoke(context, ref, baby, invite.email),
                               ),
                           ],
                         ),
@@ -127,10 +130,78 @@ class CaregiversScreen extends ConsumerWidget {
     return IconButton(
       icon: const Icon(Icons.remove_circle_outline),
       tooltip: 'Remove',
-      onPressed: () =>
-          ref.read(babiesRepositoryProvider)?.removeMember(baby.id, memberUid),
+      onPressed: () => _remove(context, ref, baby, memberUid),
     );
   }
+
+  /// Removing a caregiver takes them off the baby at once: they lose every
+  /// record. One tap used to do it, with no way back but a fresh invite.
+  Future<void> _remove(
+    BuildContext context,
+    WidgetRef ref,
+    Baby baby,
+    String memberUid,
+  ) async {
+    final who = baby.memberName(memberUid);
+    final ok = await _confirm(
+      context,
+      title: 'Remove $who?',
+      body:
+          'They will no longer see ${baby.name} or anything logged. You can '
+          'add them again later.',
+      action: 'Remove',
+    );
+    if (ok != true) return;
+    unawaited(
+      ref.read(babiesRepositoryProvider)?.removeMember(baby.id, memberUid),
+    );
+  }
+
+  /// Revoking an invite they may be about to accept.
+  Future<void> _revoke(
+    BuildContext context,
+    WidgetRef ref,
+    Baby baby,
+    String email,
+  ) async {
+    final ok = await _confirm(
+      context,
+      title: 'Revoke the invite?',
+      body:
+          '$email will not be able to join ${baby.name} unless invited again.',
+      action: 'Revoke',
+    );
+    if (ok != true) return;
+    unawaited(ref.read(babiesRepositoryProvider)?.revokeInvite(baby.id, email));
+  }
+
+  static Future<bool?> _confirm(
+    BuildContext context, {
+    required String title,
+    required String body,
+    required String action,
+  }) => showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(title),
+      content: Text(body),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: Text(action),
+        ),
+      ],
+    ),
+  );
+
+  static String _roleLabel(CaregiverRole role) => switch (role) {
+    CaregiverRole.owner => 'Owner',
+    CaregiverRole.editor => 'Can log and edit',
+  };
 
   Future<void> _leave(BuildContext context, WidgetRef ref, Baby baby) async {
     final ok = await showDialog<bool>(
@@ -161,9 +232,6 @@ class CaregiversScreen extends ConsumerWidget {
       failure: 'Could not leave ${baby.name}',
     );
   }
-
-  static String _shortUid(String uid) =>
-      uid.length <= 6 ? uid : 'User ${uid.substring(0, 6)}';
 }
 
 Future<void> _showInvite(BuildContext context, WidgetRef ref, Baby baby) {
@@ -226,7 +294,7 @@ class PendingInviteTile extends StatelessWidget {
       // in flight.
       leading: const Icon(Icons.hourglass_empty),
       title: Text(invite.email),
-      subtitle: Text('${invite.role.name} · waiting for them to sign in'),
+      subtitle: const Text('Waiting for them to sign in'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -258,7 +326,9 @@ class _InviteDialog extends ConsumerStatefulWidget {
 
 class _InviteDialogState extends ConsumerState<_InviteDialog> {
   final _controller = TextEditingController();
-  CaregiverRole _role = CaregiverRole.editor;
+
+  /// The only role there is to invite to, for now.
+  static const _role = CaregiverRole.editor;
   String? _error;
 
   /// Guards against a second tap landing while the dialog is closing. There
@@ -338,12 +408,15 @@ class _InviteDialogState extends ConsumerState<_InviteDialog> {
             },
           ),
           const SizedBox(height: 16),
-          SegmentedButton<CaregiverRole>(
-            segments: const [
-              ButtonSegment(value: CaregiverRole.editor, label: Text('Editor')),
-            ],
-            selected: {_role},
-            onSelectionChanged: (s) => setState(() => _role = s.first),
+          // There is one role for now. A toggle with a single choice looked
+          // like a broken control, so this says what it means instead.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'They will be able to log and edit everything for '
+              '${widget.baby.name}.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ),
         ],
       ),

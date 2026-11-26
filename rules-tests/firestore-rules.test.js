@@ -795,6 +795,62 @@ describe("membership changes", () => {
     });
   }
 
+  it("lets a caregiver save their own name", async () => {
+    await makeBobAMember();
+    await assertSucceeds(
+      updateDoc(babyDoc(asBob()), { "memberNames.bob": "Bob Smith" }),
+    );
+  });
+
+  it("but not anyone else's", async () => {
+    await makeBobAMember();
+    await assertFails(
+      updateDoc(babyDoc(asBob()), { "memberNames.alice": "Not Alice" }),
+    );
+  });
+
+  it("refuses a name that is not a short string", async () => {
+    await makeBobAMember();
+    await assertFails(
+      updateDoc(babyDoc(asBob()), { "memberNames.bob": "x".repeat(101) }),
+    );
+    await assertFails(updateDoc(babyDoc(asBob()), { "memberNames.bob": 42 }));
+  });
+
+  it("lets the owner remove a caregiver and their name with them", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(babyDoc(ctx.firestore()), {
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+        memberNames: { alice: "Alice", bob: "Bob" },
+      });
+    });
+    await assertSucceeds(
+      updateDoc(babyDoc(asAlice()), {
+        memberUids: ["alice"],
+        members: { alice: "owner" },
+        memberNames: { alice: "Alice" },
+      }),
+    );
+  });
+
+  it("lets a caregiver leave and take their name with them", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(babyDoc(ctx.firestore()), {
+        memberUids: ["alice", "bob"],
+        members: { alice: "owner", bob: "editor" },
+        memberNames: { alice: "Alice", bob: "Bob" },
+      });
+    });
+    await assertSucceeds(
+      updateDoc(babyDoc(asBob()), {
+        memberUids: ["alice"],
+        members: { alice: "owner" },
+        memberNames: { alice: "Alice" },
+      }),
+    );
+  });
+
   it("lets any member edit the profile fields", async () => {
     await makeBobAMember();
     await assertSucceeds(updateDoc(babyDoc(asBob()), { name: "Ada B" }));

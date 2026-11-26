@@ -63,6 +63,8 @@ class BabyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Kept alive without rebuilding the app when it finishes.
     ref.listen(retiredDataCleanupProvider, (_, _) {});
+    // So the other caregivers see this one's name.
+    ref.listen(memberNameSyncProvider, (_, _) {});
     // Logs feeds while the baby is away, on whichever device is open.
     ref.watch(autoFeederProvider);
     final router = ref.watch(routerProvider);

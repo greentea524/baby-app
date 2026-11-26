@@ -443,6 +443,36 @@ final retiredDataCleanupProvider = FutureProvider<void>((ref) async {
   }
 });
 
+/// The name this caregiver goes by on the Caregivers screen: their
+/// account's display name, or their email. Null with neither.
+String? caregiverNameOf(String? displayName, String? email) {
+  final name = displayName?.trim() ?? '';
+  if (name.isNotEmpty) return name.length > 100 ? name.substring(0, 100) : name;
+  final mail = email?.trim() ?? '';
+  return mail.isEmpty ? null : mail;
+}
+
+/// Keeps this caregiver's name on every baby they share, so the others see a
+/// name rather than an account id. Run from the app's root; writes only when
+/// the stored name is missing or out of date.
+final memberNameSyncProvider = FutureProvider<void>((ref) async {
+  final user = ref.watch(authStateProvider).value;
+  if (user == null) return;
+  final name = caregiverNameOf(user.displayName, user.email);
+  if (name == null) return;
+  final babies = await ref.watch(babiesStreamProvider.future);
+  final repo = ref.read(babiesRepositoryProvider);
+  if (repo == null) return;
+  for (final baby in babies) {
+    if (baby.memberNames[user.uid] == name) continue;
+    try {
+      await repo.setMyName(baby.id, name);
+    } catch (_) {
+      // Next time the app opens.
+    }
+  }
+});
+
 /// Deleting the account itself, and everything under it (#28, scope B).
 final accountDataProvider = Provider<AccountData>(
   (ref) =>
