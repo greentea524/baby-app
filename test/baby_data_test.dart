@@ -97,6 +97,7 @@ void main() {
         'fridgeLog',
         'appointments',
         'checks',
+        'stays',
         'diaperStock',
         'invites',
       ]);

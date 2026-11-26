@@ -416,6 +416,31 @@ service cloud.firestore {
         }
       }
 
+      // Time in someone else's care, from drop-off to pick-up. While it
+      // lasts the app logs feeds itself (feedings with an `auto-` id), and
+      // records how far it has got in `autoUntil` so a feed deleted by hand
+      // is not put back.
+      match /stays/{docId} {
+        allow read, delete: if isMember(babyId);
+        allow create: if isMember(babyId) && authored() && stayShape();
+        allow update: if isMember(babyId) && reauthored() && stayShape();
+
+        function stayShape() {
+          let d = request.resource.data;
+          return d.droppedAt is timestamp
+            && moment(d.get('pickedUpAt', null))
+            && d.carer is string && d.carer.size() <= 60
+            && d.get('autoFeed', false) is bool
+            && amount(d.get('amountMl', null))
+            && optional(d.get('milk', null), ['expressed', 'formula', 'wholeMilk'])
+            // Between half an hour and twelve: the gap between automatic
+            // feeds, and a bound on how many one stay can write.
+            && d.intervalMinutes is int
+            && d.intervalMinutes >= 30 && d.intervalMinutes <= 720
+            && moment(d.get('autoUntil', null));
+        }
+      }
+
       // The diaper stock, taken out of the app: the household stopped keeping
       // count. Nothing new is written; what is left can still be read and
       // deleted, which is how the app clears it (BabyData.clearRetired) and

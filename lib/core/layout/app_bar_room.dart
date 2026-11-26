@@ -12,22 +12,34 @@ import 'content_width.dart';
 /// on a 390pt phone it was left with 10pt and the name rendered as "J…".
 /// This is the arithmetic that stops that.
 class AppBarRoom {
-  const AppBarRoom._(this.width, this.medicine);
+  const AppBarRoom._(this.width, this.medicine, this.dropOff);
 
   /// The bar's own width, which is the screen's until the content cap bites.
   ///
   /// [medicine] when the medicine button is in the corner as well, which
   /// the rest has to make room for.
-  factory AppBarRoom.of(BuildContext context, {bool medicine = false}) =>
-      AppBarRoom._(
-        math.min(MediaQuery.sizeOf(context).width, maxContentWidth),
-        medicine,
-      );
+  factory AppBarRoom.of(
+    BuildContext context, {
+    bool medicine = false,
+    bool dropOff = false,
+  }) => AppBarRoom._(
+    math.min(MediaQuery.sizeOf(context).width, maxContentWidth),
+    medicine,
+    dropOff,
+  );
 
   final double width;
 
   /// Whether the medicine button is in the bar.
   final bool medicine;
+
+  /// Whether the drop-off button is in the bar.
+  final bool dropOff;
+
+  /// What the drop-off button costs when shown.
+  static const dropOffWidth = 104.0;
+
+  double get _dropOff => dropOff ? dropOffWidth : 0;
 
   /// What the medicine button costs when shown: the bar's standard leading
   /// slot.
@@ -66,6 +78,7 @@ class AppBarRoom {
       width -
           clockWidth -
           (medicine ? medicineWidth : 0) -
+          _dropOff -
           appointmentWidth -
           barPadding >=
       nameFloor;
@@ -81,7 +94,11 @@ class AppBarRoom {
     0,
     math.min(
       math.min(220, width * 0.42),
-      width - (medicine ? medicineWidth : 0) - barPadding - nameFloor,
+      width -
+          (medicine ? medicineWidth : 0) -
+          _dropOff -
+          barPadding -
+          nameFloor,
     ),
   );
 }

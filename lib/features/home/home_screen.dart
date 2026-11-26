@@ -25,6 +25,7 @@ import 'baby_switcher.dart';
 import 'home_access.dart';
 import 'home_prefs.dart';
 import 'home_status_card.dart';
+import '../away/drop_off.dart';
 import 'recent_activity_list.dart';
 import 'today_summary.dart';
 
@@ -108,7 +109,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // rather than a row of the status card, so a course that has ended
     // leaves nothing behind once the button goes.
     final medicine = baby != null && watchMedicineButtonShown(ref, now);
-    final room = AppBarRoom.of(context, medicine: medicine);
+    // The drop-off, while the baby is at home: away, the banner over the
+    // status card has the pick-up instead.
+    final dropOff = baby != null && ref.watch(activeStayProvider) == null;
+    final room = AppBarRoom.of(context, medicine: medicine, dropOff: dropOff);
     final showClock = baby != null && room.showsClock;
     final double corner =
         (medicine ? AppBarRoom.medicineWidth : 0) +
@@ -166,6 +170,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         actions: [
           if (baby != null)
             NextAppointmentButton(now: now, maxWidth: room.appointmentWidth),
+          if (dropOff) const DropOffButton(),
         ],
       ),
       body: babiesAsync.when(
@@ -192,6 +197,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   const SliverToBoxAdapter(child: InstallBanner()),
                   // Logging is what the app is opened for, and it starts
                   // here: each row's icon is its log button.
+                  // "With Grandparents since 8:10 AM", and the pick-up.
+                  SliverToBoxAdapter(child: AwayBanner(now: now)),
                   SliverToBoxAdapter(child: HomeStatusCard(now: now)),
                   // Today's checklist, when the household keeps one: under
                   // the readings, since it is ticked rather than logged.

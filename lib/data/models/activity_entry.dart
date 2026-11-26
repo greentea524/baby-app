@@ -1,3 +1,4 @@
+import 'care_stay.dart';
 import 'daily_check.dart';
 import 'diaper_event.dart';
 import 'feeding_event.dart';
@@ -59,6 +60,20 @@ class CheckEntry extends ActivityEntry {
   DateTime get time => event.time;
 }
 
+/// A drop-off, or the pick-up that ended it: one stay is two entries, each
+/// at its own time.
+class StayEntry extends ActivityEntry {
+  const StayEntry(this.stay, {this.pickUp = false});
+
+  final CareStay stay;
+
+  /// The pick-up rather than the drop-off.
+  final bool pickUp;
+
+  @override
+  DateTime get time => pickUp ? stay.pickedUpAt! : stay.droppedAt;
+}
+
 /// Merges feedings, diapers, pump sessions, doses of medicine and checklist
 /// ticks into one time-sorted list.
 List<ActivityEntry> mergeActivities(
@@ -67,6 +82,7 @@ List<ActivityEntry> mergeActivities(
   List<PumpingEvent> pumps = const [],
   List<MedicationEvent> meds = const [],
   List<DailyCheck> checks = const [],
+  List<CareStay> stays = const [],
   bool descending = true,
 }) {
   final entries = <ActivityEntry>[
@@ -75,6 +91,10 @@ List<ActivityEntry> mergeActivities(
     ...pumps.map(PumpingEntry.new),
     ...meds.map(MedicationEntry.new),
     ...checks.map(CheckEntry.new),
+    for (final stay in stays) ...[
+      StayEntry(stay),
+      if (stay.pickedUpAt != null) StayEntry(stay, pickUp: true),
+    ],
   ];
   entries.sort(
     (a, b) => descending ? b.time.compareTo(a.time) : a.time.compareTo(b.time),

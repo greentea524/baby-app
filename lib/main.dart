@@ -13,6 +13,7 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_provider.dart';
 import 'core/web/loading_screen.dart';
 import 'data/repositories/repository_providers.dart';
+import 'features/away/auto_feed.dart';
 import 'features/common/app_update_prompt.dart';
 import 'firebase_options.dart';
 
@@ -62,6 +63,8 @@ class BabyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Kept alive without rebuilding the app when it finishes.
     ref.listen(retiredDataCleanupProvider, (_, _) {});
+    // Logs feeds while the baby is away, on whichever device is open.
+    ref.watch(autoFeederProvider);
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
     final seed = ref.watch(accentProvider).seed;

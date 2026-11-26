@@ -6,6 +6,7 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/theme/theme_mode_provider.dart';
 import '../../features/fridge/fridge_order.dart';
 import '../models/baby.dart';
+import '../models/care_stay.dart';
 import '../models/caregiver_invite.dart';
 import '../models/daily_check.dart';
 import '../models/diaper_event.dart';
@@ -22,6 +23,7 @@ import 'account_data.dart';
 import 'baby_data.dart';
 import 'babies_repository.dart';
 import 'checks_repository.dart';
+import 'stays_repository.dart';
 import 'diaper_repository.dart';
 import 'feeding_repository.dart';
 import 'fridge_repository.dart';
@@ -282,6 +284,31 @@ final checksForDayProvider = StreamProvider<List<DailyCheck>>((ref) {
   final repo = ref.watch(checksRepositoryProvider);
   if (repo == null) return Stream.value(const []);
   return repo.watchForDay(ref.watch(selectedDayProvider));
+});
+
+// --- Time in someone else's care -------------------------------------------
+
+final staysRepositoryProvider = Provider<StaysRepository?>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final baby = ref.watch(currentBabyProvider);
+  if (user == null || baby == null) return null;
+  return StaysRepository(ref.watch(firestoreProvider), baby.id, user.uid);
+});
+
+/// The latest drop-offs, newest first.
+final recentStaysProvider = StreamProvider<List<CareStay>>((ref) {
+  final repo = ref.watch(staysRepositoryProvider);
+  if (repo == null) return Stream.value(const []);
+  return repo.watchRecent(limit: 20);
+});
+
+/// The stay going on now — dropped off and not yet picked up — or null.
+final activeStayProvider = Provider<CareStay?>((ref) {
+  final stays = ref.watch(recentStaysProvider).value ?? const [];
+  for (final stay in stays) {
+    if (stay.isActive) return stay;
+  }
+  return null;
 });
 
 // --- The fridge -------------------------------------------------------------

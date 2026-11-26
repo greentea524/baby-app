@@ -63,6 +63,8 @@ class RecentActivityList extends ConsumerWidget {
       pumps: pumpsAsync.value ?? const [],
       meds: medsAsync.value ?? const [],
       checks: checksAsync.value ?? const [],
+      // Drop-offs and pick-ups.
+      stays: ref.watch(recentStaysProvider).value ?? const [],
     );
 
     if (all.isEmpty) {

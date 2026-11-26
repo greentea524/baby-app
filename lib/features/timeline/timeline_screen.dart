@@ -44,8 +44,10 @@ class TimelineScreen extends ConsumerWidget {
       pumps: pumps,
       meds: medsAsync.value ?? const [],
       checks: checksAsync.value ?? const [],
+      // Drop-offs and pick-ups, the ones on this day.
+      stays: ref.watch(recentStaysProvider).value ?? const [],
       descending: false,
-    );
+    ).where((e) => e is! StayEntry || _onDay(e.time, day)).toList();
     final filter = ref.watch(activityFilterProvider);
     final visible = applyActivityFilter(entries, filter);
     // Stats stay on the whole day on purpose: the card summarises what
@@ -401,3 +403,6 @@ class _StatChip extends StatelessWidget {
     );
   }
 }
+
+bool _onDay(DateTime t, DateTime day) =>
+    t.year == day.year && t.month == day.month && t.day == day.day;

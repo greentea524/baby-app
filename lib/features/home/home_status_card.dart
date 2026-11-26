@@ -29,6 +29,7 @@ import '../timeline/day_stats.dart';
 import '../timeline/timeline_format.dart';
 import '../fridge/bottle_sheet.dart';
 import '../fridge/finish_bottle.dart';
+import '../away/auto_feed.dart';
 import 'home_prefs.dart';
 
 /// Wraps a Home row coloured for its [state] — amber, red or purple — so
@@ -183,7 +184,11 @@ class HomeStatusCard extends ConsumerWidget {
     if (due != null) {
       final at = _keep(TimeOfDay.fromDateTime(due).format(context));
       final settings = ref.watch(reminderSettingsProvider);
-      state = feedDueState(due, now: now, within: settings.headsUp);
+      final away = ref.watch(activeStayProvider);
+      state = feedStateWhileAway(
+        feedDueState(due, now: now, within: settings.headsUp),
+        away,
+      );
       next = DueChip(
         // The bar under the chip, as the fridge's bottles have theirs.
         barBelow: true,
@@ -207,6 +212,8 @@ class HomeStatusCard extends ConsumerWidget {
         // has slipped past.
         text: state.isPast
             ? dueLine('Feed', countdownLabel(due, now: now), 'due $at')
+            : away != null && away.autoFeed
+            ? autoFeedLine(due, now, at)
             : dueLine('Next feed', countdownLabel(due, now: now), at),
       );
     }
@@ -315,7 +322,11 @@ class HomeStatusCard extends ConsumerWidget {
 
   Widget _diaperRow(BuildContext context, WidgetRef ref) {
     final last = ref.watch(lastDiaperProvider);
-    final state = diaperDueState(last?.time, now: now);
+    // Paused while the baby is away: nobody at home can change them.
+    final state = diaperStateWhileAway(
+      diaperDueState(last?.time, now: now),
+      ref.watch(activeStayProvider),
+    );
     final notes = last?.notes?.trim() ?? '';
     return _StatusRow(
       // Its own clock, escalating like the feed row above it: amber at two

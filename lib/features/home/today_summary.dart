@@ -27,29 +27,32 @@ typedef TodayEvents = ({
 /// Used as the family key for [todayEventsProvider] so 30-second ticks within
 /// the same day reuse one provider instance, while crossing midnight switches
 /// immediately to the new day without waiting for a stream write.
-DateTime calendarDay(DateTime time) => DateTime(time.year, time.month, time.day);
+DateTime calendarDay(DateTime time) =>
+    DateTime(time.year, time.month, time.day);
 
 /// Everything logged on [day], from the streams Home is already subscribed to.
-final todayEventsProvider =
-    Provider.autoDispose.family<TodayEvents, DateTime>((ref, day) {
-      bool isSameDay(DateTime t) =>
-          t.year == day.year && t.month == day.month && t.day == day.day;
+final todayEventsProvider = Provider.autoDispose.family<TodayEvents, DateTime>((
+  ref,
+  day,
+) {
+  bool isSameDay(DateTime t) =>
+      t.year == day.year && t.month == day.month && t.day == day.day;
 
-      return (
-        feedings: [
-          for (final f in ref.watch(recentFeedingsProvider).value ?? const [])
-            if (isSameDay(f.startTime)) f,
-        ],
-        diapers: [
-          for (final d in ref.watch(recentDiapersProvider).value ?? const [])
-            if (isSameDay(d.time)) d,
-        ],
-        pumps: [
-          for (final p in ref.watch(recentPumpingProvider).value ?? const [])
-            if (isSameDay(p.time)) p,
-        ],
-      );
-    });
+  return (
+    feedings: [
+      for (final f in ref.watch(recentFeedingsProvider).value ?? const [])
+        if (isSameDay(f.startTime)) f,
+    ],
+    diapers: [
+      for (final d in ref.watch(recentDiapersProvider).value ?? const [])
+        if (isSameDay(d.time)) d,
+    ],
+    pumps: [
+      for (final p in ref.watch(recentPumpingProvider).value ?? const [])
+        if (isSameDay(p.time)) p,
+    ],
+  );
+});
 
 /// Totals for [day], from the same events.
 final todayStatsProvider = Provider.autoDispose.family<DayStats, DateTime>((

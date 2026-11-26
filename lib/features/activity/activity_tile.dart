@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format/unit_system.dart';
 import '../../data/models/activity_entry.dart';
+import '../../data/models/care_stay.dart';
 import '../../data/models/daily_check.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../away/drop_off.dart';
 import '../checklist/daily_checklist.dart';
 import '../checklist/timed_item_sheet.dart';
 import '../common/event_tile.dart';
@@ -127,6 +129,14 @@ class ActivityTile extends ConsumerWidget {
         onDelete: () async =>
             ref.read(medicationRepositoryProvider)?.delete(event.id),
       ),
+      StayEntry(:final stay, :final pickUp) => _stayTile(
+        context,
+        ref,
+        stay,
+        pickUp,
+        trailing,
+        trailingDetail,
+      ),
       CheckEntry(:final event) => _checkTile(
         context,
         ref,
@@ -135,6 +145,45 @@ class ActivityTile extends ConsumerWidget {
         trailingDetail,
       ),
     };
+  }
+
+  /// A drop-off, or the pick-up that ended it. Tapping shows the feeds
+  /// logged automatically meanwhile; deleting a drop-off takes the stay back,
+  /// deleting a pick-up says the baby is still away.
+  Widget _stayTile(
+    BuildContext context,
+    WidgetRef ref,
+    CareStay stay,
+    bool pickUp,
+    String trailing,
+    String? trailingDetail,
+  ) {
+    final who = stay.carer.trim();
+    final repo = ref.read(staysRepositoryProvider);
+    String away() {
+      final d = stay.pickedUpAt!.difference(stay.droppedAt);
+      final h = d.inHours;
+      final m = d.inMinutes % 60;
+      return [if (h > 0) '${h}h', if (m > 0 || h == 0) '${m}m'].join(' ');
+    }
+
+    return EventTile(
+      key: ValueKey('stay_${stay.id}_${pickUp ? 'up' : 'off'}'),
+      icon: pickUp ? Icons.home_outlined : awayIcon,
+      title: pickUp ? 'Picked up' : 'Dropped off',
+      subtitle: [
+        if (who.isNotEmpty) pickUp ? 'From $who' : 'With $who',
+        if (pickUp) 'away ${away()}',
+        if (!pickUp && stay.autoFeed) 'feeds logged automatically',
+      ].join(' · '),
+      trailing: trailing,
+      trailingDetail: trailingDetail,
+      confirmTitle: pickUp ? 'Undo the pick-up?' : 'Delete drop-off?',
+      deletedMessage: pickUp ? 'Pick-up taken back' : 'Drop-off deleted',
+      onTap: () => showStaySheet(context, stay),
+      onDelete: () async =>
+          pickUp ? repo?.setPickedUp(stay.id, null) : repo?.delete(stay.id),
+    );
   }
 
   /// A tick off the daily checklist. Tapping says when it was done, as on

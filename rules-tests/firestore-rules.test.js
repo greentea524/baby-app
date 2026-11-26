@@ -1293,6 +1293,72 @@ describe("the daily checklist", () => {
   });
 });
 
+describe("a stay in someone else's care", () => {
+  const stay = (over = {}) => ({
+    droppedAt: AT,
+    pickedUpAt: null,
+    carer: "Grandparents",
+    autoFeed: true,
+    amountMl: 120,
+    milk: "expressed",
+    intervalMinutes: 180,
+    autoUntil: null,
+    ...stamped(),
+    ...over,
+  });
+  const stayRef = (db, id) => doc(db, "babies", BABY, "stays", id);
+
+  it("accepts a drop-off as the app writes it", async () => {
+    await assertSucceeds(setDoc(stayRef(asAlice(), "s1"), stay()));
+    await assertSucceeds(
+      setDoc(stayRef(asAlice(), "s2"), stay({ autoFeed: false, amountMl: null, milk: null })),
+    );
+  });
+
+  it("refuses a gap too short or too long, or a carer that is not a name", async () => {
+    await assertFails(setDoc(stayRef(asAlice(), "b1"), stay({ intervalMinutes: 5 })));
+    await assertFails(setDoc(stayRef(asAlice(), "b2"), stay({ intervalMinutes: 2000 })));
+    await assertFails(setDoc(stayRef(asAlice(), "b3"), stay({ intervalMinutes: 90.5 })));
+    await assertFails(setDoc(stayRef(asAlice(), "b4"), stay({ carer: "x".repeat(61) })));
+    await assertFails(setDoc(stayRef(asAlice(), "b5"), stay({ milk: "juice" })));
+  });
+
+  it("takes a pick-up, and how far the automatic feeds have got", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(stayRef(ctx.firestore(), "e1"), stay());
+    });
+    await assertSucceeds(
+      updateDoc(stayRef(asAlice(), "e1"), { autoUntil: AT, ...edited() }),
+    );
+    await assertSucceeds(
+      updateDoc(stayRef(asAlice(), "e1"), { pickedUpAt: AT, ...edited() }),
+    );
+    await assertSucceeds(deleteDoc(stayRef(asAlice(), "e1")));
+  });
+
+  it("keeps a non-member out", async () => {
+    await assertFails(setDoc(stayRef(asMallory(), "m"), stay({ ...stamped("mallory") })));
+    await assertFails(getDoc(stayRef(asMallory(), "m")));
+  });
+
+  it("lets an automatic feed be written under its own id", async () => {
+    const feedRef = doc(asAlice(), "babies", BABY, "feedings", "auto-s1-1700000000000");
+    await assertSucceeds(
+      setDoc(feedRef, {
+        type: "bottle",
+        startTime: AT,
+        durationMinutes: null,
+        amountMl: 120,
+        side: null,
+        notes: "At Grandparents",
+        isSnack: false,
+        milk: "expressed",
+        ...stamped(),
+      }),
+    );
+  });
+});
+
 describe("the diaper stock, retired", () => {
   const line = (over = {}) => ({
     action: "added",

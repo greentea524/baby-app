@@ -26,6 +26,8 @@ import '../timeline/timeline_format.dart';
 import 'baby_age.dart';
 import 'home_prefs.dart';
 import 'home_status_card.dart';
+import '../away/auto_feed.dart';
+import '../away/drop_off.dart';
 
 /// The app for a tablet propped on a shelf (#29).
 ///
@@ -122,6 +124,9 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                   _Header(baby: baby, now: widget.now),
                   const SizedBox(height: 12),
                 ],
+                // While the baby is away, with the pick-up: whoever is at
+                // the tablet sees it as well.
+                const AwayBanner(margin: EdgeInsets.only(bottom: 12)),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -157,14 +162,18 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
 
                       final lastFed = ref.watch(lastMilkFeedProvider);
                       final due = ref.watch(nextFeedDueProvider);
+                      final away = ref.watch(activeStayProvider);
                       final dueState = due == null
                           ? null
-                          : feedDueState(
-                              due,
-                              now: clock,
-                              within: ref
-                                  .watch(reminderSettingsProvider)
-                                  .headsUp,
+                          : feedStateWhileAway(
+                              feedDueState(
+                                due,
+                                now: clock,
+                                within: ref
+                                    .watch(reminderSettingsProvider)
+                                    .headsUp,
+                              ),
+                              away,
                             );
                       // One size for every card's reading, the largest the
                       // longest of them fits. Each used to shrink on its own
@@ -304,9 +313,9 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
                         // at two hours since the last change, red at three.
                         // Written when the feed card got its colour that this
                         // one had no state of its own — it has one now.
-                        dueState: diaperDueState(
-                          lastChanged?.time,
-                          now: clock,
+                        dueState: diaperStateWhileAway(
+                          diaperDueState(lastChanged?.time, now: clock),
+                          away,
                         ),
                       );
 
@@ -606,6 +615,8 @@ class _NurseryScreenState extends ConsumerState<NurseryScreen> {
       lateFrom: dueLateShare(interval: interval),
       text: state.isPast
           ? dueLine('Feed', countdownLabel(due, now: clock), 'due $at')
+          : ref.watch(activeStayProvider)?.autoFeed ?? false
+          ? autoFeedLine(due, clock, at)
           : dueLine('Next feed', countdownLabel(due, now: clock), at),
     );
   }
