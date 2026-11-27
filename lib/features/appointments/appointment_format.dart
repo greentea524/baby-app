@@ -11,7 +11,7 @@ abstract final class AppointmentFormat {
     AppointmentKind.vaccination => 'Vaccination',
     AppointmentKind.specialist => 'Specialist',
     AppointmentKind.dental => 'Dental',
-    AppointmentKind.other => 'Appointment',
+    AppointmentKind.other => 'Visit',
   };
 
   static IconData kindIcon(AppointmentKind kind) => switch (kind) {

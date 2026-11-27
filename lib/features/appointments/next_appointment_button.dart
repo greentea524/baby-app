@@ -14,7 +14,7 @@ import 'appointment_format.dart';
 ///
 /// Shows when the visit is and what it is — "Tomorrow, 2:00 PM · Jabs" —
 /// because a bare countdown says something is coming without saying what to
-/// prepare for or when to be there. Tapping opens the Appointments screen,
+/// prepare for or when to be there. Tapping switches to the Visits tab,
 /// which is where the rest of them live.
 ///
 /// Renders nothing when there is no upcoming visit, so the corner stays empty
@@ -39,7 +39,7 @@ class NextAppointmentButton extends ConsumerWidget {
       appt: upcoming.first,
       now: now ?? DateTime.now(),
       widthLimit: maxWidth,
-      onTap: () => context.push(AppRoutes.appointments),
+      onTap: () => context.go(AppRoutes.appointments),
     );
   }
 }

@@ -122,7 +122,7 @@ class _AppointmentSheetState extends ConsumerState<_AppointmentSheet> {
     saveAndClose(
       context,
       () => _isEdit ? repo.update(appointment) : repo.add(appointment),
-      failure: 'Could not save the appointment',
+      failure: 'Could not save the visit',
     );
   }
 
@@ -133,7 +133,7 @@ class _AppointmentSheetState extends ConsumerState<_AppointmentSheet> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          _isEdit ? 'Edit appointment' : 'New appointment',
+          _isEdit ? 'Edit visit' : 'New visit',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 16),
@@ -202,9 +202,9 @@ class _AppointmentSheetState extends ConsumerState<_AppointmentSheet> {
         ),
         if (_isEdit)
           DeleteEntryButton(
-            label: 'Delete appointment',
-            confirmTitle: 'Delete appointment?',
-            deletedMessage: 'Appointment deleted',
+            label: 'Delete visit',
+            confirmTitle: 'Delete visit?',
+            deletedMessage: 'Visit deleted',
             onDelete: switch (ref.watch(appointmentsRepositoryProvider)) {
               final repo? => () => repo.delete(widget.existing!.id),
               null => null,

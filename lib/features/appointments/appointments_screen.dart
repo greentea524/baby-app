@@ -19,7 +19,7 @@ class AppointmentsScreen extends ConsumerWidget {
     final appointmentsAsync = ref.watch(appointmentsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Appointments')),
+      appBar: AppBar(title: const Text('Visits')),
       floatingActionButton: baby == null
           ? null
           : FloatingActionButton.extended(
@@ -46,7 +46,7 @@ class AppointmentsScreen extends ConsumerWidget {
                     child: Padding(
                       padding: EdgeInsets.all(24),
                       child: Text(
-                        'No appointments yet.\nAdd the next checkup so it '
+                        'No visits yet.\nAdd the next checkup so it '
                         'does not sneak up on you.',
                         textAlign: TextAlign.center,
                       ),
@@ -116,8 +116,8 @@ class _AppointmentTile extends ConsumerWidget {
       subtitle: AppointmentFormat.details(appointment),
       trailing: trailing,
       trailingDetail: trailingDetail,
-      confirmTitle: 'Delete appointment?',
-      deletedMessage: 'Appointment deleted',
+      confirmTitle: 'Delete visit?',
+      deletedMessage: 'Visit deleted',
       onTap: () => showAppointmentSheet(context, existing: appointment),
       onDelete: () async =>
           ref.read(appointmentsRepositoryProvider)?.delete(appointment.id),

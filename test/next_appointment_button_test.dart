@@ -5,7 +5,7 @@ import 'package:baby_app/data/models/appointment.dart';
 import 'package:baby_app/features/appointments/next_appointment_button.dart';
 
 /// The next visit sits in the app bar's top-right corner as a two-line pill —
-/// when it is above what it is — and opens the Appointments screen when
+/// when it is above what it is — and switches to the Visits tab when
 /// tapped.
 void main() {
   final now = DateTime(2026, 7, 30, 9);

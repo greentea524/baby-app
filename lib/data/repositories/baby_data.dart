@@ -48,7 +48,7 @@ class BabyData {
     'pumps': ('pumping session', 'pumping sessions'),
     'meds': ('dose of medicine', 'doses of medicine'),
     'bottles': ('bottle in the fridge', 'bottles in the fridge'),
-    'appointments': ('appointment', 'appointments'),
+    'appointments': ('visit', 'visits'),
     'checks': ('daily check', 'daily checks'),
     'stays': ('drop-off', 'drop-offs'),
     'diaperStock': ('diaper stock entry', 'diaper stock entries'),

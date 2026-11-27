@@ -29,7 +29,7 @@ void main() {
           'appointments': 4,
         }),
         '1284 feeds, 903 diaper changes, 12 growth measurements and '
-        '4 appointments',
+        '4 visits',
       );
     });
 
