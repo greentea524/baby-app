@@ -11,11 +11,13 @@ import '../common/delete_entry_button.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import '../common/milk_chooser.dart';
+import '../common/number_input.dart';
 import '../common/save_and_close.dart';
 import '../common/volume_field.dart';
 import 'amount_suggestion_chips.dart';
 import 'amount_suggestions.dart';
 import 'feeding_format.dart';
+import 'nursing_timer.dart';
 
 /// Opens the feeding quick-log sheet. Pass [existing] to edit an entry
 /// (KAN-147); omit it to log a new feed (KAN-143/144/145).
@@ -233,23 +235,34 @@ class _SaveBarState extends ConsumerState<_SaveBar> {
 
 // --- Breastfeeding (KAN-143) ------------------------------------------------
 
-class _BreastForm extends StatefulWidget {
+class _BreastForm extends ConsumerStatefulWidget {
   const _BreastForm({this.existing});
 
   final FeedingEvent? existing;
 
   @override
-  State<_BreastForm> createState() => _BreastFormState();
+  ConsumerState<_BreastForm> createState() => _BreastFormState();
 }
 
-class _BreastFormState extends State<_BreastForm> {
+/// Breastfeeding, timed or typed (#43).
+///
+/// The stopwatch is the quick way: start, switch sides, save. A new feed's
+/// timer is kept on the device ([nursingTimerProvider]), so closing the
+/// sheet or the phone locking does not lose it. The start time can be moved
+/// back and the minutes typed, for a feed logged afterwards; and it takes
+/// notes, as the other sheets do.
+class _BreastFormState extends ConsumerState<_BreastForm> {
   BreastSide _side = BreastSide.left;
   DateTime _startTime = DateTime.now();
   Duration _elapsed = Duration.zero;
   bool _isSnack = false;
+  final _minutes = TextEditingController();
+  final _notes = TextEditingController();
 
   Timer? _ticker;
   DateTime? _runningSince;
+
+  bool get _isEdit => widget.existing != null;
 
   @override
   void initState() {
@@ -260,16 +273,59 @@ class _BreastFormState extends State<_BreastForm> {
       _startTime = e.startTime;
       _elapsed = Duration(minutes: e.durationMinutes ?? 0);
       _isSnack = e.isSnack;
+      _notes.text = e.notes ?? '';
+    } else if (ref.read(nursingTimerProvider) case final t?) {
+      // A feed timed earlier and not saved: carry on from it.
+      _side = t.side;
+      _startTime = t.startedAt;
+      _elapsed = t.elapsed;
+      _runningSince = t.runningSince;
+      if (t.running) _startTicker();
     }
+    _syncMinutes();
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
+    _minutes.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
   bool get _running => _runningSince != null;
+
+  void _startTicker() {
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(_syncMinutes);
+    });
+  }
+
+  /// The minutes field follows the stopwatch.
+  void _syncMinutes() {
+    final m = _displayed.inMinutes;
+    _minutes.text = m == 0 && !_running && _elapsed == Duration.zero
+        ? ''
+        : '$m';
+  }
+
+  /// Keeps a new feed's timer on the device; an edit's is its own.
+  void _persist() {
+    if (_isEdit) return;
+    final timer = ref.read(nursingTimerProvider.notifier);
+    if (!_running && _elapsed == Duration.zero) {
+      timer.set(null);
+      return;
+    }
+    timer.set(
+      NursingTimer(
+        startedAt: _startTime,
+        elapsed: _elapsed,
+        runningSince: _runningSince,
+        side: _side,
+      ),
+    );
+  }
 
   void _toggleTimer() {
     if (_running) {
@@ -277,17 +333,38 @@ class _BreastFormState extends State<_BreastForm> {
       setState(() {
         _elapsed += DateTime.now().difference(_runningSince!);
         _runningSince = null;
+        _syncMinutes();
       });
     } else {
       // First start also sets the feed's start time.
       if (_elapsed == Duration.zero) _startTime = DateTime.now();
       _runningSince = DateTime.now();
-      _ticker = Timer.periodic(
-        const Duration(seconds: 1),
-        (_) => setState(() {}),
-      );
-      setState(() {});
+      _startTicker();
+      setState(_syncMinutes);
     }
+    _persist();
+  }
+
+  void _reset() {
+    _ticker?.cancel();
+    setState(() {
+      _runningSince = null;
+      _elapsed = Duration.zero;
+      _startTime = DateTime.now();
+      _syncMinutes();
+    });
+    _persist();
+  }
+
+  /// Minutes typed: the stopwatch stops and takes them.
+  void _typedMinutes(String text) {
+    final m = int.tryParse(text.trim());
+    _ticker?.cancel();
+    setState(() {
+      _runningSince = null;
+      _elapsed = Duration(minutes: m ?? 0);
+    });
+    _persist();
   }
 
   Duration get _displayed => _running
@@ -296,6 +373,7 @@ class _BreastFormState extends State<_BreastForm> {
 
   FeedingEvent? _build() {
     final minutes = _displayed.inMinutes;
+    final notes = _notes.text.trim();
     return FeedingEvent(
       id: widget.existing?.id ?? '',
       type: FeedingType.breast,
@@ -303,6 +381,7 @@ class _BreastFormState extends State<_BreastForm> {
       durationMinutes: minutes,
       side: _side,
       isSnack: _isSnack,
+      notes: notes.isEmpty ? null : notes,
     );
   }
 
@@ -317,17 +396,34 @@ class _BreastFormState extends State<_BreastForm> {
         Center(
           child: Text(
             FeedingFormat.stopwatch(_displayed),
+            key: const ValueKey('nursing-stopwatch'),
             style: Theme.of(context).textTheme.displaySmall,
           ),
         ),
         const SizedBox(height: 8),
-        Center(
-          child: FilledButton.tonalIcon(
-            onPressed: _toggleTimer,
-            icon: Icon(_running ? Icons.pause : Icons.play_arrow),
-            label: Text(_running ? 'Pause' : 'Start'),
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FilledButton.tonalIcon(
+              onPressed: _toggleTimer,
+              icon: Icon(_running ? Icons.pause : Icons.play_arrow),
+              label: Text(_running ? 'Pause' : 'Start'),
+            ),
+            if (!_isEdit && (_running || _elapsed > Duration.zero)) ...[
+              const SizedBox(width: 8),
+              TextButton(onPressed: _reset, child: const Text('Reset')),
+            ],
+          ],
         ),
+        if (!_isEdit && _running)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Keeps running if you close this',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         const SizedBox(height: 16),
         SegmentedButton<BreastSide>(
           segments: const [
@@ -336,14 +432,55 @@ class _BreastFormState extends State<_BreastForm> {
             ButtonSegment(value: BreastSide.both, label: Text('Both')),
           ],
           selected: {_side},
-          onSelectionChanged: (s) => setState(() => _side = s.first),
+          onSelectionChanged: (s) {
+            setState(() => _side = s.first);
+            _persist();
+          },
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          key: const ValueKey('nursing-minutes'),
+          controller: _minutes,
+          keyboardType: TextInputType.number,
+          inputFormatters: wholeNumberInput,
+          decoration: const InputDecoration(
+            labelText: 'Duration',
+            suffixText: 'min',
+            helperText: 'Or type it, for a feed logged afterwards',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: _typedMinutes,
+        ),
+        const SizedBox(height: 12),
+        EventTimeRow(
+          time: _startTime,
+          onChanged: (t) {
+            setState(() => _startTime = t);
+            _persist();
+          },
         ),
         _SnackToggle(
           value: _isSnack,
           onChanged: (v) => setState(() => _isSnack = v),
         ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _notes,
+          decoration: const InputDecoration(
+            labelText: 'Notes (optional)',
+            border: OutlineInputBorder(),
+          ),
+        ),
         const SizedBox(height: 16),
-        _SaveBar(isEdit: widget.existing != null, build: _build),
+        _SaveBar(
+          isEdit: _isEdit,
+          enabled: !isFutureLogTime(_startTime),
+          build: _build,
+          // Saved: the timer has done its job.
+          onSaved: _isEdit
+              ? null
+              : () => ref.read(nursingTimerProvider.notifier).set(null),
+        ),
       ],
     );
   }
