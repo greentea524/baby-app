@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/format/unit_system.dart';
 import '../../data/models/growth_measurement.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/delete_entry_button.dart';
 import '../common/app_sheet.dart';
 import '../common/number_input.dart';
 import '../common/save_and_close.dart';
@@ -256,6 +257,16 @@ class _GrowthSheetState extends ConsumerState<_GrowthSheet> {
           onPressed: _save,
           child: Text(isEdit ? 'Save changes' : 'Save'),
         ),
+        if (isEdit)
+          DeleteEntryButton(
+            label: 'Delete measurement',
+            confirmTitle: 'Delete measurement?',
+            deletedMessage: 'Measurement deleted',
+            onDelete: switch (ref.watch(growthRepositoryProvider)) {
+              final repo? => () => repo.delete(widget.existing!.id),
+              null => null,
+            },
+          ),
       ],
     );
   }

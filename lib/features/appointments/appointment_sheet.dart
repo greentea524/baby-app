@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/appointment.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/delete_entry_button.dart';
 import '../common/app_sheet.dart';
 import '../common/save_and_close.dart';
 import 'appointment_format.dart';
@@ -199,6 +200,16 @@ class _AppointmentSheetState extends ConsumerState<_AppointmentSheet> {
           onPressed: _save,
           child: Text(_isEdit ? 'Save changes' : 'Save'),
         ),
+        if (_isEdit)
+          DeleteEntryButton(
+            label: 'Delete appointment',
+            confirmTitle: 'Delete appointment?',
+            deletedMessage: 'Appointment deleted',
+            onDelete: switch (ref.watch(appointmentsRepositoryProvider)) {
+              final repo? => () => repo.delete(widget.existing!.id),
+              null => null,
+            },
+          ),
       ],
     );
   }

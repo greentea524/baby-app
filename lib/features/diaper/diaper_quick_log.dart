@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/diaper_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/delete_entry_button.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import '../common/note_chips.dart';
@@ -162,6 +163,16 @@ class _DiaperSheetState extends ConsumerState<_DiaperSheet> {
           onPressed: isFutureLogTime(_time) ? null : _save,
           child: Text(isEdit ? 'Save changes' : 'Save'),
         ),
+        if (isEdit)
+          DeleteEntryButton(
+            label: 'Delete diaper change',
+            confirmTitle: 'Delete diaper change?',
+            deletedMessage: 'Diaper change deleted',
+            onDelete: switch (ref.watch(diaperRepositoryProvider)) {
+              final repo? => () => repo.delete(widget.existing!.id),
+              null => null,
+            },
+          ),
       ],
     );
   }

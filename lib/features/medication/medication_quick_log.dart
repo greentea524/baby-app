@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/medication_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/delete_entry_button.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import '../common/number_input.dart';
@@ -340,6 +341,16 @@ class _MedicationSheetState extends ConsumerState<_MedicationSheet> {
           onPressed: _valid && !isFutureLogTime(_time) ? _confirmAndSave : null,
           child: Text(isEdit ? 'Save changes' : 'Save'),
         ),
+        if (isEdit)
+          DeleteEntryButton(
+            label: 'Delete dose',
+            confirmTitle: 'Delete dose?',
+            deletedMessage: 'Dose deleted',
+            onDelete: switch (ref.watch(medicationRepositoryProvider)) {
+              final repo? => () => repo.delete(widget.existing!.id),
+              null => null,
+            },
+          ),
       ],
     );
   }

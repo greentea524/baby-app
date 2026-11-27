@@ -10,6 +10,7 @@ import '../../data/models/feeding_event.dart' show BreastSide;
 import '../../data/models/fridge_bottle.dart';
 import '../../data/models/pumping_event.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../common/delete_entry_button.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import '../common/number_input.dart';
@@ -256,6 +257,16 @@ class _PumpingSheetState extends ConsumerState<_PumpingSheet> {
           onPressed: isFutureLogTime(_time) ? null : _save,
           child: Text(isEdit ? 'Save changes' : 'Save'),
         ),
+        if (isEdit)
+          DeleteEntryButton(
+            label: 'Delete pumping',
+            confirmTitle: 'Delete pumping?',
+            deletedMessage: 'Pumping deleted',
+            onDelete: switch (ref.watch(pumpingRepositoryProvider)) {
+              final repo? => () => repo.delete(widget.existing!.id),
+              null => null,
+            },
+          ),
       ],
     );
   }

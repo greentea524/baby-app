@@ -7,6 +7,7 @@ import '../../data/models/feeding_event.dart';
 import '../../data/models/fridge_bottle.dart';
 import '../../data/repositories/repository_providers.dart';
 import '../../core/format/volume_entry.dart';
+import '../common/delete_entry_button.dart';
 import '../common/app_sheet.dart';
 import '../common/event_time_row.dart';
 import '../common/milk_chooser.dart';
@@ -92,7 +93,7 @@ class _QuickLogSheetState extends State<_QuickLogSheet> {
   @override
   Widget build(BuildContext context) {
     final existing = widget.existing;
-    return switch (_mode) {
+    final form = switch (_mode) {
       null => _TypeChooser(onSelected: (t) => setState(() => _mode = t)),
       FeedingType.breast => _BreastForm(existing: existing),
       FeedingType.bottle => _BottleForm(
@@ -101,6 +102,25 @@ class _QuickLogSheetState extends State<_QuickLogSheet> {
       ),
       FeedingType.solids => _SolidsForm(existing: existing),
     };
+    if (existing == null) return form;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        form,
+        Consumer(
+          builder: (context, ref, _) {
+            final repo = ref.watch(feedingRepositoryProvider);
+            return DeleteEntryButton(
+              label: 'Delete feed',
+              confirmTitle: 'Delete feed?',
+              deletedMessage: 'Feed deleted',
+              onDelete: repo == null ? null : () => repo.delete(existing.id),
+            );
+          },
+        ),
+      ],
+    );
   }
 }
 
