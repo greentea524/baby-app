@@ -35,11 +35,26 @@ import 'home_prefs.dart';
 /// Wraps a Home row coloured for its [state] — amber, red or purple — so
 /// tests and screen code can find it. Draws nothing of its own.
 class AlertRowMark extends StatelessWidget {
-  const AlertRowMark({super.key, required this.state, required this.child});
+  const AlertRowMark({
+    super.key,
+    required this.state,
+    required this.child,
+    this.ground,
+  });
 
   /// Null for a row left plain.
   final DueState? state;
   final Widget child;
+
+  /// The colour painted behind the row, for anything drawn on it that has
+  /// to cut out against it: the log icons' "+" badge.
+  final Color? ground;
+
+  /// What a row's contents sit on at [context]: its tint, or the card.
+  static Color groundOf(BuildContext context) =>
+      context.findAncestorWidgetOfExactType<AlertRowMark>()?.ground ??
+      Theme.of(context).cardTheme.color ??
+      Theme.of(context).colorScheme.surfaceContainerLow;
 
   @override
   Widget build(BuildContext context) => child;
@@ -109,6 +124,7 @@ class HomeStatusCard extends ConsumerWidget {
             for (final row in rows)
               AlertRowMark(
                 state: markFor(row),
+                ground: tint(row),
                 child: Card(
                   color: tint(row),
                   margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -148,6 +164,7 @@ class HomeStatusCard extends ConsumerWidget {
                 // rows above and below.
                 AlertRowMark(
                   state: markFor(rows[i]),
+                  ground: colour,
                   child: Stack(
                     children: [
                       Positioned.fill(
@@ -1539,7 +1556,12 @@ class _LogIcon extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: scheme.primary,
                   shape: BoxShape.circle,
-                  border: Border.all(color: scheme.surface, width: 2),
+                  // Cut out against what the icon sits on — the card, or
+                  // the row's tint — not the page behind the card (#45).
+                  border: Border.all(
+                    color: AlertRowMark.groundOf(context),
+                    width: 2,
+                  ),
                 ),
                 child: Icon(Icons.add, size: 14, color: scheme.onPrimary),
               ),

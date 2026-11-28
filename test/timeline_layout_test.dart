@@ -174,6 +174,26 @@ void main() {
     expect(find.byTooltip('Next day'), findsOneWidget);
   });
 
+  testWidgets('an earlier day has a Today button back (#45)', (tester) async {
+    await pumpTimeline(tester);
+    expect(find.byKey(const ValueKey('timeline-today')), findsNothing);
+
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byTooltip('Previous day'));
+      await tester.pumpAndSettle();
+    }
+    expect(find.byKey(const ValueKey('timeline-today')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('timeline-today')));
+    await tester.pumpAndSettle();
+    // One tap, not three: back on today, and the button gone with it.
+    expect(find.byKey(const ValueKey('timeline-today')), findsNothing);
+    final next = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.chevron_right),
+    );
+    expect(next.onPressed, isNull);
+  });
+
   testWidgets('the busy-day fixture really is busy', (tester) async {
     // Guards the measurements below: they mean nothing against a day with
     // three chips and four rows.

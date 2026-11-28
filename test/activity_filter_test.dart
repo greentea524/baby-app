@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 
 import 'package:baby_app/data/models/activity_entry.dart';
 import 'package:baby_app/data/models/baby.dart';
@@ -11,6 +12,9 @@ import 'package:baby_app/data/models/pumping_event.dart';
 import 'package:baby_app/data/repositories/repository_providers.dart';
 import 'package:baby_app/features/activity/activity_filter.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:baby_app/core/theme/theme_mode_provider.dart';
 
 void main() {
   final base = DateTime(2026, 7, 30, 8);
@@ -129,13 +133,40 @@ void main() {
   });
 
   group('ActivityFilterBar', () {
+    /// Pumping on and medicine shown unless said otherwise, so every chip
+    /// is offered.
+    Future<List<Override>> settings({
+      bool pumping = true,
+      bool medicine = true,
+      List<MedicationEvent> doses = const [],
+    }) async {
+      SharedPreferences.setMockInitialValues({
+        'show_pumping_action': pumping,
+        'show_medication': medicine,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      return [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        recentMedsProvider.overrideWith((ref) => Stream.value(doses)),
+      ];
+    }
+
     Future<ProviderContainer> pumpBar(
       WidgetTester tester, {
       List<ChecklistItem> checklist = const [],
+      bool pumping = true,
+      bool medicine = true,
+      List<MedicationEvent> doses = const [],
     }) async {
+      final overrides = await settings(
+        pumping: pumping,
+        medicine: medicine,
+        doses: doses,
+      );
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ...overrides,
             currentBabyProvider.overrideWithValue(
               Baby(
                 id: 'b',
@@ -199,13 +230,60 @@ void main() {
       expect(container.read(activityFilterProvider), ActivityFilter.all);
     });
 
+    testWidgets('no Pumping chip with pumping turned off (#45)', (
+      tester,
+    ) async {
+      await pumpBar(tester, pumping: false);
+      expect(find.text('Pumping'), findsNothing);
+      expect(find.text('Medicine'), findsOneWidget);
+    });
+
+    testWidgets('no Medicine chip for a household not giving any', (
+      tester,
+    ) async {
+      await pumpBar(tester, medicine: false);
+      expect(find.text('Medicine'), findsNothing);
+    });
+
+    testWidgets('a dose this week brings Medicine back, as on Home', (
+      tester,
+    ) async {
+      await pumpBar(
+        tester,
+        medicine: false,
+        doses: [
+          MedicationEvent(
+            id: 'm1',
+            name: 'Vitamin D',
+            time: DateTime.now().subtract(const Duration(hours: 2)),
+          ),
+        ],
+      );
+      await tester.pump();
+      expect(find.text('Medicine'), findsOneWidget);
+    });
+
+    testWidgets('a hidden chip still shows while it is the one in use', (
+      tester,
+    ) async {
+      final container = await pumpBar(tester, pumping: false);
+      expect(find.text('Pumping'), findsNothing);
+      container
+          .read(activityFilterProvider.notifier)
+          .select(ActivityFilter.pumps);
+      await tester.pump();
+      expect(find.text('Pumping'), findsOneWidget);
+    });
+
     testWidgets('the choice is shared across surfaces', (tester) async {
       // Home and the Timeline are the same data at two sizes — Home links to
       // the timeline as "see all" — so a filter picked on one applies to the
       // other rather than each keeping its own.
+      final overrides = await settings();
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
+        ProviderScope(
+          overrides: overrides,
+          child: const MaterialApp(
             home: Scaffold(
               body: Column(
                 children: [

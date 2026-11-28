@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/activity_entry.dart';
 import '../../data/repositories/repository_providers.dart';
+import '../home/home_prefs.dart';
+import '../medication/medicine_sheet.dart';
 
 /// Which kinds of activity the merged lists are showing.
 ///
@@ -78,6 +80,14 @@ class ActivityFilterBar extends ConsumerWidget {
     // else it would be a filter that always comes up empty.
     final hasChecklist =
         ref.watch(currentBabyProvider)?.checklist.isNotEmpty ?? false;
+    // Pumping and Medicine follow the same rule as Home's rows and buttons
+    // (#45): a household that has turned pumping off, or is not giving
+    // medicine, is not offered a filter for it.
+    final offered = <ActivityFilter, bool>{
+      ActivityFilter.checklist: hasChecklist,
+      ActivityFilter.pumps: ref.watch(showPumpingActionProvider),
+      ActivityFilter.meds: watchMedicineButtonShown(ref, DateTime.now()),
+    };
 
     // Grows with the reader's text size. It was a flat 44, which clipped the
     // chips once the labels scaled up — and it is now also the height a
@@ -90,9 +100,8 @@ class ActivityFilterBar extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           for (final filter in ActivityFilter.values)
-            if (filter != ActivityFilter.checklist ||
-                hasChecklist ||
-                selected == filter)
+            // The chip in use always stays, so there is a way back out.
+            if ((offered[filter] ?? true) || selected == filter)
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: FilterChip(

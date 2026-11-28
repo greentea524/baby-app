@@ -222,6 +222,15 @@ class _DayAppBar extends ConsumerWidget implements PreferredSizeWidget {
       // button, where the two would be one glance apart and mean different
       // things.
       actions: [
+        // Back to today in one tap (#45), for a day reached from Insights or
+        // the date picker; the chevrons would take a tap per day.
+        if (!_isToday)
+          TextButton(
+            key: const ValueKey('timeline-today'),
+            onPressed: () =>
+                ref.read(selectedDayProvider.notifier).setDay(DateTime.now()),
+            child: const Text('Today'),
+          ),
         IconButton(
           icon: const Icon(Icons.chevron_left),
           onPressed: () => _shift(ref, -1),
